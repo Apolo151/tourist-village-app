@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tourist-village-frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    # Uncomment and modify if you need environment variables
+    # environment:
+    #   - NODE_ENV=production
+    #   - API_URL=http://api.example.com
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge 
