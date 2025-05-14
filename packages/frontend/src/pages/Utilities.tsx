@@ -1,63 +1,317 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
   Paper,
-  Button,
   TextField,
-  InputAdornment,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
+  Button,
+  Container,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
+  FormHelperText,
+  Chip,
+  Alert,
+  Divider,
+  Snackbar,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
-import { mockUtilityReadings, mockApartments, mockBookings } from '../mockData';
-import type { UtilityType, ReadingType } from '../types';
+import {
+  Add as AddIcon,
+  Search as SearchIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  FilterList as FilterListIcon,
+  WaterDrop as WaterIcon,
+  ElectricBolt as ElectricityIcon,
+  LocalFireDepartment as GasIcon
+} from '@mui/icons-material';
+import { mockUtilityReadings, mockApartments, mockBookings, mockSettings } from '../mockData';
+import { useAuth } from '../context/AuthContext';
+import type { UtilityReading, UtilityType, ReadingType } from '../types';
 
-// Helper function to format utility types
-const formatUtilityType = (type: UtilityType): string => {
-  return type.charAt(0).toUpperCase() + type.slice(1);
-};
+// Utility Form component for adding new readings
+function UtilityReadingForm({ 
+  onSave, 
+  onCancel 
+}: { 
+  onSave: (reading: Partial<UtilityReading>, addEndReading: boolean) => void;
+  onCancel: () => void;
+}) {
+  const { currentUser } = useAuth();
+  const [apartmentId, setApartmentId] = useState('');
+  const [bookingId, setBookingId] = useState('');
+  const [type, setType] = useState<ReadingType>('start');
+  const [utilityType, setUtilityType] = useState<UtilityType>('electricity');
+  const [value, setValue] = useState(0);
+  const [date, setDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [addEndReading, setAddEndReading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Filter bookings based on selected apartment
+  const filteredBookings = mockBookings.filter(booking => 
+    !apartmentId || booking.apartmentId === apartmentId
+  );
+  
+  // Get selected booking details
+  const selectedBooking = bookingId ? 
+    mockBookings.find(booking => booking.id === bookingId) : 
+    undefined;
+  
+  // Update date when booking is selected
+  useEffect(() => {
+    if (selectedBooking) {
+      if (type === 'start') {
+        setDate(selectedBooking.arrivalDate);
+      } else {
+        setDate(selectedBooking.leavingDate);
+      }
+    }
+  }, [bookingId, selectedBooking, type]);
+  
+  // Reset booking when apartment changes
+  useEffect(() => {
+    setBookingId('');
+  }, [apartmentId]);
+  
+  const handleApartmentChange = (event: SelectChangeEvent) => {
+    setApartmentId(event.target.value);
+  };
+  
+  const handleBookingChange = (event: SelectChangeEvent) => {
+    setBookingId(event.target.value);
+  };
+  
+  const handleTypeChange = (event: SelectChangeEvent) => {
+    setType(event.target.value as ReadingType);
+  };
+  
+  const handleUtilityTypeChange = (event: SelectChangeEvent) => {
+    setUtilityType(event.target.value as UtilityType);
+  };
+  
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!apartmentId) newErrors.apartmentId = 'Apartment is required';
+    if (!bookingId) newErrors.bookingId = 'Booking is required';
+    if (!utilityType) newErrors.utilityType = 'Utility type is required';
+    if (value <= 0) newErrors.value = 'Reading value must be greater than 0';
+    if (!date) newErrors.date = 'Date is required';
+    
+    // Check if reading date is within booking dates
+    if (date && selectedBooking) {
+      const readingDate = new Date(date);
+      const arrivalDate = new Date(selectedBooking.arrivalDate);
+      const leavingDate = new Date(selectedBooking.leavingDate);
+      
+      if (readingDate < arrivalDate || readingDate > leavingDate) {
+        newErrors.date = 'Reading date must be within the booking dates';
+      }
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  const handleSubmit = () => {
+    if (validate()) {
+      const reading: Partial<UtilityReading> = {
+        apartmentId,
+        bookingId,
+        type,
+        utilityType,
+        value,
+        date,
+        notes: notes || undefined,
+        createdById: currentUser?.id || ''
+      };
+      
+      onSave(reading, addEndReading);
+    }
+  };
+  
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" gutterBottom>Add New Utility Reading</Typography>
+      <Divider sx={{ mb: 3 }} />
+      
+      <Box sx={{ 
+        display: 'grid',
+        gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+        gap: 3
+      }}>
+        <FormControl fullWidth error={!!errors.apartmentId}>
+          <InputLabel>Apartment</InputLabel>
+          <Select
+            value={apartmentId}
+            label="Apartment"
+            onChange={handleApartmentChange}
+          >
+            {mockApartments.map(apt => (
+              <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
+            ))}
+          </Select>
+          {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
+        </FormControl>
+        
+        <FormControl fullWidth error={!!errors.bookingId} disabled={!apartmentId}>
+          <InputLabel>Booking</InputLabel>
+          <Select
+            value={bookingId}
+            label="Booking"
+            onChange={handleBookingChange}
+          >
+            {filteredBookings.map(booking => {
+              const apt = mockApartments.find(a => a.id === booking.apartmentId);
+              return (
+                <MenuItem key={booking.id} value={booking.id}>
+                  {apt?.name || 'Unknown'} - {new Date(booking.arrivalDate).toLocaleDateString()} to {new Date(booking.leavingDate).toLocaleDateString()}
+                </MenuItem>
+              );
+            })}
+          </Select>
+          {errors.bookingId && <FormHelperText>{errors.bookingId}</FormHelperText>}
+        </FormControl>
+        
+        <FormControl fullWidth>
+          <InputLabel>Reading Type</InputLabel>
+          <Select
+            value={type}
+            label="Reading Type"
+            onChange={handleTypeChange}
+          >
+            <MenuItem value="start">Start Reading</MenuItem>
+            <MenuItem value="end">End Reading</MenuItem>
+          </Select>
+        </FormControl>
+        
+        <FormControl fullWidth error={!!errors.utilityType}>
+          <InputLabel>Utility Type</InputLabel>
+          <Select
+            value={utilityType}
+            label="Utility Type"
+            onChange={handleUtilityTypeChange}
+          >
+            <MenuItem value="electricity">Electricity</MenuItem>
+            <MenuItem value="water">Water</MenuItem>
+            <MenuItem value="gas">Gas</MenuItem>
+          </Select>
+          {errors.utilityType && <FormHelperText>{errors.utilityType}</FormHelperText>}
+        </FormControl>
+        
+        <TextField
+          fullWidth
+          label="Reading Value"
+          type="number"
+          value={value}
+          onChange={(e) => setValue(Number(e.target.value))}
+          error={!!errors.value}
+          helperText={errors.value}
+        />
+        
+        <TextField
+          fullWidth
+          label="Reading Date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          error={!!errors.date}
+          helperText={errors.date || "Date should be within booking dates"}
+        />
+        
+        <TextField
+          fullWidth
+          label="Notes"
+          multiline
+          rows={4}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}
+        />
+      </Box>
+      
+      {type === 'start' && (
+        <Box sx={{ mt: 3 }}>
+          <FormControlLabel 
+            control={
+              <Switch 
+                checked={addEndReading} 
+                onChange={(e) => setAddEndReading(e.target.checked)} 
+              />
+            } 
+            label="Also add end reading now" 
+          />
+          <Typography variant="caption" color="text.secondary" display="block">
+            This will automatically create an end reading and calculate utility bill
+          </Typography>
+        </Box>
+      )}
+      
+      <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
+        <Button onClick={onCancel}>Cancel</Button>
+        <Button 
+          variant="contained" 
+          onClick={handleSubmit}
+        >
+          Save Reading
+        </Button>
+      </Box>
+    </Box>
+  );
+}
 
-// Helper function to format reading types
-const formatReadingType = (type: ReadingType): string => {
-  return type === 'start' ? 'Start' : 'End';
-};
-
+// Main Utilities component
 export default function Utilities() {
   const [searchTerm, setSearchTerm] = useState('');
   const [apartmentFilter, setApartmentFilter] = useState('');
   const [bookingFilter, setBookingFilter] = useState('');
-  const [utilityTypeFilter, setUtilityTypeFilter] = useState<UtilityType | ''>('');
-  const [readingTypeFilter, setReadingTypeFilter] = useState<ReadingType | ''>('');
-  const navigate = useNavigate();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertSeverity, setAlertSeverity] = useState<'success' | 'error' | 'info' | 'warning'>('success');
   
-  // Filter utility readings based on search and filters
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  
+  // Filter utility readings
   const filteredReadings = mockUtilityReadings.filter(reading => {
-    const apartment = mockApartments.find(apt => apt.id === reading.apartmentId);
-    
-    const matchesSearch = 
-      apartment?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = searchTerm ? 
+      reading.notes?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       reading.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      reading.utilityType.toLowerCase().includes(searchTerm.toLowerCase());
+      reading.utilityType.toLowerCase().includes(searchTerm.toLowerCase()) : 
+      true;
     
     const matchesApartment = apartmentFilter ? reading.apartmentId === apartmentFilter : true;
     const matchesBooking = bookingFilter ? reading.bookingId === bookingFilter : true;
-    const matchesUtilityType = utilityTypeFilter ? reading.utilityType === utilityTypeFilter : true;
-    const matchesReadingType = readingTypeFilter ? reading.type === readingTypeFilter : true;
     
-    return matchesSearch && matchesApartment && matchesBooking && matchesUtilityType && matchesReadingType;
+    return matchesSearch && matchesApartment && matchesBooking;
   });
+  
+  // Filtered bookings based on selected apartment
+  const filteredBookings = mockBookings.filter(booking => 
+    !apartmentFilter || booking.apartmentId === apartmentFilter
+  );
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -65,227 +319,286 @@ export default function Utilities() {
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
     setApartmentFilter(event.target.value);
+    setBookingFilter(''); // Reset booking filter when apartment changes
   };
   
   const handleBookingFilterChange = (event: SelectChangeEvent) => {
     setBookingFilter(event.target.value);
   };
   
-  const handleUtilityTypeFilterChange = (event: SelectChangeEvent) => {
-    setUtilityTypeFilter(event.target.value as UtilityType | '');
-  };
-  
-  const handleReadingTypeFilterChange = (event: SelectChangeEvent) => {
-    setReadingTypeFilter(event.target.value as ReadingType | '');
-  };
-  
-  const handleReadingClick = (id: string) => {
-    navigate(`/utilities/${id}`);
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
   };
   
   const handleAddReading = () => {
-    navigate('/utilities/new');
+    setShowAddDialog(true);
   };
-
-  // Function to calculate utility costs
-  const calculateUtilityCost = (utilityType: UtilityType, value: number): string => {
-    let rate = 0;
+  
+  const handleCloseDialog = () => {
+    setShowAddDialog(false);
+  };
+  
+  const handleSaveReading = (reading: Partial<UtilityReading>, addEndReading: boolean) => {
+    console.log('Saving reading:', reading);
     
-    switch (utilityType) {
-      case 'electricity':
-        rate = 1.5; // Example rate per unit for electricity
-        break;
-      case 'water':
-        rate = 0.75; // Example rate per unit for water
-        break;
-      case 'gas':
-        rate = 1.2; // Example rate per unit for gas
-        break;
+    // Calculate bill if it's an end reading or if addEndReading is true
+    // In a real app, this would be handled by the backend
+    if (reading.type === 'end' || addEndReading) {
+      // Find the start reading
+      const startReading = mockUtilityReadings.find(r => 
+        r.bookingId === reading.bookingId && 
+        r.utilityType === reading.utilityType && 
+        r.type === 'start'
+      );
+      
+      if (startReading) {
+        const consumption = reading.value! - startReading.value;
+        let cost = 0;
+        
+        // Calculate cost based on utility type
+        switch (reading.utilityType) {
+          case 'electricity':
+            cost = consumption * mockSettings.electricityPrice;
+            break;
+          case 'water':
+            cost = consumption * mockSettings.waterPrice;
+            break;
+          case 'gas':
+            cost = consumption * mockSettings.gasPrice;
+            break;
+        }
+        
+        console.log(`Calculated bill: ${cost} EGP (${consumption} units of ${reading.utilityType})`);
+        
+        setAlertSeverity('success');
+        setAlertMessage(`Utility bill calculated: ${cost.toFixed(2)} EGP`);
+      } else if (reading.type === 'end') {
+        setAlertSeverity('warning');
+        setAlertMessage('No start reading found for this booking and utility type. Bill not calculated.');
+      }
+    } else {
+      setAlertSeverity('success');
+      setAlertMessage('Reading saved successfully');
     }
     
-    const cost = rate * value;
-    return `${cost.toLocaleString()} EGP`;
+    setShowAlert(true);
+    setShowAddDialog(false);
   };
-
+  
+  // Utility icon based on type
+  const getUtilityIcon = (type: UtilityType) => {
+    switch (type) {
+      case 'electricity':
+        return <ElectricityIcon color="primary" />;
+      case 'water':
+        return <WaterIcon color="info" />;
+      case 'gas':
+        return <GasIcon color="error" />;
+      default:
+        return null;
+    }
+  };
+  
+  // Format reading type
+  const formatReadingType = (type: ReadingType) => {
+    return type === 'start' ? 'Start Reading' : 'End Reading';
+  };
+  
+  // Check if user is authorized to access this page
+  useEffect(() => {
+    if (currentUser?.role !== 'admin') {
+      navigate('/unauthorized');
+    }
+  }, [currentUser, navigate]);
+  
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Utilities Readings</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleAddReading}
-        >
-          Add Reading
-        </Button>
+    <Container maxWidth="lg">
+      <Box sx={{ py: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Utilities Readings</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddReading}
+          >
+            Add New Reading
+          </Button>
+        </Box>
+        
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              label="Search"
+              variant="outlined"
+              size="small"
+              sx={{ flexGrow: 1, minWidth: '200px' }}
+              value={searchTerm}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              placeholder="Search by ID, utility type, or notes"
+            />
+            
+            <Button
+              startIcon={<FilterListIcon />}
+              onClick={toggleFilters}
+              variant={showFilters ? "contained" : "outlined"}
+              size="small"
+            >
+              Filters
+            </Button>
+          </Box>
+          
+          {showFilters && (
+            <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <FormControl sx={{ minWidth: 200 }} size="small">
+                <InputLabel>Apartment</InputLabel>
+                <Select
+                  value={apartmentFilter}
+                  label="Apartment"
+                  onChange={handleApartmentFilterChange}
+                >
+                  <MenuItem value="">
+                    <em>All Apartments</em>
+                  </MenuItem>
+                  {mockApartments.map(apt => (
+                    <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              
+              <FormControl sx={{ minWidth: 200 }} size="small" disabled={!apartmentFilter}>
+                <InputLabel>Booking</InputLabel>
+                <Select
+                  value={bookingFilter}
+                  label="Booking"
+                  onChange={handleBookingFilterChange}
+                >
+                  <MenuItem value="">
+                    <em>All Bookings</em>
+                  </MenuItem>
+                  {filteredBookings.map(booking => (
+                    <MenuItem key={booking.id} value={booking.id}>
+                      {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          )}
+        </Paper>
+        
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Utility Type</TableCell>
+                <TableCell>Reading Type</TableCell>
+                <TableCell>Value</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Apartment</TableCell>
+                <TableCell>Booking Dates</TableCell>
+                <TableCell>Notes</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredReadings.length > 0 ? (
+                filteredReadings.map(reading => {
+                  const apartment = mockApartments.find(apt => apt.id === reading.apartmentId);
+                  const booking = mockBookings.find(booking => booking.id === reading.bookingId);
+                  
+                  return (
+                    <TableRow key={reading.id}>
+                      <TableCell>{reading.id}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {getUtilityIcon(reading.utilityType)}
+                          <Typography variant="body2" sx={{ textTransform: 'capitalize' }}>
+                            {reading.utilityType}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={formatReadingType(reading.type)} 
+                          color={reading.type === 'start' ? 'primary' : 'secondary'}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>{reading.value}</TableCell>
+                      <TableCell>{new Date(reading.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{apartment?.name || 'Unknown'}</TableCell>
+                      <TableCell>
+                        {booking ? (
+                          <>
+                            {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
+                          </>
+                        ) : 'No booking'}
+                      </TableCell>
+                      <TableCell>{reading.notes || '-'}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Tooltip title="Edit">
+                            <IconButton size="small">
+                              <EditIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton size="small">
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={9} align="center">
+                    <Typography variant="body1" py={3}>
+                      No utility readings found matching your criteria.
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
       
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            label="Search"
-            variant="outlined"
-            size="small"
-            sx={{ flexGrow: 1, minWidth: '200px' }}
-            value={searchTerm}
-            onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
+      {/* Add Reading Dialog */}
+      <Dialog open={showAddDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
+        <DialogContent>
+          <UtilityReadingForm
+            onSave={handleSaveReading}
+            onCancel={handleCloseDialog}
           />
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Apartment</InputLabel>
-            <Select
-              value={apartmentFilter}
-              label="Apartment"
-              onChange={handleApartmentFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Apartments</em>
-              </MenuItem>
-              {mockApartments.map(apt => (
-                <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Booking</InputLabel>
-            <Select
-              value={bookingFilter}
-              label="Booking"
-              onChange={handleBookingFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Bookings</em>
-              </MenuItem>
-              {mockBookings.map(booking => {
-                const apartment = mockApartments.find(apt => apt.id === booking.apartmentId);
-                return (
-                  <MenuItem key={booking.id} value={booking.id}>
-                    {apartment?.name || 'Unknown'} ({new Date(booking.arrivalDate).toLocaleDateString()})
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Utility Type</InputLabel>
-            <Select
-              value={utilityTypeFilter}
-              label="Utility Type"
-              onChange={handleUtilityTypeFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Types</em>
-              </MenuItem>
-              <MenuItem value="electricity">Electricity</MenuItem>
-              <MenuItem value="water">Water</MenuItem>
-              <MenuItem value="gas">Gas</MenuItem>
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Reading Type</InputLabel>
-            <Select
-              value={readingTypeFilter}
-              label="Reading Type"
-              onChange={handleReadingTypeFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Types</em>
-              </MenuItem>
-              <MenuItem value="start">Start</MenuItem>
-              <MenuItem value="end">End</MenuItem>
-            </Select>
-          </FormControl>
-        </Box>
-      </Paper>
+        </DialogContent>
+      </Dialog>
       
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Date</TableCell>
-              <TableCell>Apartment</TableCell>
-              <TableCell>Utility Type</TableCell>
-              <TableCell>Reading Type</TableCell>
-              <TableCell>Value</TableCell>
-              <TableCell>Estimated Cost</TableCell>
-              <TableCell>Booking</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredReadings.length > 0 ? (
-              filteredReadings.map(reading => {
-                const apartment = mockApartments.find(apt => apt.id === reading.apartmentId);
-                const booking = reading.bookingId ? 
-                  mockBookings.find(b => b.id === reading.bookingId) : null;
-                
-                return (
-                  <TableRow 
-                    key={reading.id} 
-                    hover 
-                    onClick={() => handleReadingClick(reading.id)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>{new Date(reading.date).toLocaleDateString()}</TableCell>
-                    <TableCell>{apartment?.name || 'Unknown'}</TableCell>
-                    <TableCell>
-                      <Chip
-                        label={formatUtilityType(reading.utilityType)}
-                        color={reading.utilityType === 'electricity' ? 'primary' : 
-                              reading.utilityType === 'water' ? 'info' : 'secondary'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={formatReadingType(reading.type)}
-                        color={reading.type === 'start' ? 'success' : 'warning'}
-                        variant="outlined"
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>{reading.value}</TableCell>
-                    <TableCell>{calculateUtilityCost(reading.utilityType, reading.value)}</TableCell>
-                    <TableCell>
-                      {booking ? 
-                        `${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}` 
-                        : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        size="small" 
-                        variant="outlined"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReadingClick(reading.id);
-                        }}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} align="center">
-                  No utility readings found matching your criteria.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+      {/* Alert Snackbar */}
+      <Snackbar
+        open={showAlert}
+        autoHideDuration={6000}
+        onClose={() => setShowAlert(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setShowAlert(false)} 
+          severity={alertSeverity} 
+          sx={{ width: '100%' }}
+        >
+          {alertMessage}
+        </Alert>
+      </Snackbar>
+    </Container>
   );
 } 

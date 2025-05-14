@@ -7,8 +7,10 @@ import Unauthorized from './pages/Unauthorized';
 import Apartments from './pages/Apartments';
 import ApartmentDetails from './pages/ApartmentDetails';
 import Services from './pages/Services';
+import ServiceTypeDetails from './pages/ServiceTypeDetails';
 import Bookings from './pages/Bookings';
 import Utilities from './pages/Utilities';
+import UtilityReadingDetails from './pages/UtilityReadingDetails';
 import Payments from './pages/Payments';
 import Emails from './pages/Emails';
 import Settings from './pages/Settings';
@@ -60,15 +62,19 @@ function App() {
                 
                 {/* Services */}
                 <Route path="/services" element={<Services />} />
-                <Route path="/services/:id" element={<Services />} />
-                <Route path="/services/new" element={<Services />} />
+                <Route path="/services/:id" element={<ServiceTypeDetails />} />
+                
+                {/* Admin-only service routes */}
+                <Route element={<ProtectedRoute requiredRole="admin" />}>
+                  <Route path="/services/new" element={<ServiceTypeDetails />} />
+                </Route>
                 
                 {/* Admin-only routes */}
                 <Route element={<ProtectedRoute requiredRole="admin" />}>
                   {/* Utilities */}
                   <Route path="/utilities" element={<Utilities />} />
-                  <Route path="/utilities/:id" element={<Utilities />} />
-                  <Route path="/utilities/new" element={<Utilities />} />
+                  <Route path="/utilities/:id" element={<UtilityReadingDetails />} />
+                  <Route path="/utilities/new" element={<UtilityReadingDetails />} />
                   
                   {/* Emails */}
                   <Route path="/emails" element={<Emails />} />
