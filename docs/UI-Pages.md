@@ -1,0 +1,87 @@
+## UI Pages
+
+- Home (Reports) Page: Shows general interactive analytics
+	- Content:
+		- General Financial Report
+			- Fields: City, Apartment, Payment Method, Balance, Running Total
+			- Ability to filter by: City, Payment Method
+		- "Export to PDF/Excel" Button
+- Apartments Page: List all Apartments, with the ability to filter by city
+	- Sub-Pages:
+		- Apartment Details Page: 
+			- Admin: can view and edit everything related to the apartment from here
+				- Content: Apartment Info, Owner Profile, Purchase Date, Bookings, Service Requests, Related Emails, Utilities Readings
+			- User: view details and book Apartment
+				- Content: Apartment Info, "Book Now" Button (redirect to booking page)
+- Emails Page (Admin only): List all Emails, with ability to filter by Apartment
+	- Content: 
+		- Emails List
+		- "Add a new email" button
+			- Fields: Date, From, To, Subject, Email Content, related Apartment
+			- Store the current signed user id (the user who created the Email)
+- Services Page: List Service Types
+	- Content:
+		- Service Types List
+		- "Add a new Service Type" Button (Admin Only)
+			- Fields: Service Name, Cost, Description
+		- "Request Service" for each Service Type (User only)
+			- Fields: Related Apartment, Request Date (date of request creation), Wanted Service Date (when will the service be done), Notes
+	- Sub-Pages:
+		- Service Type Details Page: Ability to view and edit Service Type details
+- Utilities Page (Admin Only): List all Utilities Readings, with ability to filter by specific Apartment or Booking
+	- Content: 
+		- Utilities Readings List
+		- "Add a new Reading" button
+			- Fields: The Reading, Type (start of booking, end of booking), Notes, Related Apartment, Related Booking
+				- The Reading's start and end date should be the the same as the Booking dates by default
+					- They can be changed to be within the booking dates (but not outside them)
+				- Option to add an end reading while creating the start reading
+			- Store the current signed user id (the user who created the Reading)
+			- Notes:
+				- After a booking has a start and end reading
+				- The system should automatically calculate the bill for this utility (Water, Electricity), and add it to the user account
+					- should be added by the end date to the user's bills (in EGP), with the related booking, and the name of the person in the booking
+					- Equation: (End Reading - Start Reading) * Utility Price (stored in the settings)
+- Bookings Page (Admin only): List all Bookings, with ability to filter by Apartment, Date, or State
+	- Content:
+		- Bookings List
+			- Clicking on a Booking, should open a Booking Details Page
+		- "Create a new Booking" Button
+			- Fields: Related Apartment, Related User, Arrival Date, Leaving Date, Booking State
+				- Booking State: Has not Arrived, In village, Left (defaults to has not arrived when first created)
+			- Notes:
+				- Should prevent booking when there is a conflict in dates with another booking (disallow selecting invalid dates)
+	- Sub-Pages:
+		- Booking Details Page: admin can view and edit Booking details
+			- can add a Utility reading (related to this booking)
+- Payments Page: List all Payments, with the ability to filter by Apartment, Booking, User (and User Type) 
+	- Contents:
+		- Payments List
+		- "add a new Payment" Button
+			- Fields: Cost, Currency, Description, Place of Payment, User Type (Owner or Renter), Related User, Related Apartment, Related Booking (can be null)
+			- Store the current signed user id (the user who created the Payment)
+- Users Accounts Page: List User Accounts, with ability to filter by user type
+	- Sub-Pages
+		- Owner Account Page:
+			- View all Service Requests made by the Owner and their total cost
+			- View all Payments made by the Owner
+			- Show the Difference between both
+			- Ability to filter by Apartment and Date
+			- Ability to export date to PDF/EXCEL
+		- Renter Account Page:
+			- View related Bookings
+			- View Payments and Service Requests (like the owner)
+- Settings Page (Admin Only):
+	- Content
+		- General Settings: TBD
+		- Manage Users Menu: Add/Edit/Delete Users
+			- Determine User Privileages -> check which project (villages) the user can see, can he view/add/edit (checklist)
+		- Payment Methods: Add/Edit/Delete
+		- Village Details
+			- Electricity and Gas Price for the village (can be edited)
+		- Reports Formatting: TBD
+
+**Notes**
+
+- Have Alerts for outlier events
+    - Examples: Missing Readings, Pending Requests, High Debt
