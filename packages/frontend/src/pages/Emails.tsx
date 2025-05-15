@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   Box,
@@ -23,11 +23,10 @@ import {
   Container,
   Divider,
   Card,
-  CardContent,
-  CardActions,
   Alert,
-  Grid,
-  CircularProgress
+  Grid as MuiGrid,
+  CircularProgress,
+  FormHelperText
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -38,10 +37,9 @@ import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Edit as EditIcon,
-  Cancel as CancelIcon,
-  Delete as DeleteIcon
+  Cancel as CancelIcon
 } from '@mui/icons-material';
-import { mockEmails, mockApartments, mockUsers } from '../mockData';
+import { mockEmails, mockApartments, mockUsers, mockBookings } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { Email } from '../types';
 
@@ -65,11 +63,18 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
       subject: '',
       content: '',
       apartmentId: apartmentIdFromUrl || '',
+      bookingId: '',
+      emailType: 'Inquiry',
       createdById: currentUser?.id || ''
     }
   );
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Get related bookings for the selected apartment
+  const relatedBookings = formData.apartmentId 
+    ? mockBookings.filter(booking => booking.apartmentId === formData.apartmentId)
+    : [];
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -88,6 +93,11 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // If apartment changes, reset the booking
+    if (name === 'apartmentId') {
+      setFormData(prev => ({ ...prev, bookingId: '' }));
+    }
     
     // Clear error for this field
     if (errors[name]) {
@@ -108,6 +118,7 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
     if (!formData.content) newErrors.content = 'Content is required';
     if (!formData.apartmentId) newErrors.apartmentId = 'Related apartment is required';
     if (!formData.date) newErrors.date = 'Date is required';
+    if (!formData.emailType) newErrors.emailType = 'Email type is required';
     
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -136,8 +147,8 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
         <Typography variant="h6" gutterBottom>Email Information</Typography>
         <Divider sx={{ mb: 3 }} />
         
-        <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+        <MuiGrid container spacing={3}>
+          <MuiGrid item xs={12} md={6}>
             <TextField
               required
               fullWidth
@@ -150,9 +161,27 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.date}
               InputLabelProps={{ shrink: true }}
             />
-          </Grid>
+          </MuiGrid>
           
-          <Grid item xs={12} md={6}>
+          <MuiGrid item xs={12} md={6}>
+            <FormControl fullWidth required error={!!errors.emailType}>
+              <InputLabel>Email Type</InputLabel>
+              <Select
+                name="emailType"
+                value={formData.emailType || ''}
+                label="Email Type"
+                onChange={handleSelectChange}
+              >
+                <MenuItem value="Complaint">Complaint</MenuItem>
+                <MenuItem value="Booking Request">Booking Request</MenuItem>
+                <MenuItem value="Service Request">Service Request</MenuItem>
+                <MenuItem value="Inquiry">Inquiry</MenuItem>
+              </Select>
+              {errors.emailType && <FormHelperText>{errors.emailType}</FormHelperText>}
+            </FormControl>
+          </MuiGrid>
+          
+          <MuiGrid item xs={12} md={6}>
             <FormControl fullWidth required error={!!errors.apartmentId}>
               <InputLabel>Related Apartment</InputLabel>
               <Select
@@ -167,9 +196,37 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               </Select>
               {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
             </FormControl>
-          </Grid>
+          </MuiGrid>
           
-          <Grid item xs={12} md={6}>
+          <MuiGrid item xs={12} md={6}>
+            <FormControl fullWidth disabled={!formData.apartmentId || relatedBookings.length === 0}>
+              <InputLabel>Related Booking (Optional)</InputLabel>
+              <Select
+                name="bookingId"
+                value={formData.bookingId || ''}
+                label="Related Booking (Optional)"
+                onChange={handleSelectChange}
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {relatedBookings.map(booking => (
+                  <MenuItem key={booking.id} value={booking.id}>
+                    {`${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}`}
+                  </MenuItem>
+                ))}
+              </Select>
+              <FormHelperText>
+                {!formData.apartmentId 
+                  ? 'Select an apartment first' 
+                  : relatedBookings.length === 0 
+                    ? 'No bookings found for this apartment' 
+                    : 'Optional: Select a related booking'}
+              </FormHelperText>
+            </FormControl>
+          </MuiGrid>
+          
+          <MuiGrid item xs={12} md={6}>
             <TextField
               required
               fullWidth
@@ -181,9 +238,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.from}
               disabled={isEdit} // Don't allow changing sender in edit mode
             />
-          </Grid>
+          </MuiGrid>
           
-          <Grid item xs={12} md={6}>
+          <MuiGrid item xs={12} md={6}>
             <TextField
               required
               fullWidth
@@ -194,9 +251,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               error={!!errors.to}
               helperText={errors.to}
             />
-          </Grid>
+          </MuiGrid>
           
-          <Grid item xs={12}>
+          <MuiGrid item xs={12}>
             <TextField
               required
               fullWidth
@@ -207,9 +264,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               error={!!errors.subject}
               helperText={errors.subject}
             />
-          </Grid>
+          </MuiGrid>
           
-          <Grid item xs={12}>
+          <MuiGrid item xs={12}>
             <TextField
               required
               fullWidth
@@ -223,8 +280,8 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.content}
               placeholder="Write your email content here..."
             />
-          </Grid>
-        </Grid>
+          </MuiGrid>
+        </MuiGrid>
       </Paper>
       
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
@@ -256,6 +313,7 @@ function EmailDetail({ email, onEdit, onBack }: {
   const fromUser = mockUsers.find(user => user.email === email.from);
   const toUser = mockUsers.find(user => user.email === email.to);
   const apartment = mockApartments.find(apt => apt.id === email.apartmentId);
+  const booking = email.bookingId ? mockBookings.find(b => b.id === email.bookingId) : null;
   const { currentUser } = useAuth();
   
   return (
@@ -287,13 +345,28 @@ function EmailDetail({ email, onEdit, onBack }: {
       
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ mb: 3 }}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6}>
+          <MuiGrid container spacing={2}>
+            <MuiGrid item xs={12} sm={6} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Date</Typography>
               <Typography variant="body1">{new Date(email.date).toLocaleDateString()}</Typography>
-            </Grid>
+            </MuiGrid>
             
-            <Grid item xs={12} sm={6}>
+            <MuiGrid item xs={12} sm={6} md={4}>
+              <Typography variant="subtitle2" color="text.secondary">Email Type</Typography>
+              <Typography variant="body1">
+                <Chip 
+                  label={email.emailType} 
+                  size="small"
+                  color={
+                    email.emailType === 'Complaint' ? 'error' :
+                    email.emailType === 'Booking Request' ? 'primary' :
+                    email.emailType === 'Service Request' ? 'warning' : 'info'
+                  }
+                />
+              </Typography>
+            </MuiGrid>
+            
+            <MuiGrid item xs={12} sm={6} md={4}>
               <Typography variant="subtitle2" color="text.secondary">Related Apartment</Typography>
               <Typography variant="body1">
                 <Chip 
@@ -303,9 +376,23 @@ function EmailDetail({ email, onEdit, onBack }: {
                   variant="outlined"
                 />
               </Typography>
-            </Grid>
+            </MuiGrid>
             
-            <Grid item xs={12} sm={6}>
+            {booking && (
+              <MuiGrid item xs={12} sm={6} md={4}>
+                <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
+                <Typography variant="body1">
+                  <Chip 
+                    label={`${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}`} 
+                    size="small"
+                    color="secondary"
+                    variant="outlined"
+                  />
+                </Typography>
+              </MuiGrid>
+            )}
+            
+            <MuiGrid item xs={12} sm={6} md={4}>
               <Typography variant="subtitle2" color="text.secondary">From</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
@@ -314,9 +401,9 @@ function EmailDetail({ email, onEdit, onBack }: {
                   <Typography variant="caption" color="text.secondary">{email.from}</Typography>
                 </Box>
               </Box>
-            </Grid>
+            </MuiGrid>
             
-            <Grid item xs={12} sm={6}>
+            <MuiGrid item xs={12} sm={6} md={4}>
               <Typography variant="subtitle2" color="text.secondary">To</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
@@ -325,8 +412,8 @@ function EmailDetail({ email, onEdit, onBack }: {
                   <Typography variant="caption" color="text.secondary">{email.to}</Typography>
                 </Box>
               </Box>
-            </Grid>
-          </Grid>
+            </MuiGrid>
+          </MuiGrid>
         </Box>
         
         <Divider sx={{ my: 3 }} />
@@ -346,11 +433,30 @@ function EmailDetail({ email, onEdit, onBack }: {
 export default function Emails() {
   const [searchTerm, setSearchTerm] = useState('');
   const [apartmentFilter, setApartmentFilter] = useState('');
+  const [emailTypeFilter, setEmailTypeFilter] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { currentUser } = useAuth();
+  
+  // Redirect non-admin users
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin') {
+      navigate('/unauthorized');
+    }
+  }, [currentUser, navigate]);
+  
+  // Show loading while checking permissions
+  if (!currentUser) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
   
   // Determine if we're in create mode
   const isCreating = location.pathname === '/emails/new';
@@ -367,8 +473,9 @@ export default function Emails() {
       email.content.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesApartment = apartmentFilter ? email.apartmentId === apartmentFilter : true;
+    const matchesEmailType = emailTypeFilter ? email.emailType === emailTypeFilter : true;
     
-    return matchesSearch && matchesApartment;
+    return matchesSearch && matchesApartment && matchesEmailType;
   });
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -377,6 +484,10 @@ export default function Emails() {
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
     setApartmentFilter(event.target.value);
+  };
+  
+  const handleEmailTypeFilterChange = (event: SelectChangeEvent) => {
+    setEmailTypeFilter(event.target.value);
   };
   
   const handleEmailClick = (emailId: string) => {
@@ -494,7 +605,7 @@ export default function Emails() {
             startIcon={<AddIcon />}
             onClick={handleAddEmail}
           >
-            Add Email
+            Add a new Email
           </Button>
         </Box>
         
@@ -532,6 +643,23 @@ export default function Emails() {
                 ))}
               </Select>
             </FormControl>
+            
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>Email Type</InputLabel>
+              <Select
+                value={emailTypeFilter}
+                label="Email Type"
+                onChange={handleEmailTypeFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All Types</em>
+                </MenuItem>
+                <MenuItem value="Complaint">Complaint</MenuItem>
+                <MenuItem value="Booking Request">Booking Request</MenuItem>
+                <MenuItem value="Service Request">Service Request</MenuItem>
+                <MenuItem value="Inquiry">Inquiry</MenuItem>
+              </Select>
+            </FormControl>
           </Box>
         </Paper>
         
@@ -539,11 +667,12 @@ export default function Emails() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell width="15%">Date</TableCell>
-                <TableCell width="20%">From</TableCell>
-                <TableCell width="20%">To</TableCell>
-                <TableCell width="25%">Subject</TableCell>
-                <TableCell width="10%">Apartment</TableCell>
+                <TableCell width="10%">Date</TableCell>
+                <TableCell width="18%">From</TableCell>
+                <TableCell width="18%">To</TableCell>
+                <TableCell width="18%">Subject</TableCell>
+                <TableCell width="12%">Type</TableCell>
+                <TableCell width="14%">Apartment</TableCell>
                 <TableCell width="10%">Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -567,15 +696,30 @@ export default function Emails() {
                           <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
                           <Box>
                             <Typography variant="body2">{fromName}</Typography>
-                            <Typography variant="caption" color="text.secondary">{email.from}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {truncateText(email.from, 20)}
+                            </Typography>
                           </Box>
                         </Box>
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2">{toName}</Typography>
-                        <Typography variant="caption" color="text.secondary">{email.to}</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {truncateText(email.to, 20)}
+                        </Typography>
                       </TableCell>
-                      <TableCell>{truncateText(email.subject, 50)}</TableCell>
+                      <TableCell>{truncateText(email.subject, 30)}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={email.emailType} 
+                          size="small"
+                          color={
+                            email.emailType === 'Complaint' ? 'error' :
+                            email.emailType === 'Booking Request' ? 'primary' :
+                            email.emailType === 'Service Request' ? 'warning' : 'info'
+                          }
+                        />
+                      </TableCell>
                       <TableCell>
                         <Chip 
                           label={apartment?.name || 'Unknown'} 
@@ -601,7 +745,7 @@ export default function Emails() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={7} align="center">
                     No emails found matching your criteria.
                   </TableCell>
                 </TableRow>

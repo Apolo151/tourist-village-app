@@ -13,8 +13,6 @@ import {
   Select,
   MenuItem,
   Chip,
-  Divider,
-  InputAdornment,
   FormHelperText
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
@@ -25,11 +23,12 @@ import {
   Cancel as CancelIcon,
   WaterDrop as WaterIcon,
   ElectricBolt as ElectricityIcon,
-  LocalFireDepartment as GasIcon
+  LocalFireDepartment as GasIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { mockUtilityReadings, mockApartments, mockBookings, mockSettings } from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { UtilityReading, UtilityType, ReadingType } from '../types';
+import type { UtilityReading, UtilityType, ReadingType, Payment } from '../types';
 
 export default function UtilityReadingDetails() {
   const { id } = useParams<{ id: string }>();
@@ -39,6 +38,7 @@ export default function UtilityReadingDetails() {
   const isNew = location.pathname === '/utilities/new';
   const [isEditing, setIsEditing] = useState(isNew);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   // Find reading from mock data
   const initialReading = id 
@@ -82,6 +82,52 @@ export default function UtilityReadingDetails() {
         return null;
     }
   };
+  
+  // Calculate bill if it's an end reading
+  const calculateBill = () => {
+    if (type === 'end' && bookingId) {
+      // Find the start reading for this booking and utility
+      const startReading = mockUtilityReadings.find(r => 
+        r.bookingId === bookingId && 
+        r.utilityType === utilityType && 
+        r.type === 'start'
+      );
+      
+      if (startReading && value > startReading.value) {
+        const consumption = value - startReading.value;
+        let cost = 0;
+        
+        // Calculate cost based on utility type
+        switch (utilityType) {
+          case 'electricity':
+            cost = consumption * mockSettings.electricityPrice;
+            break;
+          case 'water':
+            cost = consumption * mockSettings.waterPrice;
+            break;
+          case 'gas':
+            cost = consumption * mockSettings.gasPrice;
+            break;
+        }
+        
+        return {
+          consumption,
+          cost: cost.toFixed(2),
+          hasStartReading: true
+        };
+      }
+      
+      return {
+        consumption: 0,
+        cost: '0.00',
+        hasStartReading: !!startReading
+      };
+    }
+    
+    return null;
+  };
+  
+  const billDetails = calculateBill();
   
   useEffect(() => {
     // Redirect if not admin
@@ -150,6 +196,8 @@ export default function UtilityReadingDetails() {
   
   const handleEdit = () => {
     setIsEditing(true);
+    setSuccessMessage('');
+    setError('');
   };
   
   const handleCancel = () => {
@@ -167,6 +215,7 @@ export default function UtilityReadingDetails() {
         setDate(reading.date);
         setNotes(reading.notes || '');
       }
+      setError('');
     }
   };
   
@@ -202,6 +251,22 @@ export default function UtilityReadingDetails() {
       
       if (readingDate < arrivalDate || readingDate > leavingDate) {
         errors.push('Reading date must be within the booking dates');
+        isValid = false;
+      }
+    }
+    
+    // For end readings, check if there's a start reading
+    if (type === 'end') {
+      const startReading = mockUtilityReadings.find(r => 
+        r.bookingId === bookingId && 
+        r.utilityType === utilityType && 
+        r.type === 'start'
+      );
+      
+      if (!startReading && !isNew) {
+        errors.push('No start reading found for this booking and utility type');
+      } else if (startReading && value <= startReading.value) {
+        errors.push('End reading value must be greater than start reading value');
         isValid = false;
       }
     }
@@ -243,13 +308,31 @@ export default function UtilityReadingDetails() {
               break;
           }
           
-          console.log(`Calculated bill: ${cost} EGP (${consumption} units of ${utilityType})`);
+          // Create a new payment for the utility bill
+          const booking = mockBookings.find(b => b.id === bookingId);
+          if (booking) {
+            const newPayment: Partial<Payment> = {
+              cost,
+              currency: 'EGP',
+              description: `${utilityType.charAt(0).toUpperCase() + utilityType.slice(1)} bill (${consumption} units)`,
+              placeOfPayment: 'System Generated',
+              userType: 'renter',
+              userId: booking.userId,
+              apartmentId: apartmentId,
+              bookingId: bookingId,
+              createdById: currentUser?.id || '',
+              createdAt: new Date().toISOString()
+            };
+            
+            console.log('Creating payment:', newPayment);
+            setSuccessMessage(`Utility bill calculated and added: ${cost.toFixed(2)} EGP`);
+          }
         }
       }
       
       // In a real app, this would send data to an API
-      console.log('Saving reading:', {
-        id: reading?.id,
+      const updatedReading: UtilityReading = {
+        id: reading?.id || `reading${Date.now()}`,
         apartmentId,
         bookingId,
         type,
@@ -257,19 +340,33 @@ export default function UtilityReadingDetails() {
         value,
         date,
         notes: notes || undefined,
-        createdById: currentUser?.id || reading?.createdById
-      });
+        createdById: currentUser?.id || ''
+      };
       
-      if (isNew) {
-        // Redirect to utilities page after creating
-        navigate('/utilities');
-      } else {
-        // Exit edit mode
-        setIsEditing(false);
-        setError('');
+      console.log('Saving reading:', updatedReading);
+      
+      // Update local state
+      setReading(updatedReading);
+      setIsEditing(false);
+      
+      if (!successMessage) {
+        setSuccessMessage('Reading saved successfully');
       }
     }
   };
+  
+  // Get min and max dates for the reading based on booking
+  const getDateConstraints = () => {
+    if (selectedBooking) {
+      return {
+        min: selectedBooking.arrivalDate,
+        max: selectedBooking.leavingDate
+      };
+    }
+    return { min: '', max: '' };
+  };
+  
+  const dateConstraints = getDateConstraints();
   
   if (error && !reading && !isNew) {
     return (
@@ -300,7 +397,7 @@ export default function UtilityReadingDetails() {
               Back
             </Button>
             <Typography variant="h5">
-              {isNew ? 'Add New Utility Reading' : `Utility Reading Details: ${reading?.id}`}
+              {isNew ? 'Add New Utility Reading' : 'Utility Reading Details'}
             </Typography>
           </Box>
           
@@ -316,38 +413,22 @@ export default function UtilityReadingDetails() {
         </Box>
         
         {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
+        {successMessage && !isEditing && (
+          <Alert severity="success" sx={{ mb: 3 }}>{successMessage}</Alert>
+        )}
         
         <Paper sx={{ p: 3 }}>
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: 3
-          }}>
-            {!isEditing && reading && (
-              <>
-                <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    {getUtilityIcon(reading.utilityType)}
-                    <Typography variant="h6" sx={{ ml: 1, textTransform: 'capitalize' }}>
-                      {reading.utilityType} {reading.type === 'start' ? 'Start' : 'End'} Reading
-                    </Typography>
-                    <Chip 
-                      label={reading.type === 'start' ? 'Start Reading' : 'End Reading'} 
-                      color={reading.type === 'start' ? 'primary' : 'secondary'}
-                      size="small"
-                      sx={{ ml: 2 }}
-                    />
-                  </Box>
-                  <Divider sx={{ mb: 2 }} />
-                </Box>
-                
-                <Box>
+          {!isEditing && reading ? (
+            // View mode
+            <Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
                   <Typography variant="body1">{apartment?.name || 'Unknown'}</Typography>
                 </Box>
                 
-                <Box>
-                  <Typography variant="subtitle2" color="text.secondary">Booking Period</Typography>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" color="text.secondary">Booking</Typography>
                   <Typography variant="body1">
                     {selectedBooking ? (
                       <>
@@ -356,137 +437,212 @@ export default function UtilityReadingDetails() {
                     ) : 'No booking'}
                   </Typography>
                 </Box>
+              </Box>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" color="text.secondary">Reading Type</Typography>
+                  <Chip 
+                    label={type === 'start' ? 'Start Reading' : 'End Reading'} 
+                    color={type === 'start' ? 'primary' : 'secondary'}
+                    size="small"
+                  />
+                </Box>
                 
-                <Box>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+                  <Typography variant="subtitle2" color="text.secondary">Utility Type</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {getUtilityIcon(utilityType)}
+                    <Typography variant="body1" sx={{ textTransform: 'capitalize' }}>
+                      {utilityType}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+              
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" color="text.secondary">Reading Value</Typography>
-                  <Typography variant="body1">{reading.value}</Typography>
+                  <Typography variant="body1">{value}</Typography>
                 </Box>
                 
-                <Box>
+                <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
                   <Typography variant="subtitle2" color="text.secondary">Reading Date</Typography>
-                  <Typography variant="body1">{new Date(reading.date).toLocaleDateString()}</Typography>
+                  <Typography variant="body1">{new Date(date).toLocaleDateString()}</Typography>
                 </Box>
-                
-                <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
+              </Box>
+              
+              {notes && (
+                <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
-                  <Typography variant="body1">{reading.notes || 'No notes'}</Typography>
+                  <Typography variant="body1">{notes}</Typography>
                 </Box>
-              </>
-            )}
-            
-            {isEditing && (
-              <>
-                <FormControl fullWidth error={error.includes('Apartment')}>
-                  <InputLabel>Apartment</InputLabel>
-                  <Select
-                    value={apartmentId}
-                    label="Apartment"
-                    onChange={(e) => handleSelectChange(e, 'apartmentId')}
-                    disabled={!isNew && !!reading}
-                  >
-                    {mockApartments.map(apt => (
-                      <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <FormControl fullWidth error={error.includes('Booking')} disabled={!apartmentId}>
-                  <InputLabel>Booking</InputLabel>
-                  <Select
-                    value={bookingId}
-                    label="Booking"
-                    onChange={(e) => handleSelectChange(e, 'bookingId')}
-                    disabled={!apartmentId || (!isNew && !!reading)}
-                  >
-                    {filteredBookings.map(booking => (
+              )}
+              
+              {billDetails && billDetails.hasStartReading && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1, display: 'flex', alignItems: 'center' }}>
+                  <ReceiptIcon color="primary" sx={{ mr: 1 }} />
+                  <Typography>
+                    <strong>Bill:</strong> {billDetails.cost} EGP ({billDetails.consumption} units of {utilityType})
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          ) : (
+            // Edit mode
+            <Box sx={{ 
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
+              gap: 3
+            }}>
+              <FormControl fullWidth error={error.includes('Apartment')}>
+                <InputLabel>Apartment</InputLabel>
+                <Select
+                  value={apartmentId}
+                  label="Apartment"
+                  onChange={(e) => handleSelectChange(e, 'apartmentId')}
+                  disabled={!isEditing}
+                >
+                  {mockApartments.map(apt => (
+                    <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
+                  ))}
+                </Select>
+                {error.includes('Apartment') && <FormHelperText>Apartment is required</FormHelperText>}
+              </FormControl>
+              
+              <FormControl fullWidth error={error.includes('Booking')} disabled={!apartmentId || !isEditing}>
+                <InputLabel>Booking</InputLabel>
+                <Select
+                  value={bookingId}
+                  label="Booking"
+                  onChange={(e) => handleSelectChange(e, 'bookingId')}
+                  disabled={!apartmentId || !isEditing}
+                >
+                  {filteredBookings.map(booking => {
+                    const apt = mockApartments.find(a => a.id === booking.apartmentId);
+                    return (
                       <MenuItem key={booking.id} value={booking.id}>
-                        {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
+                        {apt?.name || 'Unknown'} - {new Date(booking.arrivalDate).toLocaleDateString()} to {new Date(booking.leavingDate).toLocaleDateString()}
                       </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                
-                <FormControl fullWidth disabled={!isNew && !!reading}>
-                  <InputLabel>Reading Type</InputLabel>
-                  <Select
-                    value={type}
-                    label="Reading Type"
-                    onChange={(e) => handleSelectChange(e, 'type')}
+                    );
+                  })}
+                </Select>
+                {error.includes('Booking') && <FormHelperText>Booking is required</FormHelperText>}
+              </FormControl>
+              
+              <FormControl fullWidth disabled={!isEditing || !isNew}>
+                <InputLabel>Reading Type</InputLabel>
+                <Select
+                  value={type}
+                  label="Reading Type"
+                  onChange={(e) => handleSelectChange(e, 'type')}
+                  disabled={!isEditing || !isNew}
+                >
+                  <MenuItem value="start">Start Reading</MenuItem>
+                  <MenuItem value="end">End Reading</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <FormControl fullWidth disabled={!isEditing}>
+                <InputLabel>Utility Type</InputLabel>
+                <Select
+                  value={utilityType}
+                  label="Utility Type"
+                  onChange={(e) => handleSelectChange(e, 'utilityType')}
+                  disabled={!isEditing}
+                >
+                  <MenuItem value="electricity">Electricity</MenuItem>
+                  <MenuItem value="water">Water</MenuItem>
+                  <MenuItem value="gas">Gas</MenuItem>
+                </Select>
+              </FormControl>
+              
+              <TextField
+                fullWidth
+                label="Reading Value"
+                name="value"
+                type="number"
+                value={value}
+                onChange={handleInputChange}
+                disabled={!isEditing}
+                error={error.includes('value')}
+                helperText={error.includes('value') ? 'Valid reading value is required' : ''}
+              />
+              
+              <TextField
+                fullWidth
+                label="Reading Date"
+                name="date"
+                type="date"
+                value={date}
+                onChange={handleInputChange}
+                InputLabelProps={{ shrink: true }}
+                disabled={!isEditing}
+                error={error.includes('date')}
+                helperText={error.includes('date') ? 'Valid date within booking period is required' : ''}
+                inputProps={{
+                  min: dateConstraints.min,
+                  max: dateConstraints.max
+                }}
+              />
+              
+              <TextField
+                fullWidth
+                label="Notes"
+                name="notes"
+                multiline
+                rows={4}
+                value={notes}
+                onChange={handleInputChange}
+                disabled={!isEditing}
+                sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}
+              />
+              
+              {type === 'end' && isEditing && (
+                <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
+                  {billDetails ? (
+                    billDetails.hasStartReading ? (
+                      <Alert severity="info" icon={<ReceiptIcon />}>
+                        <Typography variant="body1">
+                          <strong>Estimated Bill:</strong> {billDetails.cost} EGP ({billDetails.consumption} units of {utilityType})
+                        </Typography>
+                        <Typography variant="caption">
+                          This bill will be automatically added when you save the reading.
+                        </Typography>
+                      </Alert>
+                    ) : (
+                      <Alert severity="warning">
+                        No start reading found for this booking and utility type. Bill cannot be calculated.
+                      </Alert>
+                    )
+                  ) : null}
+                </Box>
+              )}
+              
+              {isEditing && (
+                <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' }, display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<CancelIcon />}
+                    onClick={handleCancel}
                   >
-                    <MenuItem value="start">Start Reading</MenuItem>
-                    <MenuItem value="end">End Reading</MenuItem>
-                  </Select>
-                </FormControl>
-                
-                <FormControl fullWidth disabled={!isNew && !!reading}>
-                  <InputLabel>Utility Type</InputLabel>
-                  <Select
-                    value={utilityType}
-                    label="Utility Type"
-                    onChange={(e) => handleSelectChange(e, 'utilityType')}
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSave}
                   >
-                    <MenuItem value="electricity">Electricity</MenuItem>
-                    <MenuItem value="water">Water</MenuItem>
-                    <MenuItem value="gas">Gas</MenuItem>
-                  </Select>
-                </FormControl>
-                
-                <TextField
-                  fullWidth
-                  label="Reading Value"
-                  type="number"
-                  name="value"
-                  value={value}
-                  onChange={handleInputChange}
-                  error={error.includes('value')}
-                />
-                
-                <TextField
-                  fullWidth
-                  label="Reading Date"
-                  type="date"
-                  name="date"
-                  value={date}
-                  onChange={handleInputChange}
-                  InputLabelProps={{ shrink: true }}
-                  error={error.includes('date')}
-                  helperText="Date should be within booking dates"
-                />
-                
-                <TextField
-                  fullWidth
-                  label="Notes"
-                  name="notes"
-                  multiline
-                  rows={4}
-                  value={notes}
-                  onChange={handleInputChange}
-                  sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}
-                />
-              </>
-            )}
-          </Box>
-          
-          {isEditing && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-              <Button
-                variant="outlined"
-                startIcon={<CancelIcon />}
-                onClick={handleCancel}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSave}
-              >
-                Save
-              </Button>
+                    Save
+                  </Button>
+                </Box>
+              )}
             </Box>
           )}
         </Paper>
       </Box>
     </Container>
+  );
+} 
   );
 } 

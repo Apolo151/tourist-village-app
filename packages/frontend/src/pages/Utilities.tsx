@@ -20,9 +20,7 @@ import {
   IconButton,
   Tooltip,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   InputAdornment,
   FormHelperText,
   Chip,
@@ -30,7 +28,8 @@ import {
   Divider,
   Snackbar,
   Switch,
-  FormControlLabel
+  FormControlLabel,
+  Stack
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import {
@@ -41,11 +40,12 @@ import {
   FilterList as FilterListIcon,
   WaterDrop as WaterIcon,
   ElectricBolt as ElectricityIcon,
-  LocalFireDepartment as GasIcon
+  LocalFireDepartment as GasIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { mockUtilityReadings, mockApartments, mockBookings, mockSettings } from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { UtilityReading, UtilityType, ReadingType } from '../types';
+import type { UtilityReading, UtilityType, ReadingType, Payment } from '../types';
 
 // Utility Form component for adding new readings
 function UtilityReadingForm({ 
@@ -64,6 +64,7 @@ function UtilityReadingForm({
   const [date, setDate] = useState('');
   const [notes, setNotes] = useState('');
   const [addEndReading, setAddEndReading] = useState(false);
+  const [endValue, setEndValue] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Filter bookings based on selected apartment
@@ -91,6 +92,29 @@ function UtilityReadingForm({
   useEffect(() => {
     setBookingId('');
   }, [apartmentId]);
+  
+  // Calculate estimated bill when end reading is added
+  const calculateEstimatedBill = () => {
+    if (addEndReading && value > 0 && endValue > 0 && endValue > value) {
+      const consumption = endValue - value;
+      let cost = 0;
+      
+      switch (utilityType) {
+        case 'electricity':
+          cost = consumption * mockSettings.electricityPrice;
+          break;
+        case 'water':
+          cost = consumption * mockSettings.waterPrice;
+          break;
+        case 'gas':
+          cost = consumption * mockSettings.gasPrice;
+          break;
+      }
+      
+      return cost.toFixed(2);
+    }
+    return null;
+  };
   
   const handleApartmentChange = (event: SelectChangeEvent) => {
     setApartmentId(event.target.value);
@@ -128,6 +152,15 @@ function UtilityReadingForm({
       }
     }
     
+    // Validate end reading if adding both
+    if (addEndReading) {
+      if (endValue <= 0) {
+        newErrors.endValue = 'End reading value must be greater than 0';
+      } else if (endValue <= value) {
+        newErrors.endValue = 'End reading value must be greater than start reading';
+      }
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -145,9 +178,23 @@ function UtilityReadingForm({
         createdById: currentUser?.id || ''
       };
       
-      onSave(reading, addEndReading);
+      onSave(reading, addEndReading && endValue > 0);
     }
   };
+  
+  // Get min and max dates for the reading based on booking
+  const getDateConstraints = () => {
+    if (selectedBooking) {
+      return {
+        min: selectedBooking.arrivalDate,
+        max: selectedBooking.leavingDate
+      };
+    }
+    return { min: '', max: '' };
+  };
+  
+  const dateConstraints = getDateConstraints();
+  const estimatedBill = calculateEstimatedBill();
   
   return (
     <Box sx={{ p: 2 }}>
@@ -237,6 +284,10 @@ function UtilityReadingForm({
           InputLabelProps={{ shrink: true }}
           error={!!errors.date}
           helperText={errors.date || "Date should be within booking dates"}
+          inputProps={{
+            min: dateConstraints.min,
+            max: dateConstraints.max
+          }}
         />
         
         <TextField
@@ -264,6 +315,41 @@ function UtilityReadingForm({
           <Typography variant="caption" color="text.secondary" display="block">
             This will automatically create an end reading and calculate utility bill
           </Typography>
+          
+          {addEndReading && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom>End Reading Details</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  fullWidth
+                  label="End Reading Value"
+                  type="number"
+                  value={endValue}
+                  onChange={(e) => setEndValue(Number(e.target.value))}
+                  error={!!errors.endValue}
+                  helperText={errors.endValue}
+                />
+                <TextField
+                  fullWidth
+                  label="End Reading Date"
+                  type="date"
+                  value={selectedBooking?.leavingDate || ''}
+                  InputLabelProps={{ shrink: true }}
+                  disabled
+                  helperText="End reading date is set to booking end date"
+                />
+              </Stack>
+              
+              {estimatedBill && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1, display: 'flex', alignItems: 'center' }}>
+                  <ReceiptIcon color="primary" sx={{ mr: 1 }} />
+                  <Typography>
+                    <strong>Estimated Bill:</strong> {estimatedBill} EGP ({endValue - value} units of {utilityType})
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          )}
         </Box>
       )}
       
@@ -338,6 +424,10 @@ export default function Utilities() {
     setShowAddDialog(false);
   };
   
+  const handleEditReading = (id: string) => {
+    navigate(`/utilities/${id}`);
+  };
+  
   const handleSaveReading = (reading: Partial<UtilityReading>, addEndReading: boolean) => {
     console.log('Saving reading:', reading);
     
@@ -368,10 +458,29 @@ export default function Utilities() {
             break;
         }
         
-        console.log(`Calculated bill: ${cost} EGP (${consumption} units of ${reading.utilityType})`);
+        console.log(`Calculated bill: ${cost} EGP (${consumption} units of ${reading.utilityType || 'unknown'})`);
+        
+        // Create a new payment for the utility bill
+        const booking = mockBookings.find(b => b.id === reading.bookingId);
+        if (booking) {
+          const newPayment: Partial<Payment> = {
+            cost,
+            currency: 'EGP',
+            description: `${(reading.utilityType || 'utility').charAt(0).toUpperCase() + (reading.utilityType || 'utility').slice(1)} bill (${consumption} units)`,
+            placeOfPayment: 'System Generated',
+            userType: 'renter',
+            userId: booking.userId,
+            apartmentId: reading.apartmentId,
+            bookingId: reading.bookingId,
+            createdById: currentUser?.id || '',
+            createdAt: new Date().toISOString()
+          };
+          
+          console.log('Creating payment:', newPayment);
+        }
         
         setAlertSeverity('success');
-        setAlertMessage(`Utility bill calculated: ${cost.toFixed(2)} EGP`);
+        setAlertMessage(`Utility bill calculated and added: ${cost.toFixed(2)} EGP`);
       } else if (reading.type === 'end') {
         setAlertSeverity('warning');
         setAlertMessage('No start reading found for this booking and utility type. Bill not calculated.');
@@ -410,6 +519,47 @@ export default function Utilities() {
       navigate('/unauthorized');
     }
   }, [currentUser, navigate]);
+  
+  // Check if a reading has a corresponding end/start reading
+  const hasCorrespondingReading = (reading: UtilityReading) => {
+    const readingType = reading.type === 'start' ? 'end' : 'start';
+    return mockUtilityReadings.some(r => 
+      r.bookingId === reading.bookingId && 
+      r.utilityType === reading.utilityType && 
+      r.type === readingType
+    );
+  };
+  
+  // Get bill amount if available
+  const getBillAmount = (reading: UtilityReading) => {
+    if (reading.type === 'end') {
+      const startReading = mockUtilityReadings.find(r => 
+        r.bookingId === reading.bookingId && 
+        r.utilityType === reading.utilityType && 
+        r.type === 'start'
+      );
+      
+      if (startReading) {
+        const consumption = reading.value - startReading.value;
+        let cost = 0;
+        
+        switch (reading.utilityType) {
+          case 'electricity':
+            cost = consumption * mockSettings.electricityPrice;
+            break;
+          case 'water':
+            cost = consumption * mockSettings.waterPrice;
+            break;
+          case 'gas':
+            cost = consumption * mockSettings.gasPrice;
+            break;
+        }
+        
+        return `${cost.toFixed(2)} EGP`;
+      }
+    }
+    return null;
+  };
   
   return (
     <Container maxWidth="lg">
@@ -450,7 +600,7 @@ export default function Utilities() {
               variant={showFilters ? "contained" : "outlined"}
               size="small"
             >
-              Filters
+              Filters {(apartmentFilter || bookingFilter) && '(Active)'}
             </Button>
           </Box>
           
@@ -504,6 +654,7 @@ export default function Utilities() {
                 <TableCell>Date</TableCell>
                 <TableCell>Apartment</TableCell>
                 <TableCell>Booking Dates</TableCell>
+                <TableCell>Bill</TableCell>
                 <TableCell>Notes</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
@@ -513,6 +664,8 @@ export default function Utilities() {
                 filteredReadings.map(reading => {
                   const apartment = mockApartments.find(apt => apt.id === reading.apartmentId);
                   const booking = mockBookings.find(booking => booking.id === reading.bookingId);
+                  const billAmount = getBillAmount(reading);
+                  const hasCorresponding = hasCorrespondingReading(reading);
                   
                   return (
                     <TableRow key={reading.id}>
@@ -542,11 +695,28 @@ export default function Utilities() {
                           </>
                         ) : 'No booking'}
                       </TableCell>
+                      <TableCell>
+                        {billAmount ? (
+                          <Chip 
+                            icon={<ReceiptIcon />} 
+                            label={billAmount} 
+                            color="success" 
+                            size="small" 
+                            variant="outlined" 
+                          />
+                        ) : (
+                          reading.type === 'end' ? 
+                            <Chip label="No start reading" color="error" size="small" variant="outlined" /> :
+                            hasCorresponding ? 
+                              <Chip label="Completed" color="success" size="small" variant="outlined" /> : 
+                              <Chip label="Pending end" color="warning" size="small" variant="outlined" />
+                        )}
+                      </TableCell>
                       <TableCell>{reading.notes || '-'}</TableCell>
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Tooltip title="Edit">
-                            <IconButton size="small">
+                            <IconButton size="small" onClick={() => handleEditReading(reading.id)}>
                               <EditIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
@@ -562,7 +732,7 @@ export default function Utilities() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={10} align="center">
                     <Typography variant="body1" py={3}>
                       No utility readings found matching your criteria.
                     </Typography>

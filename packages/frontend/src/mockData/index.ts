@@ -11,9 +11,14 @@ export const mockApartments: Apartment[] = [
   { 
     id: 'apt1', 
     name: 'Sea View Villa', 
+    village: 'Sharm',
+    phase: 'Phase 1',
+    status: 'Occupied By Renter',
+    payingStatus: 'Payed By Transfer',
     city: 'Alexandria', 
     address: '123 Beach Road, Alexandria', 
     ownerId: 'user2',
+    ownerName: 'John Owner',
     purchaseDate: '2022-01-15',
     description: 'Beautiful villa with sea view',
     images: ['/assets/apt1-1.jpg', '/assets/apt1-2.jpg'],
@@ -25,9 +30,14 @@ export const mockApartments: Apartment[] = [
   { 
     id: 'apt2', 
     name: 'Mountain Retreat', 
+    village: 'Luxor',
+    phase: 'Phase 2',
+    status: 'Occupied by Owner',
+    payingStatus: 'Payed By Rent',
     city: 'Cairo', 
     address: '45 Mountain View, Cairo', 
     ownerId: 'user2',
+    ownerName: 'John Owner',
     purchaseDate: '2021-06-20',
     description: 'Peaceful mountain retreat',
     images: ['/assets/apt2-1.jpg'],
@@ -39,9 +49,14 @@ export const mockApartments: Apartment[] = [
   { 
     id: 'apt3', 
     name: 'Downtown Condo', 
+    village: 'International Resort',
+    phase: 'Phase 3',
+    status: 'Available',
+    payingStatus: 'Non-Payer',
     city: 'Cairo', 
     address: '78 Downtown St, Cairo', 
     ownerId: 'user4',
+    ownerName: 'Ahmed Owner',
     purchaseDate: '2022-03-10',
     description: 'Modern condo in downtown',
     images: ['/assets/apt3-1.jpg', '/assets/apt3-2.jpg'],
@@ -190,6 +205,7 @@ export const mockEmails: Email[] = [
     subject: 'Upcoming Maintenance', 
     content: 'Dear John, we would like to inform you about the upcoming maintenance schedule for your apartment.', 
     apartmentId: 'apt1',
+    emailType: 'Service Request',
     createdById: 'user1'
   },
   { 
@@ -200,8 +216,43 @@ export const mockEmails: Email[] = [
     subject: 'Maintenance Request', 
     content: 'Hello, I would like to request maintenance for the air conditioning unit in my apartment.', 
     apartmentId: 'apt1',
+    emailType: 'Complaint',
     createdById: 'user2'
   },
+  { 
+    id: 'email3', 
+    date: '2023-07-10', 
+    from: 'sarah@example.com', 
+    to: 'admin@example.com', 
+    subject: 'Booking Inquiry', 
+    content: 'Hello, I am interested in booking an apartment for the summer holiday. Could you please provide information about availability and rates?', 
+    apartmentId: 'apt2',
+    emailType: 'Booking Request',
+    createdById: 'user3'
+  },
+  { 
+    id: 'email4', 
+    date: '2023-07-15', 
+    from: 'admin@example.com', 
+    to: 'sarah@example.com', 
+    subject: 'Booking Confirmation', 
+    content: 'Dear Sarah, we are happy to confirm your booking for apartment "Mountain Retreat" from August 1 to August 10, 2023.', 
+    apartmentId: 'apt2',
+    bookingId: 'booking2',
+    emailType: 'Booking Request',
+    createdById: 'user1'
+  },
+  { 
+    id: 'email5', 
+    date: '2023-08-05', 
+    from: 'ahmed@example.com', 
+    to: 'admin@example.com', 
+    subject: 'General Inquiry', 
+    content: 'Hello, I have a question about the amenities available in the Downtown Condo. Does it have a gym?', 
+    apartmentId: 'apt3',
+    emailType: 'Inquiry',
+    createdById: 'user4'
+  }
 ];
 
 export const mockPaymentMethods: PaymentMethod[] = [

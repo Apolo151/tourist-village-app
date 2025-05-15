@@ -30,7 +30,14 @@ import {
   Select,
   MenuItem,
   FormHelperText,
-  InputAdornment
+  InputAdornment,
+  Grid,
+  IconButton,
+  Tooltip,
+  Stack,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -47,9 +54,15 @@ import {
   LocationOn as LocationIcon,
   Construction as ConstructionIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Send as SendIcon,
+  RequestPage as RequestPageIcon,
+  Payments as PaymentsIcon,
+  Receipt as ReceiptIcon,
+  ArticleOutlined as BillsIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
-import { mockApartments, mockUsers, mockBookings, mockServiceRequests, mockEmails, mockUtilityReadings, mockServiceTypes } from '../mockData';
+import { mockApartments, mockUsers, mockBookings, mockServiceRequests, mockEmails, mockUtilityReadings, mockServiceTypes, mockPayments } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { Apartment } from '../types';
 
@@ -85,10 +98,13 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
   const [formData, setFormData] = useState<Partial<Apartment>>(
     apartment || {
       name: '',
-      city: '',
-      address: '',
       ownerId: '',
+      ownerName: '',
+      village: 'Sharm',
+      phase: '',
       purchaseDate: new Date().toISOString().split('T')[0],
+      status: 'Available',
+      payingStatus: 'Non-Payer',
       size: 0,
       bedrooms: 1,
       bathrooms: 1,
@@ -98,6 +114,20 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
   );
   const [amenity, setAmenity] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Get phases for the selected village
+  const getPhases = (village: string) => {
+    switch (village) {
+      case 'Sharm':
+        return ['Phase 1', 'Phase 2', 'Phase 3'];
+      case 'Luxor':
+        return ['Phase 1', 'Phase 2'];
+      case 'International Resort':
+        return ['Phase 1', 'Phase 2', 'Phase 3', 'Phase 4'];
+      default:
+        return [];
+    }
+  };
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -116,6 +146,19 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    // If village changed, reset phase
+    if (name === 'village') {
+      setFormData(prev => ({ ...prev, phase: '' }));
+    }
+    
+    // If ownerId changed, get the owner name
+    if (name === 'ownerId' && value) {
+      const owner = mockUsers.find(user => user.id === value);
+      if (owner) {
+        setFormData(prev => ({ ...prev, ownerName: owner.name }));
+      }
+    }
   };
   
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,9 +189,9 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
     const newErrors: Record<string, string> = {};
     
     if (!formData.name) newErrors.name = 'Name is required';
-    if (!formData.city) newErrors.city = 'City is required';
-    if (!formData.address) newErrors.address = 'Address is required';
     if (!formData.ownerId) newErrors.ownerId = 'Owner is required';
+    if (!formData.village) newErrors.village = 'Village is required';
+    if (!formData.phase) newErrors.phase = 'Phase is required';
     if (!formData.purchaseDate) newErrors.purchaseDate = 'Purchase date is required';
     
     setErrors(newErrors);
@@ -172,7 +215,7 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
         <Typography variant="h6" gutterBottom>Basic Information</Typography>
         <Divider sx={{ mb: 3 }} />
         
-        <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' } }}>
           <TextField
             required
             fullWidth
@@ -182,11 +225,8 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
             onChange={handleChange}
             error={!!errors.name}
             helperText={errors.name}
-            sx={{ mb: { xs: 2, md: 0 } }}
           />
-        </Box>
-        
-        <Box sx={{ mb: 3 }}>
+          
           <FormControl fullWidth required error={!!errors.ownerId}>
             <InputLabel>Owner</InputLabel>
             <Select
@@ -203,148 +243,51 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
             </Select>
             {errors.ownerId && <FormHelperText>{errors.ownerId}</FormHelperText>}
           </FormControl>
-        </Box>
-        
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, mb: 3 }}>
-          <TextField
-            required
-            fullWidth
-            label="City"
-            name="city"
-            value={formData.city || ''}
-            onChange={handleChange}
-            error={!!errors.city}
-            helperText={errors.city}
-            sx={{ mb: { xs: 2, md: 0 } }}
-          />
+          
+          <FormControl fullWidth required error={!!errors.village}>
+            <InputLabel>Village</InputLabel>
+            <Select
+              name="village"
+              value={formData.village || ''}
+              label="Village"
+              onChange={handleSelectChange}
+            >
+              <MenuItem value="Sharm">Sharm</MenuItem>
+              <MenuItem value="Luxor">Luxor</MenuItem>
+              <MenuItem value="International Resort">International Resort</MenuItem>
+            </Select>
+            {errors.village && <FormHelperText>{errors.village}</FormHelperText>}
+          </FormControl>
+          
+          <FormControl fullWidth required error={!!errors.phase}>
+            <InputLabel>Apartment Phase</InputLabel>
+            <Select
+              name="phase"
+              value={formData.phase || ''}
+              label="Apartment Phase"
+              onChange={handleSelectChange}
+              disabled={!formData.village}
+            >
+              {getPhases(formData.village as string).map(phase => (
+                <MenuItem key={phase} value={phase}>{phase}</MenuItem>
+              ))}
+            </Select>
+            {errors.phase && <FormHelperText>{errors.phase}</FormHelperText>}
+          </FormControl>
           
           <TextField
             required
-            fullWidth
-            label="Address"
-            name="address"
-            value={formData.address || ''}
-            onChange={handleChange}
-            error={!!errors.address}
-            helperText={errors.address}
-          />
-        </Box>
-        
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            required
-            fullWidth
-            type="date"
             label="Purchase Date"
             name="purchaseDate"
+            type="date"
             value={formData.purchaseDate || ''}
             onChange={handleChange}
-            InputLabelProps={{ shrink: true }}
+            fullWidth
             error={!!errors.purchaseDate}
             helperText={errors.purchaseDate}
+            InputLabelProps={{ shrink: true }}
           />
         </Box>
-      </Paper>
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Property Details</Typography>
-        <Divider sx={{ mb: 3 }} />
-        
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, mb: 3 }}>
-          <TextField
-            fullWidth
-            type="number"
-            label="Size (m²)"
-            name="size"
-            value={formData.size === undefined ? '' : formData.size}
-            onChange={handleNumberChange}
-            InputProps={{
-              endAdornment: <InputAdornment position="end">m²</InputAdornment>,
-            }}
-            sx={{ mb: { xs: 2, md: 0 } }}
-          />
-          
-          <TextField
-            fullWidth
-            type="number"
-            label="Bedrooms"
-            name="bedrooms"
-            value={formData.bedrooms === undefined ? '' : formData.bedrooms}
-            onChange={handleNumberChange}
-            inputProps={{ min: 0 }}
-            sx={{ mb: { xs: 2, md: 0 } }}
-          />
-          
-          <TextField
-            fullWidth
-            type="number"
-            label="Bathrooms"
-            name="bathrooms"
-            value={formData.bathrooms === undefined ? '' : formData.bathrooms}
-            onChange={handleNumberChange}
-            inputProps={{ min: 0 }}
-          />
-        </Box>
-        
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
-            multiline
-            rows={4}
-            label="Description"
-            name="description"
-            value={formData.description || ''}
-            onChange={handleChange}
-            placeholder="Enter a detailed description of the apartment"
-          />
-        </Box>
-      </Paper>
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Amenities</Typography>
-        <Divider sx={{ mb: 3 }} />
-        
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-          <TextField
-            fullWidth
-            label="Add Amenity"
-            value={amenity}
-            onChange={(e) => setAmenity(e.target.value)}
-            placeholder="e.g., Pool, WiFi, Beach access"
-            sx={{ mr: 1 }}
-          />
-          <Button 
-            variant="outlined" 
-            onClick={handleAddAmenity}
-            disabled={!amenity.trim()}
-          >
-            Add
-          </Button>
-        </Box>
-        
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {formData.amenities?.map((item, index) => (
-            <Chip
-              key={index}
-              label={item}
-              onDelete={() => handleRemoveAmenity(index)}
-            />
-          ))}
-          {formData.amenities?.length === 0 && (
-            <Typography variant="body2" color="text.secondary">
-              No amenities added yet
-            </Typography>
-          )}
-        </Box>
-      </Paper>
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Images</Typography>
-        <Divider sx={{ mb: 3 }} />
-        
-        <Alert severity="info" sx={{ mb: 2 }}>
-          Image upload functionality would be implemented here. Currently using placeholder images.
-        </Alert>
       </Paper>
       
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
@@ -396,6 +339,30 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
   // Get utility readings
   const utilityReadings = apartment ? mockUtilityReadings.filter(reading => reading.apartmentId === id) : [];
   
+  // Get payments for this apartment
+  const relatedPayments = apartment ? mockPayments.filter(payment => payment.apartmentId === id) : [];
+  
+  // Calculate total money spent (sum of all payments)
+  const totalMoneySpent = {
+    EGP: relatedPayments.filter(p => p.currency === 'EGP').reduce((sum, p) => sum + p.cost, 0),
+    GBP: relatedPayments.filter(p => p.currency === 'GBP').reduce((sum, p) => sum + p.cost, 0)
+  };
+  
+  // Calculate total money requested (sum of all service requests)
+  const totalMoneyRequested = {
+    EGP: relatedServiceRequests.reduce((sum, sr) => {
+      const serviceType = mockServiceTypes.find(s => s.id === sr.serviceTypeId);
+      return sum + (serviceType?.cost || 0);
+    }, 0),
+    GBP: 0 // Assuming service costs are in EGP only
+  };
+  
+  // Calculate net money
+  const netMoney = {
+    EGP: totalMoneyRequested.EGP - totalMoneySpent.EGP,
+    GBP: totalMoneyRequested.GBP - totalMoneySpent.GBP
+  };
+  
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
@@ -428,6 +395,34 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
       navigate(`/apartments/${id}`);
     }
   };
+  
+  const handleAddBooking = () => {
+    navigate(`/bookings/new?apartmentId=${id}`);
+  };
+  
+  const handleAddEmail = () => {
+    navigate(`/emails/new?apartmentId=${id}`);
+  };
+  
+  const handleAddPayment = () => {
+    navigate(`/payments/new?apartmentId=${id}`);
+  };
+  
+  const handleRequestService = () => {
+    navigate(`/services/new?apartmentId=${id}`);
+  };
+  
+  const handleViewBills = () => {
+    navigate(`/payments?apartmentId=${id}`);
+  };
+  
+  // Quick actions for admin
+  const quickActions = [
+    { icon: <BookingIcon />, name: 'Add a new Booking', onClick: handleAddBooking },
+    { icon: <EmailIcon />, name: 'Add a new Email', onClick: handleAddEmail },
+    { icon: <PaymentsIcon />, name: 'Add a Payment', onClick: handleAddPayment },
+    { icon: <RequestPageIcon />, name: 'Request a Service', onClick: handleRequestService }
+  ];
   
   // Show form for new/edit apartment, or error if apartment not found in view mode
   if (isNew || isEditing) {
@@ -531,311 +526,347 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
             </Button>
           )}
         </Box>
+
+        {/* Quick actions speed dial (admin only) */}
+        {currentUser?.role === 'admin' && (
+          <SpeedDial
+            ariaLabel="Quick actions"
+            sx={{ position: 'fixed', bottom: 24, right: 24 }}
+            icon={<SpeedDialIcon />}
+          >
+            {quickActions.map((action) => (
+              <SpeedDialAction
+                key={action.name}
+                icon={action.icon}
+                tooltipTitle={action.name}
+                onClick={action.onClick}
+              />
+            ))}
+          </SpeedDial>
+        )}
         
         <Paper sx={{ mb: 3, overflow: 'hidden' }}>
-          <Box sx={{ 
-            height: 300, 
-            backgroundImage: `url(${apartment.images?.[0] || 'https://via.placeholder.com/1200x400?text=No+Image'})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }} />
-          
           <Box sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
-              <Chip label={apartment.city} color="primary" />
-              {apartment.amenities?.map(amenity => (
-                <Chip key={amenity} label={amenity} variant="outlined" size="small" />
-              ))}
-            </Box>
-            
-            <Typography variant="body1" sx={{ mb: 3 }}>
-              {apartment.description || 'No description available.'}
-            </Typography>
-            
-            <Box sx={{ 
-              display: 'grid', 
-              gap: 2,
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }
-            }}>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Address
+            <Grid container spacing={3}>
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>
+                  Apartment Information
                 </Typography>
-                <Typography variant="body1">
-                  {apartment.address}
+                <List>
+                  <ListItem>
+                    <ListItemAvatar>
+                      <Avatar>
+                        <HomeIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary="Apartment Name" 
+                      secondary={apartment.name} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemAvatar>
+                      <Avatar>
+                        <LocationIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary="Village" 
+                      secondary={apartment.village} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemAvatar>
+                      <Avatar>
+                        <ConstructionIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary="Phase" 
+                      secondary={apartment.phase} 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemAvatar>
+                      <Avatar>
+                        <CalendarIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText 
+                      primary="Purchase Date" 
+                      secondary={new Date(apartment.purchaseDate).toLocaleDateString()} 
+                    />
+                  </ListItem>
+                </List>
+              </Grid>
+              
+              <Grid item xs={12} md={6}>
+                <Typography variant="h6" gutterBottom>
+                  Status Information
                 </Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Size
-                </Typography>
-                <Typography variant="body1">
-                  {apartment.size} m²
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Purchase Date
-                </Typography>
-                <Typography variant="body1">
-                  {new Date(apartment.purchaseDate).toLocaleDateString()}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Bedrooms
-                </Typography>
-                <Typography variant="body1">
-                  {apartment.bedrooms}
-                </Typography>
-              </Box>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary">
-                  Bathrooms
-                </Typography>
-                <Typography variant="body1">
-                  {apartment.bathrooms}
-                </Typography>
-              </Box>
-            </Box>
+                <List>
+                  <ListItem>
+                    <ListItemText 
+                      primary="Status" 
+                      secondary={
+                        <Chip 
+                          label={apartment.status} 
+                          size="small"
+                          color={
+                            apartment.status === 'Available' ? 'success' :
+                            apartment.status === 'Occupied by Owner' ? 'primary' : 'warning'
+                          }
+                          sx={{ mt: 1 }}
+                        />
+                      } 
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemText 
+                      primary="Paying Status" 
+                      secondary={
+                        <Chip 
+                          label={apartment.payingStatus} 
+                          size="small"
+                          color={
+                            apartment.payingStatus === 'Payed By Transfer' ? 'success' :
+                            apartment.payingStatus === 'Payed By Rent' ? 'info' : 'error'
+                          }
+                          sx={{ mt: 1 }}
+                        />
+                      } 
+                    />
+                  </ListItem>
+                </List>
+                
+                {/* Apartment Money Section (admin only) */}
+                {currentUser?.role === 'admin' && (
+                  <Paper elevation={2} sx={{ p: 2, mt: 2 }}>
+                    <Typography variant="h6" gutterBottom>
+                      Apartment Money
+                    </Typography>
+                    <List dense>
+                      <ListItem>
+                        <ListItemText 
+                          primary="Total Money Spent" 
+                          secondary={
+                            <Box>
+                              <Typography variant="body2">EGP: {totalMoneySpent.EGP.toLocaleString()}</Typography>
+                              <Typography variant="body2">GBP: {totalMoneySpent.GBP.toLocaleString()}</Typography>
+                            </Box>
+                          } 
+                        />
+                      </ListItem>
+                      <ListItem>
+                        <ListItemText 
+                          primary="Total Money Requested" 
+                          secondary={
+                            <Box>
+                              <Typography variant="body2">EGP: {totalMoneyRequested.EGP.toLocaleString()}</Typography>
+                              <Typography variant="body2">GBP: {totalMoneyRequested.GBP.toLocaleString()}</Typography>
+                            </Box>
+                          } 
+                        />
+                      </ListItem>
+                      <ListItem>
+                        <ListItemText 
+                          primary="Net Money" 
+                          secondary={
+                            <Box>
+                              <Typography variant="body2" color={netMoney.EGP >= 0 ? 'success.main' : 'error.main'}>
+                                EGP: {netMoney.EGP.toLocaleString()}
+                              </Typography>
+                              <Typography variant="body2" color={netMoney.GBP >= 0 ? 'success.main' : 'error.main'}>
+                                GBP: {netMoney.GBP.toLocaleString()}
+                              </Typography>
+                            </Box>
+                          } 
+                        />
+                      </ListItem>
+                    </List>
+                    <Box sx={{ mt: 2 }}>
+                      <Button
+                        variant="outlined"
+                        startIcon={<BillsIcon />}
+                        onClick={handleViewBills}
+                        fullWidth
+                      >
+                        View all Bills
+                      </Button>
+                    </Box>
+                  </Paper>
+                )}
+              </Grid>
+            </Grid>
           </Box>
         </Paper>
         
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs 
-            value={tabValue} 
-            onChange={handleTabChange} 
-            aria-label="apartment details tabs"
+        <Paper sx={{ mb: 3 }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
           >
             {getTabsForUserRole()}
           </Tabs>
-        </Box>
-        
-        {/* Information Tab */}
-        <TabPanel value={tabValue} index={0}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Apartment Information
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <HomeIcon sx={{ mr: 2, color: 'primary.main' }} />
-                  <Box>
-                    <Typography variant="subtitle2">Property Type</Typography>
-                    <Typography variant="body1">Apartment</Typography>
-                  </Box>
-                </Box>
-                
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <LocationIcon sx={{ mr: 2, color: 'primary.main' }} />
-                  <Box>
-                    <Typography variant="subtitle2">Location</Typography>
-                    <Typography variant="body1">{apartment.city}, {apartment.address}</Typography>
-                  </Box>
-                </Box>
-                
-                {apartment.amenities && apartment.amenities.length > 0 && (
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Amenities</Typography>
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                      {apartment.amenities.map(amenity => (
-                        <Chip key={amenity} label={amenity} variant="outlined" size="small" />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-                
-                {apartment.images && apartment.images.length > 1 && (
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 1 }}>Photos</Typography>
-                    <Box sx={{ 
-                      display: 'grid', 
-                      gap: 1,
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))'
-                    }}>
-                      {apartment.images.map((image, index) => (
-                        <Box 
-                          key={index}
-                          component="img"
-                          src={image || 'https://via.placeholder.com/150x150?text=No+Image'}
-                          alt={`Apartment ${index + 1}`}
-                          sx={{ 
-                            width: '100%', 
-                            height: 150, 
-                            objectFit: 'cover',
-                            borderRadius: 1
-                          }}
-                        />
-                      ))}
-                    </Box>
-                  </Box>
-                )}
-              </Box>
-            </CardContent>
-          </Card>
-        </TabPanel>
-        
-        {/* Owner Tab */}
-        <TabPanel value={tabValue} index={1}>
-          {owner ? (
+          
+          {/* Tab panels - using existing implementation */}
+          <TabPanel value={tabValue} index={0}>
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Owner Information
+                  Apartment Information
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
-                <Box sx={{ 
-                  display: 'grid', 
-                  gap: 2,
-                  gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }
-                }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Name</Typography>
-                    <Typography variant="body1">{owner.name}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Email</Typography>
-                    <Typography variant="body1">{owner.email}</Typography>
-                  </Box>
-                  {owner.phone && (
+                
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <HomeIcon sx={{ mr: 2, color: 'primary.main' }} />
                     <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Phone</Typography>
-                      <Typography variant="body1">{owner.phone}</Typography>
+                      <Typography variant="subtitle2">Property Type</Typography>
+                      <Typography variant="body1">Apartment</Typography>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <LocationIcon sx={{ mr: 2, color: 'primary.main' }} />
+                    <Box>
+                      <Typography variant="subtitle2">Location</Typography>
+                      <Typography variant="body1">{apartment.city}, {apartment.address}</Typography>
+                    </Box>
+                  </Box>
+                  
+                  {apartment.amenities && apartment.amenities.length > 0 && (
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Amenities</Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {apartment.amenities.map(amenity => (
+                          <Chip key={amenity} label={amenity} variant="outlined" size="small" />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  {apartment.images && apartment.images.length > 1 && (
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ mb: 1 }}>Photos</Typography>
+                      <Box sx={{ 
+                        display: 'grid', 
+                        gap: 1,
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))'
+                      }}>
+                        {apartment.images.map((image, index) => (
+                          <Box 
+                            key={index}
+                            component="img"
+                            src={image || 'https://via.placeholder.com/150x150?text=No+Image'}
+                            alt={`Apartment ${index + 1}`}
+                            sx={{ 
+                              width: '100%', 
+                              height: 150, 
+                              objectFit: 'cover',
+                              borderRadius: 1
+                            }}
+                          />
+                        ))}
+                      </Box>
                     </Box>
                   )}
                 </Box>
               </CardContent>
             </Card>
-          ) : (
-            <Alert severity="warning">Owner information not found</Alert>
-          )}
-        </TabPanel>
-        
-        {/* Bookings Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">
-              Bookings
-            </Typography>
-            <Button 
-              variant="contained" 
-              startIcon={<BookingIcon />}
-              onClick={handleBook}
-            >
-              New Booking
-            </Button>
-          </Box>
+          </TabPanel>
           
-          {relatedBookings.length > 0 ? (
-            <TableContainer component={Paper} sx={{ mb: 3 }}>
-              <Table sx={{ minWidth: 650 }} aria-label="bookings table">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Renter</TableCell>
-                    <TableCell>Arrival Date</TableCell>
-                    <TableCell>Leaving Date</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Created At</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {relatedBookings.map(booking => {
-                    const renter = mockUsers.find(user => user.id === booking.userId);
-                    return (
-                      <TableRow key={booking.id}>
-                        <TableCell>{renter?.name || 'Unknown'}</TableCell>
-                        <TableCell>{new Date(booking.arrivalDate).toLocaleDateString()}</TableCell>
-                        <TableCell>{new Date(booking.leavingDate).toLocaleDateString()}</TableCell>
-                        <TableCell>
-                          <Chip 
-                            label={booking.state} 
-                            color={
-                              booking.state === 'notArrived' ? 'default' : 
-                              booking.state === 'inVillage' ? 'primary' : 
-                              'success'
-                            }
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
-                        <TableCell align="right">
-                          <Button 
-                            size="small" 
-                            onClick={() => navigate(`/bookings/${booking.id}`)}
-                          >
-                            View
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          ) : (
-            <Alert severity="info">No bookings found for this apartment</Alert>
-          )}
-        </TabPanel>
-        
-        {/* Service Requests Tab (Admin Only) */}
-        {currentUser?.role === 'admin' && (
-          <TabPanel value={tabValue} index={3}>
+          {/* Owner Tab */}
+          <TabPanel value={tabValue} index={1}>
+            {owner ? (
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    Owner Information
+                  </Typography>
+                  <Divider sx={{ mb: 2 }} />
+                  <Box sx={{ 
+                    display: 'grid', 
+                    gap: 2,
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }
+                  }}>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                      <Typography variant="body1">{owner.name}</Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Email</Typography>
+                      <Typography variant="body1">{owner.email}</Typography>
+                    </Box>
+                    {owner.phone && (
+                      <Box>
+                        <Typography variant="subtitle2" color="text.secondary">Phone</Typography>
+                        <Typography variant="body1">{owner.phone}</Typography>
+                      </Box>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            ) : (
+              <Alert severity="warning">Owner information not found</Alert>
+            )}
+          </TabPanel>
+          
+          {/* Bookings Tab */}
+          <TabPanel value={tabValue} index={2}>
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6">
-                Service Requests
+                Bookings
               </Typography>
               <Button 
                 variant="contained" 
-                startIcon={<ConstructionIcon />}
-                onClick={() => navigate(`/services/new?apartmentId=${id}`)}
+                startIcon={<BookingIcon />}
+                onClick={handleBook}
               >
-                New Service Request
+                New Booking
               </Button>
             </Box>
             
-            {relatedServiceRequests.length > 0 ? (
-              <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 650 }} aria-label="service requests table">
+            {relatedBookings.length > 0 ? (
+              <TableContainer component={Paper} sx={{ mb: 3 }}>
+                <Table sx={{ minWidth: 650 }} aria-label="bookings table">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Service Type</TableCell>
-                      <TableCell>Request Date</TableCell>
-                      <TableCell>Service Date</TableCell>
+                      <TableCell>Renter</TableCell>
+                      <TableCell>Arrival Date</TableCell>
+                      <TableCell>Leaving Date</TableCell>
                       <TableCell>Status</TableCell>
-                      <TableCell>Notes</TableCell>
+                      <TableCell>Created At</TableCell>
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {relatedServiceRequests.map(request => {
-                      const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
+                    {relatedBookings.map(booking => {
+                      const renter = mockUsers.find(user => user.id === booking.userId);
                       return (
-                        <TableRow key={request.id}>
-                          <TableCell>{serviceType?.name || 'Unknown'}</TableCell>
-                          <TableCell>{new Date(request.requestDate).toLocaleDateString()}</TableCell>
-                          <TableCell>{new Date(request.serviceDate).toLocaleDateString()}</TableCell>
+                        <TableRow key={booking.id}>
+                          <TableCell>{renter?.name || 'Unknown'}</TableCell>
+                          <TableCell>{new Date(booking.arrivalDate).toLocaleDateString()}</TableCell>
+                          <TableCell>{new Date(booking.leavingDate).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <Chip 
-                              label={request.status} 
+                              label={booking.state} 
                               color={
-                                request.status === 'pending' ? 'warning' : 
-                                request.status === 'completed' ? 'success' : 
-                                'error'
+                                booking.state === 'notArrived' ? 'default' : 
+                                booking.state === 'inVillage' ? 'primary' : 
+                                'success'
                               }
                               size="small"
                             />
                           </TableCell>
-                          <TableCell>{request.notes || '-'}</TableCell>
+                          <TableCell>{new Date(booking.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell align="right">
                             <Button 
                               size="small" 
-                              onClick={() => navigate(`/services/${request.id}`)}
+                              onClick={() => navigate(`/bookings/${booking.id}`)}
                             >
                               View
                             </Button>
@@ -847,129 +878,198 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                 </Table>
               </TableContainer>
             ) : (
-              <Alert severity="info">No service requests found for this apartment</Alert>
+              <Alert severity="info">No bookings found for this apartment</Alert>
             )}
           </TabPanel>
-        )}
-        
-        {/* Emails Tab (Admin Only) */}
-        {currentUser?.role === 'admin' && (
-          <TabPanel value={tabValue} index={4}>
-            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
-                Related Emails
-              </Typography>
-              <Button 
-                variant="contained" 
-                startIcon={<EmailIcon />}
-                onClick={() => navigate(`/emails/new?apartmentId=${id}`)}
-              >
-                New Email
-              </Button>
-            </Box>
-            
-            {relatedEmails.length > 0 ? (
-              <List>
-                {relatedEmails.map(email => (
-                  <Paper key={email.id} sx={{ mb: 2 }}>
-                    <ListItem>
-                      <ListItemAvatar>
-                        <Avatar><EmailIcon /></Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={email.subject}
-                        secondary={
-                          <>
-                            <Typography component="span" variant="body2">
-                              From: {email.from} | To: {email.to}
-                            </Typography>
-                            <br />
-                            <Typography component="span" variant="body2">
-                              Date: {new Date(email.date).toLocaleString()}
-                            </Typography>
-                          </>
-                        }
-                      />
-                      <Button 
-                        size="small" 
-                        onClick={() => navigate(`/emails/${email.id}`)}
-                      >
-                        View
-                      </Button>
-                    </ListItem>
-                  </Paper>
-                ))}
-              </List>
-            ) : (
-              <Alert severity="info">No emails found for this apartment</Alert>
-            )}
-          </TabPanel>
-        )}
-        
-        {/* Utilities Tab (Admin Only) */}
-        {currentUser?.role === 'admin' && (
-          <TabPanel value={tabValue} index={5}>
-            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
-                Utility Readings
-              </Typography>
-              <Button 
-                variant="contained" 
-                startIcon={<WaterDropIcon />}
-                onClick={() => navigate(`/utilities/new?apartmentId=${id}`)}
-              >
-                New Reading
-              </Button>
-            </Box>
-            
-            {utilityReadings.length > 0 ? (
-              <TableContainer component={Paper}>
-                <Table sx={{ minWidth: 650 }} aria-label="utilities table">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Booking</TableCell>
-                      <TableCell>Type</TableCell>
-                      <TableCell>Utility</TableCell>
-                      <TableCell>Reading</TableCell>
-                      <TableCell>Date</TableCell>
-                      <TableCell>Notes</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {utilityReadings.map(reading => {
-                      const booking = reading.bookingId 
-                        ? mockBookings.find(b => b.id === reading.bookingId) 
-                        : null;
-                      return (
-                        <TableRow key={reading.id}>
-                          <TableCell>
-                            {booking 
-                              ? `${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}` 
-                              : '-'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={reading.type} 
-                              color={reading.type === 'start' ? 'primary' : 'secondary'}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>{reading.utilityType}</TableCell>
-                          <TableCell>{reading.value}</TableCell>
-                          <TableCell>{new Date(reading.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{reading.notes || '-'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">No utility readings found for this apartment</Alert>
-            )}
-          </TabPanel>
-        )}
+          
+          {/* Service Requests Tab (Admin Only) */}
+          {currentUser?.role === 'admin' && (
+            <TabPanel value={tabValue} index={3}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6">
+                  Service Requests
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<ConstructionIcon />}
+                  onClick={() => navigate(`/services/new?apartmentId=${id}`)}
+                >
+                  New Service Request
+                </Button>
+              </Box>
+              
+              {relatedServiceRequests.length > 0 ? (
+                <TableContainer component={Paper}>
+                  <Table sx={{ minWidth: 650 }} aria-label="service requests table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Service Type</TableCell>
+                        <TableCell>Request Date</TableCell>
+                        <TableCell>Service Date</TableCell>
+                        <TableCell>Status</TableCell>
+                        <TableCell>Notes</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {relatedServiceRequests.map(request => {
+                        const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
+                        return (
+                          <TableRow key={request.id}>
+                            <TableCell>{serviceType?.name || 'Unknown'}</TableCell>
+                            <TableCell>{new Date(request.requestDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{new Date(request.serviceDate).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={request.status} 
+                                color={
+                                  request.status === 'pending' ? 'warning' : 
+                                  request.status === 'completed' ? 'success' : 
+                                  'error'
+                                }
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{request.notes || '-'}</TableCell>
+                            <TableCell align="right">
+                              <Button 
+                                size="small" 
+                                onClick={() => navigate(`/services/${request.id}`)}
+                              >
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info">No service requests found for this apartment</Alert>
+              )}
+            </TabPanel>
+          )}
+          
+          {/* Emails Tab (Admin Only) */}
+          {currentUser?.role === 'admin' && (
+            <TabPanel value={tabValue} index={4}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6">
+                  Related Emails
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<EmailIcon />}
+                  onClick={() => navigate(`/emails/new?apartmentId=${id}`)}
+                >
+                  New Email
+                </Button>
+              </Box>
+              
+              {relatedEmails.length > 0 ? (
+                <List>
+                  {relatedEmails.map(email => (
+                    <Paper key={email.id} sx={{ mb: 2 }}>
+                      <ListItem>
+                        <ListItemAvatar>
+                          <Avatar><EmailIcon /></Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={email.subject}
+                          secondary={
+                            <>
+                              <Typography component="span" variant="body2">
+                                From: {email.from} | To: {email.to}
+                              </Typography>
+                              <br />
+                              <Typography component="span" variant="body2">
+                                Date: {new Date(email.date).toLocaleString()}
+                              </Typography>
+                            </>
+                          }
+                        />
+                        <Button 
+                          size="small" 
+                          onClick={() => navigate(`/emails/${email.id}`)}
+                        >
+                          View
+                        </Button>
+                      </ListItem>
+                    </Paper>
+                  ))}
+                </List>
+              ) : (
+                <Alert severity="info">No emails found for this apartment</Alert>
+              )}
+            </TabPanel>
+          )}
+          
+          {/* Utilities Tab (Admin Only) */}
+          {currentUser?.role === 'admin' && (
+            <TabPanel value={tabValue} index={5}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="h6">
+                  Utility Readings
+                </Typography>
+                <Button 
+                  variant="contained" 
+                  startIcon={<WaterDropIcon />}
+                  onClick={() => navigate(`/utilities/new?apartmentId=${id}`)}
+                >
+                  New Reading
+                </Button>
+              </Box>
+              
+              {utilityReadings.length > 0 ? (
+                <TableContainer component={Paper}>
+                  <Table sx={{ minWidth: 650 }} aria-label="utilities table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Booking</TableCell>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Utility</TableCell>
+                        <TableCell>Reading</TableCell>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Notes</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {utilityReadings.map(reading => {
+                        const booking = reading.bookingId 
+                          ? mockBookings.find(b => b.id === reading.bookingId) 
+                          : null;
+                        return (
+                          <TableRow key={reading.id}>
+                            <TableCell>
+                              {booking 
+                                ? `${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}` 
+                                : '-'
+                              }
+                            </TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={reading.type} 
+                                color={reading.type === 'start' ? 'primary' : 'secondary'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{reading.utilityType}</TableCell>
+                            <TableCell>{reading.value}</TableCell>
+                            <TableCell>{new Date(reading.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{reading.notes || '-'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info">No utility readings found for this apartment</Alert>
+              )}
+            </TabPanel>
+          )}
+        </Paper>
       </Box>
     </Container>
   );

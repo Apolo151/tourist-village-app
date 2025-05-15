@@ -8,6 +8,7 @@ import Apartments from './pages/Apartments';
 import ApartmentDetails from './pages/ApartmentDetails';
 import Services from './pages/Services';
 import ServiceTypeDetails from './pages/ServiceTypeDetails';
+import ServiceRequestDetails from './pages/ServiceRequestDetails';
 import Bookings from './pages/Bookings';
 import Utilities from './pages/Utilities';
 import UtilityReadingDetails from './pages/UtilityReadingDetails';
@@ -62,11 +63,12 @@ function App() {
                 
                 {/* Services */}
                 <Route path="/services" element={<Services />} />
-                <Route path="/services/:id" element={<ServiceTypeDetails />} />
+                <Route path="/services/types/:id" element={<ServiceTypeDetails />} />
+                <Route path="/services/requests/:id" element={<ServiceRequestDetails />} />
                 
                 {/* Admin-only service routes */}
                 <Route element={<ProtectedRoute requiredRole="admin" />}>
-                  <Route path="/services/new" element={<ServiceTypeDetails />} />
+                  <Route path="/services/types/new" element={<ServiceTypeDetails />} />
                 </Route>
                 
                 {/* Admin-only routes */}

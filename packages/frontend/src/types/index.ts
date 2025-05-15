@@ -11,13 +11,18 @@ export interface User {
 export interface Apartment {
   id: string;
   name: string;
-  city: string;
-  address: string;
   ownerId: string;
+  ownerName?: string;
+  village: 'Sharm' | 'Luxor' | 'International Resort';
+  phase: string;
+  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
+  payingStatus?: 'Payed By Transfer' | 'Payed By Rent' | 'Non-Payer';
   purchaseDate: string;
   description?: string;
   images?: string[];
   amenities?: string[];
+  city?: string;
+  address?: string;
   size?: number;
   bedrooms?: number;
   bathrooms?: number;
@@ -93,6 +98,8 @@ export interface Email {
   subject: string;
   content: string;
   apartmentId: string;
+  bookingId?: string;
+  emailType: 'Complaint' | 'Booking Request' | 'Service Request' | 'Inquiry';
   createdById: string;
 }
 

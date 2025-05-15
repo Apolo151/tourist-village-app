@@ -4,49 +4,83 @@ import {
   Box, 
   Typography, 
   Paper, 
-  Card, 
-  CardContent, 
-  CardMedia, 
-  CardActionArea,
+  Button, 
   TextField,
   InputAdornment,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormHelperText,
   Chip,
-  Button,
-  Container,
-  Divider
+  Container
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon, LocationCity as LocationIcon } from '@mui/icons-material';
-import { mockApartments } from '../mockData';
+import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
+import { mockApartments, mockUsers } from '../mockData';
 import { useAuth } from '../context/AuthContext';
+import type { Apartment } from '../types';
 
 export default function Apartments() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [cityFilter, setCityFilter] = useState('');
+  const [villageFilter, setVillageFilter] = useState('');
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   
-  // Get unique cities for the filter
-  const cities = Array.from(new Set(mockApartments.map(apt => apt.city))).sort();
+  // States for the "Add a new Apartment" dialog
+  const [isAddDialogOpen, setAddDialogOpen] = useState(false);
+  const [newApartment, setNewApartment] = useState<Partial<Apartment>>({
+    name: '',
+    ownerId: '',
+    ownerName: '',
+    village: 'Sharm',
+    phase: '',
+    purchaseDate: new Date().toISOString().split('T')[0],
+    status: 'Available',
+    payingStatus: 'Non-Payer',
+  });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   
-  // Filter apartments based on search and city filter
+  // Get unique villages for the filter
+  const villages = ['Sharm', 'Luxor', 'International Resort'];
+  
+  // Get phases for the selected village
+  const getPhases = (village: string) => {
+    switch (village) {
+      case 'Sharm':
+        return ['Phase 1', 'Phase 2', 'Phase 3'];
+      case 'Luxor':
+        return ['Phase 1', 'Phase 2'];
+      case 'International Resort':
+        return ['Phase 1', 'Phase 2', 'Phase 3', 'Phase 4'];
+      default:
+        return [];
+    }
+  };
+  
+  // Filter apartments based on search and village filter
   const filteredApartments = mockApartments.filter(apartment => {
     const matchesSearch = 
       apartment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apartment.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      apartment.city.toLowerCase().includes(searchTerm.toLowerCase());
+      (apartment.ownerName && apartment.ownerName.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesCity = cityFilter ? apartment.city === cityFilter : true;
+    const matchesVillage = villageFilter ? apartment.village === villageFilter : true;
     
-    return matchesSearch && matchesCity;
+    return matchesSearch && matchesVillage;
   });
   
-  const handleCityFilterChange = (event: SelectChangeEvent) => {
-    setCityFilter(event.target.value);
+  const handleVillageFilterChange = (event: SelectChangeEvent) => {
+    setVillageFilter(event.target.value);
   };
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,6 +91,87 @@ export default function Apartments() {
     navigate(`/apartments/${id}`);
   };
 
+  const handleAddDialogOpen = () => {
+    setAddDialogOpen(true);
+  };
+
+  const handleAddDialogClose = () => {
+    setAddDialogOpen(false);
+    setNewApartment({
+      name: '',
+      ownerId: '',
+      ownerName: '',
+      village: 'Sharm',
+      phase: '',
+      purchaseDate: new Date().toISOString().split('T')[0],
+      status: 'Available',
+      payingStatus: 'Non-Payer',
+    });
+    setErrors({});
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setNewApartment(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+  
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    setNewApartment(prev => ({ ...prev, [name]: value }));
+    
+    // If village changed, reset phase
+    if (name === 'village') {
+      setNewApartment(prev => ({ ...prev, phase: '' }));
+    }
+    
+    // If ownerId changed, get the owner name
+    if (name === 'ownerId' && value) {
+      const owner = mockUsers.find(user => user.id === value);
+      if (owner) {
+        setNewApartment(prev => ({ ...prev, ownerName: owner.name }));
+      }
+    }
+  };
+
+  const validateNewApartment = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    
+    if (!newApartment.name) newErrors.name = 'Apartment Name is required';
+    if (!newApartment.ownerId) newErrors.ownerId = 'Owner is required';
+    if (!newApartment.village) newErrors.village = 'Village is required';
+    if (!newApartment.phase) newErrors.phase = 'Phase is required';
+    if (!newApartment.purchaseDate) newErrors.purchaseDate = 'Purchase Date is required';
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleAddApartment = () => {
+    if (validateNewApartment()) {
+      // In a real app, this would send a request to the backend
+      // For this demo, we would add to the mock data
+      console.log('Adding new apartment:', newApartment);
+      
+      // Close the dialog
+      handleAddDialogClose();
+      
+      // Optionally navigate to the new apartment details
+      // navigate(`/apartments/${newApartmentId}`);
+    }
+  };
+  
+  // Available owners for selection
+  const owners = mockUsers.filter(user => user.role === 'owner');
+
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
@@ -66,9 +181,9 @@ export default function Apartments() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/apartments/new')}
+              onClick={handleAddDialogOpen}
             >
-              Add Apartment
+              Add a new Apartment
             </Button>
           )}
         </Box>
@@ -83,7 +198,7 @@ export default function Apartments() {
                 size="small"
                 value={searchTerm}
                 onChange={handleSearchChange}
-                placeholder="Search by name, address, or city"
+                placeholder="Search by name or owner"
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -96,33 +211,28 @@ export default function Apartments() {
             
             <Box sx={{ minWidth: { xs: '100%', md: '200px' } }}>
               <FormControl fullWidth size="small">
-                <InputLabel>Filter by City</InputLabel>
+                <InputLabel>Filter by Village</InputLabel>
                 <Select
-                  value={cityFilter}
-                  label="Filter by City"
-                  onChange={handleCityFilterChange}
-                  startAdornment={
-                    <InputAdornment position="start">
-                      <LocationIcon />
-                    </InputAdornment>
-                  }
+                  value={villageFilter}
+                  label="Filter by Village"
+                  onChange={handleVillageFilterChange}
                 >
                   <MenuItem value="">
-                    <em>All Cities</em>
+                    <em>All Villages</em>
                   </MenuItem>
-                  {cities.map(city => (
-                    <MenuItem key={city} value={city}>{city}</MenuItem>
+                  {villages.map(village => (
+                    <MenuItem key={village} value={village}>{village}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Box>
           </Box>
           
-          {cityFilter && (
+          {villageFilter && (
             <Box sx={{ mt: 2 }}>
               <Chip 
-                label={`City: ${cityFilter}`} 
-                onDelete={() => setCityFilter('')} 
+                label={`Village: ${villageFilter}`} 
+                onDelete={() => setVillageFilter('')} 
                 color="primary" 
                 variant="outlined"
               />
@@ -130,86 +240,151 @@ export default function Apartments() {
           )}
         </Paper>
         
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="subtitle1" color="text.secondary">
-            {filteredApartments.length} {filteredApartments.length === 1 ? 'apartment' : 'apartments'} found
-          </Typography>
-          <Divider />
-        </Box>
-        
-        <Box sx={{ 
-          display: 'grid', 
-          gap: 3, 
-          gridTemplateColumns: {
-            xs: '1fr',
-            sm: 'repeat(2, 1fr)',
-            md: 'repeat(3, 1fr)',
-            lg: 'repeat(4, 1fr)'
-          }
-        }}>
-          {filteredApartments.length > 0 ? (
-            filteredApartments.map(apartment => (
-              <Card key={apartment.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }} elevation={3}>
-                <CardActionArea onClick={() => handleApartmentClick(apartment.id)}>
-                  <CardMedia
-                    component="img"
-                    height="180"
-                    image={apartment.images?.[0] || 'https://via.placeholder.com/300x180?text=No+Image'}
-                    alt={apartment.name}
-                  />
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Typography variant="h6" component="h2" gutterBottom>
-                      {apartment.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      {apartment.address}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Apartment Name</TableCell>
+                <TableCell>Owner</TableCell>
+                <TableCell>Apartment Phase</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Paying Status</TableCell>
+                <TableCell>Village</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredApartments.length > 0 ? (
+                filteredApartments.map((apartment) => (
+                  <TableRow 
+                    key={apartment.id}
+                    hover
+                    onClick={() => handleApartmentClick(apartment.id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>{apartment.name}</TableCell>
+                    <TableCell>{apartment.ownerName}</TableCell>
+                    <TableCell>{apartment.phase}</TableCell>
+                    <TableCell>
                       <Chip 
-                        label={apartment.city} 
-                        size="small" 
-                        color="primary"
-                        sx={{ mr: 1 }} 
+                        label={apartment.status} 
+                        size="small"
+                        color={
+                          apartment.status === 'Available' ? 'success' :
+                          apartment.status === 'Occupied by Owner' ? 'primary' : 'warning'
+                        }
                       />
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                      {apartment.amenities?.slice(0, 3).map(amenity => (
-                        <Chip key={amenity} label={amenity} size="small" variant="outlined" />
-                      ))}
-                      {apartment.amenities && apartment.amenities.length > 3 && (
-                        <Chip label={`+${apartment.amenities.length - 3} more`} size="small" variant="outlined" />
-                      )}
-                    </Box>
-                    
-                    <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between' }}>
-                      <Typography variant="body2">
-                        {apartment.bedrooms} {apartment.bedrooms === 1 ? 'Bedroom' : 'Bedrooms'}
-                      </Typography>
-                      <Typography variant="body2">
-                        {apartment.bathrooms} {apartment.bathrooms === 1 ? 'Bathroom' : 'Bathrooms'}
-                      </Typography>
-                      <Typography variant="body2">
-                        {apartment.size} m²
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
-            ))
-          ) : (
-            <Paper sx={{ p: 4, textAlign: 'center', gridColumn: '1 / -1' }}>
-              <Typography variant="h6" gutterBottom>
-                No apartments found
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Try adjusting your search or filters
-              </Typography>
-            </Paper>
-          )}
-        </Box>
+                    </TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={apartment.payingStatus} 
+                        size="small"
+                        color={
+                          apartment.payingStatus === 'Payed By Transfer' ? 'success' :
+                          apartment.payingStatus === 'Payed By Rent' ? 'info' : 'error'
+                        }
+                      />
+                    </TableCell>
+                    <TableCell>{apartment.village}</TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} align="center">
+                    <Typography variant="subtitle1" sx={{ py: 2 }}>
+                      No apartments found
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Try adjusting your search or filters
+                    </Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
+      
+      {/* Add Apartment Dialog */}
+      <Dialog open={isAddDialogOpen} onClose={handleAddDialogClose} maxWidth="md" fullWidth>
+        <DialogTitle>Add a new Apartment</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, mt: 1 }}>
+            <TextField
+              label="Apartment Name"
+              name="name"
+              value={newApartment.name || ''}
+              onChange={handleInputChange}
+              fullWidth
+              required
+              error={!!errors.name}
+              helperText={errors.name}
+            />
+            
+            <FormControl fullWidth required error={!!errors.ownerId}>
+              <InputLabel>Owner</InputLabel>
+              <Select
+                name="ownerId"
+                value={newApartment.ownerId || ''}
+                label="Owner"
+                onChange={handleSelectChange}
+              >
+                {owners.map(owner => (
+                  <MenuItem key={owner.id} value={owner.id}>{owner.name}</MenuItem>
+                ))}
+              </Select>
+              {errors.ownerId && <FormHelperText>{errors.ownerId}</FormHelperText>}
+            </FormControl>
+            
+            <FormControl fullWidth required error={!!errors.village}>
+              <InputLabel>Village</InputLabel>
+              <Select
+                name="village"
+                value={newApartment.village || ''}
+                label="Village"
+                onChange={handleSelectChange}
+              >
+                {villages.map(village => (
+                  <MenuItem key={village} value={village}>{village}</MenuItem>
+                ))}
+              </Select>
+              {errors.village && <FormHelperText>{errors.village}</FormHelperText>}
+            </FormControl>
+            
+            <FormControl fullWidth required error={!!errors.phase}>
+              <InputLabel>Apartment Phase</InputLabel>
+              <Select
+                name="phase"
+                value={newApartment.phase || ''}
+                label="Apartment Phase"
+                onChange={handleSelectChange}
+                disabled={!newApartment.village}
+              >
+                {getPhases(newApartment.village as string).map(phase => (
+                  <MenuItem key={phase} value={phase}>{phase}</MenuItem>
+                ))}
+              </Select>
+              {errors.phase && <FormHelperText>{errors.phase}</FormHelperText>}
+            </FormControl>
+            
+            <TextField
+              label="Purchase Date"
+              name="purchaseDate"
+              type="date"
+              value={newApartment.purchaseDate || ''}
+              onChange={handleInputChange}
+              fullWidth
+              required
+              error={!!errors.purchaseDate}
+              helperText={errors.purchaseDate}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleAddDialogClose}>Cancel</Button>
+          <Button variant="contained" onClick={handleAddApartment}>Add Apartment</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 } 
