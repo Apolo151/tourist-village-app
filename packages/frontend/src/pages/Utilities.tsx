@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
   Box,
   Paper,
   Button,
-  Grid,
   Table,
   TableBody,
   TableCell,
@@ -35,6 +34,8 @@ const Utilities: React.FC = () => {
   const [bookingFilter, setBookingFilter] = useState<string>('');
   const [utilityTypeFilter, setUtilityTypeFilter] = useState<string>('');
   const [completionFilter, setCompletionFilter] = useState<string>('');
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     // Load the data
@@ -145,6 +146,12 @@ const Utilities: React.FC = () => {
     return `${format(new Date(booking.arrivalDate), 'dd MMM yyyy')} - ${format(new Date(booking.leavingDate), 'dd MMM yyyy')}`;
   };
 
+  const handleEndReadingClick = (utility: Utility) => {
+    navigate(utility.endReading 
+      ? `/utilities/${utility.id}` 
+      : `/utilities/${utility.id}-end`);
+  };
+
   return (
     <Container maxWidth="lg">
       <Box sx={{ mt: 4, mb: 4 }}>
@@ -165,94 +172,89 @@ const Utilities: React.FC = () => {
 
         {/* Filters */}
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-            Filters
-          </Typography>
-          <Grid container spacing={2}>
-            <Box sx={{ width: '100%', md: '25%', px: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel id="apartment-filter-label">Apartment</InputLabel>
-                <Select
-                  labelId="apartment-filter-label"
-                  id="apartment-filter"
-                  value={apartmentFilter}
-                  label="Apartment"
-                  onChange={handleApartmentFilterChange}
-                >
-                  <MenuItem value="">
-                    <em>All Apartments</em>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <FormControl sx={{ minWidth: 200 }} size="small">
+              <InputLabel id="apartment-filter-label">Apartment</InputLabel>
+              <Select
+                labelId="apartment-filter-label"
+                id="apartment-filter"
+                value={apartmentFilter}
+                label="Apartment"
+                onChange={handleApartmentFilterChange}
+                size="small"
+              >
+                <MenuItem value="">
+                  <em>All Apartments</em>
+                </MenuItem>
+                {apartments.map((apartment) => (
+                  <MenuItem key={apartment.id} value={apartment.id}>
+                    {apartment.name}
                   </MenuItem>
-                  {apartments.map((apartment) => (
-                    <MenuItem key={apartment.id} value={apartment.id}>
-                      {apartment.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            <Box sx={{ width: '100%', md: '25%', px: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel id="booking-filter-label">Booking</InputLabel>
-                <Select
-                  labelId="booking-filter-label"
-                  id="booking-filter"
-                  value={bookingFilter}
-                  label="Booking"
-                  onChange={handleBookingFilterChange}
-                >
-                  <MenuItem value="">
-                    <em>All Bookings</em>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 200 }} size="small">
+              <InputLabel id="booking-filter-label">Booking</InputLabel>
+              <Select
+                labelId="booking-filter-label"
+                id="booking-filter"
+                value={bookingFilter}
+                label="Booking"
+                onChange={handleBookingFilterChange}
+                size="small"
+              >
+                <MenuItem value="">
+                  <em>All Bookings</em>
+                </MenuItem>
+                {bookings.map((booking) => (
+                  <MenuItem key={booking.id} value={booking.id}>
+                    {getApartmentName(booking.apartmentId)} ({format(new Date(booking.arrivalDate), 'dd MMM yyyy')})
                   </MenuItem>
-                  {bookings.map((booking) => (
-                    <MenuItem key={booking.id} value={booking.id}>
-                      {getApartmentName(booking.apartmentId)} ({format(new Date(booking.arrivalDate), 'dd MMM yyyy')})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            <Box sx={{ width: '100%', md: '25%', px: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel id="utility-type-filter-label">Utility Type</InputLabel>
-                <Select
-                  labelId="utility-type-filter-label"
-                  id="utility-type-filter"
-                  value={utilityTypeFilter}
-                  label="Utility Type"
-                  onChange={handleUtilityTypeFilterChange}
-                >
-                  <MenuItem value="">
-                    <em>All Types</em>
-                  </MenuItem>
-                  <MenuItem value="water">Water</MenuItem>
-                  <MenuItem value="electricity">Electricity</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            <Box sx={{ width: '100%', md: '25%', px: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel id="completion-filter-label">Status</InputLabel>
-                <Select
-                  labelId="completion-filter-label"
-                  id="completion-filter"
-                  value={completionFilter}
-                  label="Status"
-                  onChange={handleCompletionFilterChange}
-                >
-                  <MenuItem value="">
-                    <em>All Statuses</em>
-                  </MenuItem>
-                  <MenuItem value="complete">Complete (Start & End)</MenuItem>
-                  <MenuItem value="incomplete">Incomplete (Start Only)</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            <Box sx={{ width: '100%', px: 1, display: 'flex', alignItems: 'center', mt: 2 }}>
-              <Button variant="outlined" onClick={clearFilters}>
-                Clear Filters
-              </Button>
-            </Box>
-          </Grid>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 200 }} size="small">
+              <InputLabel id="utility-type-filter-label">Utility Type</InputLabel>
+              <Select
+                labelId="utility-type-filter-label"
+                id="utility-type-filter"
+                value={utilityTypeFilter}
+                label="Utility Type"
+                onChange={handleUtilityTypeFilterChange}
+                size="small"
+              >
+                <MenuItem value="">
+                  <em>All Types</em>
+                </MenuItem>
+                <MenuItem value="water">Water</MenuItem>
+                <MenuItem value="electricity">Electricity</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 200 }} size="small">
+              <InputLabel id="completion-filter-label">Status</InputLabel>
+              <Select
+                labelId="completion-filter-label"
+                id="completion-filter"
+                value={completionFilter}
+                label="Status"
+                onChange={handleCompletionFilterChange}
+                size="small"
+              >
+                <MenuItem value="">
+                  <em>All Statuses</em>
+                </MenuItem>
+                <MenuItem value="complete">Complete (Start & End)</MenuItem>
+                <MenuItem value="incomplete">Incomplete (Start Only)</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <Button variant="outlined" onClick={clearFilters} size="small">
+              Clear Filters
+            </Button>
+          </Box>
         </Paper>
 
         {/* Utilities List */}
@@ -318,7 +320,31 @@ const Utilities: React.FC = () => {
                                   {utility.utilityType}
                                 </TableCell>
                                 <TableCell>{utility.startReading}</TableCell>
-                                <TableCell>{utility.endReading || '-'}</TableCell>
+                                <TableCell 
+                                  sx={{ 
+                                    backgroundColor: 'rgba(0, 0, 0, 0.04)', 
+                                    cursor: 'pointer',
+                                    '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.08)' },
+                                    borderRadius: '4px',
+                                    position: 'relative'
+                                  }}
+                                  onClick={() => handleEndReadingClick(utility)}
+                                >
+                                  {utility.endReading || '-'}
+                                  {!utility.endReading && (
+                                    <Box 
+                                      component="span" 
+                                      sx={{ 
+                                        fontSize: '10px',
+                                        color: 'text.secondary',
+                                        display: 'block',
+                                        mt: 0.5 
+                                      }}
+                                    >
+                                      Click to update end reading
+                                    </Box>
+                                  )}
+                                </TableCell>
                                 <TableCell>{format(new Date(utility.startDate), 'dd MMM yyyy')}</TableCell>
                                 <TableCell>
                                   {utility.endDate ? format(new Date(utility.endDate), 'dd MMM yyyy') : '-'}

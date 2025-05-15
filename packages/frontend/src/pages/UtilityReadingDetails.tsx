@@ -233,6 +233,13 @@ const UtilityReadingDetails: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
       
+      // Add end reading if provided
+      if (formData.endReading !== undefined && formData.endDate) {
+        newUtility.endReading = formData.endReading;
+        newUtility.endDate = format(formData.endDate, 'yyyy-MM-dd');
+        newUtility.endNotes = formData.endNotes || undefined;
+      }
+      
       // In a real app, this would be an API call
       console.log('Creating new utility:', newUtility);
       
@@ -252,13 +259,14 @@ const UtilityReadingDetails: React.FC = () => {
         startNotes: formData.startNotes || undefined,
       };
       
-      // If adding or updating end reading
-      if (formData.endReading && formData.endDate) {
+      // Always include end reading data if provided, regardless of mode
+      if (formData.endReading !== undefined && formData.endDate) {
         updatedUtility.endReading = formData.endReading;
         updatedUtility.endDate = format(formData.endDate, 'yyyy-MM-dd');
         updatedUtility.endNotes = formData.endNotes || undefined;
-        updatedUtility.updatedAt = new Date().toISOString();
       }
+      
+      updatedUtility.updatedAt = new Date().toISOString();
       
       // In a real app, this would be an API call
       console.log('Updating utility:', updatedUtility);
@@ -474,7 +482,7 @@ const UtilityReadingDetails: React.FC = () => {
                       error={!!errors.endReading}
                       helperText={errors.endReading || ''}
                       InputProps={{ inputProps: { min: 0 } }}
-                      disabled={!isAddingEndReading && existingUtility?.endReading !== undefined}
+                      disabled={false}
                       required={isAddingEndReading}
                     />
                   </Grid>
@@ -493,7 +501,7 @@ const UtilityReadingDetails: React.FC = () => {
                             required: isAddingEndReading
                           },
                         }}
-                        disabled={!isAddingEndReading && existingUtility?.endDate !== undefined}
+                        disabled={false}
                         minDate={formData.startDate || (currentBooking ? parseISO(currentBooking.arrivalDate) : undefined)}
                         maxDate={currentBooking ? parseISO(currentBooking.leavingDate) : undefined}
                       />

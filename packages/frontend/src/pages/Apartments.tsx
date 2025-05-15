@@ -7,10 +7,6 @@ import {
   Button, 
   TextField,
   InputAdornment,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Table,
   TableBody,
   TableCell,
@@ -23,19 +19,24 @@ import {
   DialogTitle,
   FormHelperText,
   Chip,
-  Container
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Link
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
+import { Search as SearchIcon, Add as AddIcon, ArrowDropDown as ArrowDropDownIcon, ArrowDropUp as ArrowDropUpIcon } from '@mui/icons-material';
 import { mockApartments, mockUsers } from '../mockData';
-import { useAuth } from '../context/AuthContext';
 import type { Apartment } from '../types';
 
 export default function Apartments() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [villageFilter, setVillageFilter] = useState('');
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  
+  // Sorting state
+  const [orderBy, setOrderBy] = useState<keyof Apartment>('name');
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
   
   // States for the "Add a new Apartment" dialog
   const [isAddDialogOpen, setAddDialogOpen] = useState(false);
@@ -74,21 +75,40 @@ export default function Apartments() {
       apartment.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (apartment.ownerName && apartment.ownerName.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const matchesVillage = villageFilter ? apartment.village === villageFilter : true;
+    const matchesVillage = apartment.village === 'Sharm';
     
     return matchesSearch && matchesVillage;
   });
-  
-  const handleVillageFilterChange = (event: SelectChangeEvent) => {
-    setVillageFilter(event.target.value);
-  };
+
+  // Sort apartments
+  const sortedApartments = [...filteredApartments].sort((a, b) => {
+    const aValue = a[orderBy] || '';
+    const bValue = b[orderBy] || '';
+    
+    if (order === 'asc') {
+      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+    } else {
+      return bValue < aValue ? -1 : bValue > aValue ? 1 : 0;
+    }
+  });
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   };
   
-  const handleApartmentClick = (id: string) => {
+  const handleViewApartment = (id: string) => {
     navigate(`/apartments/${id}`);
+  };
+
+  const handleEditApartment = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/apartments/${id}/edit`);
+  };
+
+  const handleSortRequest = (property: keyof Apartment) => {
+    const isAsc = orderBy === property && order === 'asc';
+    setOrder(isAsc ? 'desc' : 'asc');
+    setOrderBy(property);
   };
 
   const handleAddDialogOpen = () => {
@@ -172,136 +192,157 @@ export default function Apartments() {
   // Available owners for selection
   const owners = mockUsers.filter(user => user.role === 'owner');
 
+  // Render sort icon
+  const renderSortIcon = (column: keyof Apartment) => {
+    if (orderBy !== column) return null;
+    return order === 'asc' ? <ArrowDropUpIcon fontSize="small" /> : <ArrowDropDownIcon fontSize="small" />;
+  };
+
+  // Column headers
+  const columns = [
+    { id: 'name', label: 'Apartment No', sortable: true },
+    { id: 'ownerName', label: 'Owner', sortable: true },
+    { id: 'phase', label: 'Phase', sortable: true },
+    { id: 'status', label: 'Status', sortable: true },
+    { id: 'actions', label: 'Actions', sortable: false }
+  ];
+
   return (
-    <Container maxWidth="xl">
-      <Box sx={{ mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">Apartments</Typography>
-          {currentUser?.role === 'admin' && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddDialogOpen}
-            >
-              Add a new Apartment
-            </Button>
-          )}
-        </Box>
-        
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <TextField
-                label="Search Apartments"
-                variant="outlined"
-                fullWidth
-                size="small"
-                value={searchTerm}
-                onChange={handleSearchChange}
-                placeholder="Search by name or owner"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-            
-            <Box sx={{ minWidth: { xs: '100%', md: '200px' } }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Filter by Village</InputLabel>
-                <Select
-                  value={villageFilter}
-                  label="Filter by Village"
-                  onChange={handleVillageFilterChange}
+    <Box sx={{ width: '100%' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h5" component="h1">Apartments</Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          startIcon={<AddIcon />}
+          onClick={handleAddDialogOpen}
+          sx={{ 
+            textTransform: 'none',
+            borderRadius: '4px',
+            px: 2
+          }}
+        >
+          Add Apartment
+        </Button>
+      </Box>
+      
+      <Box sx={{ mb: 3 }}>
+        <TextField
+          placeholder="Search apartments..."
+          variant="outlined"
+          size="small"
+          value={searchTerm}
+          onChange={handleSearchChange}
+          sx={{ 
+            width: { xs: '100%', sm: '350px' },
+            backgroundColor: 'white',
+            '& .MuiOutlinedInput-root': {
+              borderRadius: '4px'
+            }
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Box>
+      
+      <TableContainer component={Paper} sx={{ boxShadow: 'none', border: '1px solid #e0e0e0', width: '100%' }}>
+        <Table>
+          <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
+            <TableRow>
+              {columns.map((column) => (
+                <TableCell 
+                  key={column.id}
+                  sortDirection={orderBy === column.id ? order : false}
+                  sx={{ 
+                    cursor: column.sortable ? 'pointer' : 'default',
+                    fontWeight: 'bold',
+                    color: '#666'
+                  }}
+                  onClick={() => column.sortable && handleSortRequest(column.id as keyof Apartment)}
                 >
-                  <MenuItem value="">
-                    <em>All Villages</em>
-                  </MenuItem>
-                  {villages.map(village => (
-                    <MenuItem key={village} value={village}>{village}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-          </Box>
-          
-          {villageFilter && (
-            <Box sx={{ mt: 2 }}>
-              <Chip 
-                label={`Village: ${villageFilter}`} 
-                onDelete={() => setVillageFilter('')} 
-                color="primary" 
-                variant="outlined"
-              />
-            </Box>
-          )}
-        </Paper>
-        
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Apartment Name</TableCell>
-                <TableCell>Owner</TableCell>
-                <TableCell>Apartment Phase</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Paying Status</TableCell>
-                <TableCell>Village</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {filteredApartments.length > 0 ? (
-                filteredApartments.map((apartment) => (
-                  <TableRow 
-                    key={apartment.id}
-                    hover
-                    onClick={() => handleApartmentClick(apartment.id)}
-                    sx={{ cursor: 'pointer' }}
-                  >
-                    <TableCell>{apartment.name}</TableCell>
-                    <TableCell>{apartment.ownerName}</TableCell>
-                    <TableCell>{apartment.phase}</TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={apartment.status} 
-                        size="small"
-                        color={
-                          apartment.status === 'Available' ? 'success' :
-                          apartment.status === 'Occupied by Owner' ? 'primary' : 'warning'
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={apartment.payingStatus} 
-                        size="small"
-                        color={
-                          apartment.payingStatus === 'Payed By Transfer' ? 'success' :
-                          apartment.payingStatus === 'Payed By Rent' ? 'info' : 'error'
-                        }
-                      />
-                    </TableCell>
-                    <TableCell>{apartment.village}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} align="center">
-                    <Typography variant="subtitle1" sx={{ py: 2 }}>
-                      No apartments found
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Try adjusting your search or filters
-                    </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    {column.label}
+                    {column.sortable && renderSortIcon(column.id as keyof Apartment)}
+                  </Box>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {sortedApartments.length > 0 ? (
+              sortedApartments.map((apartment) => (
+                <TableRow 
+                  key={apartment.id}
+                  hover
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>{apartment.name}</TableCell>
+                  <TableCell>{apartment.ownerName}</TableCell>
+                  <TableCell>{apartment.phase}</TableCell>
+                  <TableCell>
+                    <Chip 
+                      label={apartment.status} 
+                      size="small"
+                      sx={{
+                        backgroundColor: apartment.status === 'Available' ? '#e6f4ea' :
+                                      apartment.status === 'Occupied by Owner' ? '#e3f2fd' : '#fff8e1',
+                        color: apartment.status === 'Available' ? '#1e8e3e' :
+                               apartment.status === 'Occupied by Owner' ? '#1976d2' : '#f57c00',
+                        border: 'none',
+                        fontWeight: 500,
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={() => handleViewApartment(apartment.id)}
+                      sx={{ mr: 2, color: '#1976d2', textDecoration: 'none' }}
+                    >
+                      View
+                    </Link>
+                    <Link
+                      component="button"
+                      variant="body2"
+                      onClick={(e) => handleEditApartment(apartment.id, e)}
+                      sx={{ color: '#1976d2', textDecoration: 'none' }}
+                    >
+                      Edit
+                    </Link>
                   </TableCell>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} align="center">
+                  <Typography variant="subtitle1" sx={{ py: 2 }}>
+                    No apartments found
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Try adjusting your search or filters
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      
+      <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+        <Button
+          variant="outlined"
+          size="small"
+          sx={{ minWidth: 32, height: 32, p: 0 }}
+        >
+          1
+        </Button>
       </Box>
       
       {/* Add Apartment Dialog */}
@@ -385,6 +426,6 @@ export default function Apartments() {
           <Button variant="contained" onClick={handleAddApartment}>Add Apartment</Button>
         </DialogActions>
       </Dialog>
-    </Container>
+    </Box>
   );
 } 

@@ -13,8 +13,12 @@ import Bookings from './pages/Bookings';
 import Utilities from './pages/Utilities';
 import UtilityReadingDetails from './pages/UtilityReadingDetails';
 import Payments from './pages/Payments';
+import PaymentDetails from './pages/PaymentDetails';
 import Emails from './pages/Emails';
 import Settings from './pages/Settings';
+import Bills from './pages/Bills';
+import ApartmentBills from './pages/ApartmentBills';
+import UserBills from './pages/UserBills';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -89,8 +93,14 @@ function App() {
                 
                 {/* Payments (accessible to all users) */}
                 <Route path="/payments" element={<Payments />} />
+                <Route path="/payments/:id" element={<PaymentDetails />} />
+                <Route path="/payments/:id/edit" element={<PaymentDetails />} />
+                <Route path="/payments/new" element={<PaymentDetails />} />
                 
-                {/* Users (User accounts page is skipped as requested) */}
+                {/* Bills */}
+                <Route path="/bills" element={<Bills />} />
+                <Route path="/bills/apartment/:apartmentId" element={<ApartmentBills />} />
+                <Route path="/bills/user/:userId" element={<UserBills />} />
               </Route>
             </Route>
             

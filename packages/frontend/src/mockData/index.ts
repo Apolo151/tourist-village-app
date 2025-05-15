@@ -1,4 +1,4 @@
-import type { Apartment, Booking, Email, Payment, ServiceRequest, ServiceType, User, Utility, PaymentMethod, Settings, Village } from '../types';
+import type { Apartment, Bill, Booking, Email, Payment, ServiceRequest, ServiceType, User, Utility, PaymentMethod, Settings, Village } from '../types';
 
 export const mockUsers: User[] = [
   { id: 'user1', name: 'Admin User', email: 'admin@example.com', role: 'admin', phone: '+201234567890' },
@@ -126,6 +126,17 @@ export const mockServiceRequests: ServiceRequest[] = [
     userId: 'user2',
     bookingId: 'booking2'
   },
+  { 
+    id: 'request3', 
+    serviceTypeId: 'service3', 
+    apartmentId: 'apt3', 
+    requestDate: '2023-09-01', 
+    serviceDate: '2023-09-05', 
+    notes: 'Regular pool maintenance',
+    status: 'completed',
+    userId: 'user4',
+    assigneeId: 'user1'
+  }
 ];
 
 export const mockUtilities: Utility[] = [
@@ -365,4 +376,265 @@ export const mockVillages: Village[] = [
     contactPhone: '+20123456791',
     description: 'A luxury international resort with world-class facilities and services.'
   }
+];
+
+export const mockBills: Bill[] = [
+  {
+    id: 'bill1',
+    billNumber: 'INV-2023-001',
+    apartmentId: 'apt1',
+    userId: 'user2',
+    userType: 'owner',
+    billDate: '2023-06-15',
+    dueDate: '2023-07-15',
+    isPaid: true,
+    paidDate: '2023-07-10',
+    totalAmountEGP: 5500,
+    totalAmountGBP: 0,
+    description: 'Annual maintenance fee',
+    items: [
+      { description: 'Annual maintenance fee', amount: 5000, currency: 'EGP' },
+      { description: 'Admin fee', amount: 500, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-06-15',
+    paymentId: 'payment1'
+  },
+  {
+    id: 'bill2',
+    billNumber: 'INV-2023-002',
+    apartmentId: 'apt1',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-07-10',
+    dueDate: '2023-07-25',
+    isPaid: true,
+    paidDate: '2023-07-12',
+    totalAmountEGP: 3000,
+    totalAmountGBP: 0,
+    description: 'Booking payment for Sea View Villa',
+    items: [
+      { description: 'Booking payment', amount: 3000, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-07-10',
+    paymentId: 'payment2',
+    bookingId: 'booking1'
+  },
+  {
+    id: 'bill3',
+    billNumber: 'INV-2023-003',
+    apartmentId: 'apt2',
+    userId: 'user2',
+    userType: 'owner',
+    billDate: '2023-07-15',
+    dueDate: '2023-08-15',
+    isPaid: false,
+    totalAmountEGP: 4500,
+    totalAmountGBP: 0,
+    description: 'Property tax and service charges',
+    items: [
+      { description: 'Property tax', amount: 2000, currency: 'EGP' },
+      { description: 'Service charges', amount: 2500, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-07-15'
+  },
+  {
+    id: 'bill4',
+    billNumber: 'INV-2023-004',
+    apartmentId: 'apt2',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-08-02',
+    dueDate: '2023-08-16',
+    isPaid: true,
+    paidDate: '2023-08-05',
+    totalAmountEGP: 4500,
+    totalAmountGBP: 0,
+    description: 'Booking payment and utility deposit for Mountain Retreat',
+    items: [
+      { description: 'Booking payment', amount: 4000, currency: 'EGP' },
+      { description: 'Utility deposit', amount: 500, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-08-02',
+    bookingId: 'booking2'
+  },
+  {
+    id: 'bill5',
+    billNumber: 'INV-2023-005',
+    apartmentId: 'apt3',
+    userId: 'user4',
+    userType: 'owner',
+    billDate: '2023-08-10',
+    dueDate: '2023-09-10',
+    isPaid: false,
+    totalAmountEGP: 6500,
+    totalAmountGBP: 0,
+    description: 'Annual maintenance and community fee',
+    items: [
+      { description: 'Annual maintenance', amount: 5000, currency: 'EGP' },
+      { description: 'Community fee', amount: 1500, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-08-10'
+  },
+  {
+    id: 'bill6',
+    billNumber: 'INV-2023-006',
+    apartmentId: 'apt1',
+    userId: 'user2',
+    userType: 'owner',
+    billDate: '2023-08-15',
+    dueDate: '2023-09-15',
+    isPaid: false,
+    totalAmountEGP: 750,
+    totalAmountGBP: 0,
+    description: 'Cleaning service fee',
+    items: [
+      { description: 'Cleaning service', amount: 500, currency: 'EGP' },
+      { description: 'Materials', amount: 250, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-08-15',
+    serviceRequestId: 'request1'
+  },
+  {
+    id: 'bill7',
+    billNumber: 'INV-2023-007',
+    apartmentId: 'apt2',
+    userId: 'user2',
+    userType: 'owner',
+    billDate: '2023-08-20',
+    dueDate: '2023-09-20',
+    isPaid: true,
+    paidDate: '2023-09-01',
+    totalAmountEGP: 1000,
+    totalAmountGBP: 0,
+    description: 'Maintenance service fee',
+    items: [
+      { description: 'Kitchen sink repair', amount: 800, currency: 'EGP' },
+      { description: 'Parts', amount: 200, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-08-20',
+    serviceRequestId: 'request2'
+  },
+  {
+    id: 'bill8',
+    billNumber: 'INV-2023-008',
+    apartmentId: 'apt3',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-09-06',
+    dueDate: '2023-09-20',
+    isPaid: true,
+    paidDate: '2023-09-10',
+    totalAmountEGP: 5000,
+    totalAmountGBP: 0,
+    description: 'Booking payment for Downtown Condo',
+    items: [
+      { description: 'Booking payment', amount: 4500, currency: 'EGP' },
+      { description: 'Security deposit', amount: 500, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-09-06',
+    bookingId: 'booking3'
+  },
+  {
+    id: 'bill9',
+    billNumber: 'INV-2023-009',
+    apartmentId: 'apt1',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-07-25',
+    dueDate: '2023-08-01',
+    isPaid: true,
+    paidDate: '2023-07-30',
+    totalAmountEGP: 225,
+    totalAmountGBP: 0,
+    description: 'Utility bill for Sea View Villa',
+    items: [
+      { description: 'Electricity', amount: 150, currency: 'EGP' },
+      { description: 'Water', amount: 75, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-07-25',
+    bookingId: 'booking1',
+    utilityId: ['utility1', 'utility2']
+  },
+  {
+    id: 'bill10',
+    billNumber: 'INV-2023-010',
+    apartmentId: 'apt2',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-08-10',
+    dueDate: '2023-08-17',
+    isPaid: true,
+    paidDate: '2023-08-15',
+    totalAmountEGP: 150,
+    totalAmountGBP: 0,
+    description: 'Utility bill for Mountain Retreat',
+    items: [
+      { description: 'Electricity', amount: 75, currency: 'EGP' },
+      { description: 'Water', amount: 75, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-08-10',
+    bookingId: 'booking2',
+    utilityId: ['utility3', 'utility4']
+  },
+  {
+    id: 'bill11',
+    billNumber: 'INV-2023-011',
+    apartmentId: 'apt3',
+    userId: 'user4',
+    userType: 'owner',
+    billDate: '2023-09-01',
+    dueDate: '2023-10-01',
+    isPaid: false,
+    totalAmountGBP: 75,
+    totalAmountEGP: 0,
+    description: 'Pool service fee',
+    items: [
+      { description: 'Pool cleaning service', amount: 75, currency: 'GBP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-09-01',
+    serviceRequestId: 'request3'
+  },
+  {
+    id: 'bill12',
+    billNumber: 'INV-2023-012',
+    apartmentId: 'apt3',
+    userId: 'user3',
+    userType: 'renter',
+    billDate: '2023-09-15',
+    dueDate: '2023-09-22',
+    isPaid: true,
+    paidDate: '2023-09-20',
+    totalAmountEGP: 225,
+    totalAmountGBP: 0,
+    description: 'Utility bill for Downtown Condo',
+    items: [
+      { description: 'Electricity', amount: 150, currency: 'EGP' },
+      { description: 'Water', amount: 75, currency: 'EGP' }
+    ],
+    createdById: 'user1',
+    createdAt: '2023-09-15',
+    bookingId: 'booking3',
+    utilityId: ['utility5', 'utility6']
+  }
 ]; 
+
+// Function to generate bill numbers for different bill types
+export function generateBillNumber(type: 'service' | 'payment' | 'utility' | 'other', id: string): string {
+  const prefix = type === 'service' ? 'SRV' : 
+                 type === 'payment' ? 'PMT' : 
+                 type === 'utility' ? 'UTL' : 'BIL';
+  
+  const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `${prefix}-${id.substring(0, 4).toUpperCase()}-${new Date().getFullYear()}-${randomNum}`;
+} 

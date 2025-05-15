@@ -17,18 +17,50 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip
+  Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon } from '@mui/icons-material';
-import { mockPayments, mockApartments, mockUsers, mockBookings } from '../mockData';
+import { Search as SearchIcon, Add as AddIcon, Visibility as ViewIcon, Edit as EditIcon } from '@mui/icons-material';
+import { mockPayments, mockApartments, mockUsers, mockBookings, mockPaymentMethods } from '../mockData';
+import { useAuth } from '../context/AuthContext';
+
+// Payment form data interface
+interface PaymentFormData {
+  cost: number;
+  currency: 'EGP' | 'GBP';
+  description: string;
+  placeOfPayment: string;
+  userType: 'owner' | 'renter';
+  userId: string;
+  apartmentId: string;
+  bookingId?: string;
+}
 
 export default function Payments() {
   const [searchTerm, setSearchTerm] = useState('');
   const [apartmentFilter, setApartmentFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
   const [bookingFilter, setBookingFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
+  const [openAddPaymentDialog, setOpenAddPaymentDialog] = useState(false);
+  const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
+    cost: 0,
+    currency: 'EGP',
+    description: '',
+    placeOfPayment: '',
+    userType: 'owner',
+    userId: '',
+    apartmentId: '',
+  });
+  
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
   // Filter payments based on search and filters
   const filteredPayments = mockPayments.filter(payment => {
@@ -36,6 +68,7 @@ export default function Payments() {
     const user = mockUsers.find(u => u.id === payment.userId);
     
     const matchesSearch = 
+      searchTerm === '' ||
       apartment?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -44,8 +77,10 @@ export default function Payments() {
     const matchesApartment = apartmentFilter ? payment.apartmentId === apartmentFilter : true;
     const matchesUserType = userTypeFilter ? payment.userType === userTypeFilter : true;
     const matchesBooking = bookingFilter ? payment.bookingId === bookingFilter : true;
+    const matchesUser = userFilter ? payment.userId === userFilter : true;
+    const matchesPaymentType = paymentTypeFilter ? payment.placeOfPayment === paymentTypeFilter : true;
     
-    return matchesSearch && matchesApartment && matchesUserType && matchesBooking;
+    return matchesSearch && matchesApartment && matchesUserType && matchesBooking && matchesUser && matchesPaymentType;
   });
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,12 +99,68 @@ export default function Payments() {
     setBookingFilter(event.target.value);
   };
   
+  const handleUserFilterChange = (event: SelectChangeEvent) => {
+    setUserFilter(event.target.value);
+  };
+  
+  const handlePaymentTypeFilterChange = (event: SelectChangeEvent) => {
+    setPaymentTypeFilter(event.target.value);
+  };
+  
   const handlePaymentClick = (id: string) => {
     navigate(`/payments/${id}`);
   };
   
   const handleAddPayment = () => {
-    navigate('/payments/new');
+    setOpenAddPaymentDialog(true);
+  };
+  
+  const handleCloseDialog = () => {
+    setOpenAddPaymentDialog(false);
+    setPaymentFormData({
+      cost: 0,
+      currency: 'EGP',
+      description: '',
+      placeOfPayment: '',
+      userType: 'owner',
+      userId: '',
+      apartmentId: '',
+    });
+  };
+  
+  const handlePaymentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setPaymentFormData(prev => ({
+      ...prev,
+      [name]: name === 'cost' ? parseFloat(value) : value
+    }));
+  };
+  
+  const handlePaymentSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    setPaymentFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSubmitPayment = () => {
+    // In a real app, this would submit to an API
+    const newPayment = {
+      ...paymentFormData,
+      id: `payment${Date.now()}`,  // Generate a unique ID
+      createdById: currentUser?.id || 'user1', // Use current user ID or fallback
+      createdAt: new Date().toISOString(),
+    };
+    
+    console.log('Creating new payment:', newPayment);
+    
+    // In a real app, you would save this to your backend
+    // For now we'll just close the dialog
+    handleCloseDialog();
+    
+    // You could add the payment to local state here in a real implementation
+    // For example: setPayments([...payments, newPayment]);
   };
 
   return (
@@ -135,6 +226,22 @@ export default function Payments() {
           </FormControl>
           
           <FormControl sx={{ minWidth: 150 }} size="small">
+            <InputLabel>User</InputLabel>
+            <Select
+              value={userFilter}
+              label="User"
+              onChange={handleUserFilterChange}
+            >
+              <MenuItem value="">
+                <em>All Users</em>
+              </MenuItem>
+              {mockUsers.map(user => (
+                <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
+          <FormControl sx={{ minWidth: 150 }} size="small">
             <InputLabel>Booking</InputLabel>
             <Select
               value={bookingFilter}
@@ -154,6 +261,22 @@ export default function Payments() {
               })}
             </Select>
           </FormControl>
+          
+          <FormControl sx={{ minWidth: 150 }} size="small">
+            <InputLabel>Payment Type</InputLabel>
+            <Select
+              value={paymentTypeFilter}
+              label="Payment Type"
+              onChange={handlePaymentTypeFilterChange}
+            >
+              <MenuItem value="">
+                <em>All Payment Types</em>
+              </MenuItem>
+              <MenuItem value="Cash">Cash</MenuItem>
+              <MenuItem value="Bank transfer">Bank Transfer</MenuItem>
+              <MenuItem value="Credit Card">Credit Card</MenuItem>
+            </Select>
+          </FormControl>
         </Box>
       </Paper>
       
@@ -161,9 +284,11 @@ export default function Payments() {
         <Table>
           <TableHead>
             <TableRow>
+              <TableCell>ID</TableCell>
               <TableCell>Date</TableCell>
               <TableCell>Description</TableCell>
               <TableCell>Amount</TableCell>
+              <TableCell>Payment Type</TableCell>
               <TableCell>User Type</TableCell>
               <TableCell>User</TableCell>
               <TableCell>Apartment</TableCell>
@@ -183,9 +308,8 @@ export default function Payments() {
                   <TableRow 
                     key={payment.id} 
                     hover 
-                    onClick={() => handlePaymentClick(payment.id)}
-                    sx={{ cursor: 'pointer' }}
                   >
+                    <TableCell>{payment.id.substring(0, 8)}</TableCell>
                     <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
                     <TableCell>{payment.description}</TableCell>
                     <TableCell>
@@ -193,6 +317,7 @@ export default function Payments() {
                         {payment.cost.toLocaleString()} {payment.currency}
                       </Box>
                     </TableCell>
+                    <TableCell>{payment.placeOfPayment}</TableCell>
                     <TableCell>
                       <Chip
                         label={payment.userType === 'owner' ? 'Owner' : 'Renter'}
@@ -208,23 +333,31 @@ export default function Payments() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        size="small" 
-                        variant="outlined"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handlePaymentClick(payment.id);
-                        }}
-                      >
-                        View
-                      </Button>
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Button 
+                          size="small" 
+                          variant="outlined"
+                          startIcon={<ViewIcon />}
+                          onClick={() => handlePaymentClick(payment.id)}
+                        >
+                          View
+                        </Button>
+                        <Button 
+                          size="small" 
+                          variant="contained"
+                          startIcon={<EditIcon />}
+                          onClick={() => navigate(`/payments/${payment.id}/edit`)}
+                        >
+                          Edit
+                        </Button>
+                      </Box>
                     </TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={8} align="center">
+                <TableCell colSpan={10} align="center">
                   No payments found matching your criteria.
                 </TableCell>
               </TableRow>
@@ -232,6 +365,155 @@ export default function Payments() {
           </TableBody>
         </Table>
       </TableContainer>
+      
+      {/* Add Payment Dialog */}
+      <Dialog open={openAddPaymentDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Payment</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Apartment *</InputLabel>
+              <Select
+                name="apartmentId"
+                value={paymentFormData.apartmentId}
+                label="Apartment *"
+                onChange={handlePaymentSelectChange}
+                required
+              >
+                {mockApartments.map(apt => (
+                  <MenuItem key={apt.id} value={apt.id}>{apt.name} ({apt.village})</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>User Type *</InputLabel>
+              <Select
+                name="userType"
+                value={paymentFormData.userType}
+                label="User Type *"
+                onChange={handlePaymentSelectChange}
+                required
+              >
+                <MenuItem value="owner">Owner</MenuItem>
+                <MenuItem value="renter">Renter</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>User *</InputLabel>
+              <Select
+                name="userId"
+                value={paymentFormData.userId}
+                label="User *"
+                onChange={handlePaymentSelectChange}
+                required
+              >
+                {mockUsers
+                  .filter(user => 
+                    (paymentFormData.userType === 'owner' && user.role === 'owner') ||
+                    (paymentFormData.userType === 'renter' && user.role === 'renter')
+                  )
+                  .map(user => (
+                    <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+                  ))
+                }
+              </Select>
+            </FormControl>
+            
+            {paymentFormData.userType === 'renter' && paymentFormData.apartmentId && (
+              <FormControl fullWidth>
+                <InputLabel>Related Booking {paymentFormData.userType === 'renter' ? '*' : ''}</InputLabel>
+                <Select
+                  name="bookingId"
+                  value={paymentFormData.bookingId || ''}
+                  label={`Related Booking ${paymentFormData.userType === 'renter' ? '*' : ''}`}
+                  onChange={handlePaymentSelectChange}
+                  required={paymentFormData.userType === 'renter'}
+                >
+                  {mockBookings
+                    .filter(booking => 
+                      booking.apartmentId === paymentFormData.apartmentId && 
+                      booking.userId === paymentFormData.userId
+                    )
+                    .map(booking => (
+                      <MenuItem key={booking.id} value={booking.id}>
+                        {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
+                      </MenuItem>
+                    ))
+                  }
+                </Select>
+              </FormControl>
+            )}
+            
+            <TextField
+              name="description"
+              label="Description *"
+              fullWidth
+              value={paymentFormData.description}
+              onChange={handlePaymentInputChange}
+              required
+            />
+            
+            <TextField
+              name="cost"
+              label="Amount *"
+              type="number"
+              fullWidth
+              value={paymentFormData.cost || ''}
+              onChange={handlePaymentInputChange}
+              inputProps={{ min: 0, step: 0.01 }}
+              required
+            />
+            
+            <FormControl fullWidth>
+              <InputLabel>Currency *</InputLabel>
+              <Select
+                name="currency"
+                value={paymentFormData.currency}
+                label="Currency *"
+                onChange={handlePaymentSelectChange}
+                required
+              >
+                <MenuItem value="EGP">EGP</MenuItem>
+                <MenuItem value="GBP">GBP</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl fullWidth>
+              <InputLabel>Payment Type *</InputLabel>
+              <Select
+                name="placeOfPayment"
+                value={paymentFormData.placeOfPayment}
+                label="Payment Type *"
+                onChange={handlePaymentSelectChange}
+                required
+              >
+                {mockPaymentMethods.map(method => (
+                  <MenuItem key={method.id} value={method.name}>{method.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDialog}>Cancel</Button>
+          <Button 
+            onClick={handleSubmitPayment} 
+            variant="contained"
+            disabled={
+              !paymentFormData.apartmentId || 
+              !paymentFormData.userId || 
+              !paymentFormData.description || 
+              !paymentFormData.cost || 
+              !paymentFormData.placeOfPayment ||
+              (paymentFormData.userType === 'renter' && !paymentFormData.bookingId)
+            }
+          >
+            Add Payment
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 } 

@@ -85,6 +85,35 @@ export interface Utility {
   updatedAt?: string;
 }
 
+// Bill Types
+export interface BillItem {
+  description: string;
+  amount: number;
+  currency: 'EGP' | 'GBP';
+}
+
+export interface Bill {
+  id: string;
+  billNumber: string;
+  apartmentId: string;
+  userId: string;
+  userType: 'owner' | 'renter';
+  billDate: string;
+  dueDate: string;
+  isPaid: boolean;
+  paidDate?: string;
+  totalAmountEGP: number;
+  totalAmountGBP: number;
+  description: string;
+  items: BillItem[];
+  createdById: string;
+  createdAt: string;
+  paymentId?: string;
+  bookingId?: string;
+  serviceRequestId?: string;
+  utilityId?: string[];
+}
+
 // Payment Types
 export interface Payment {
   id: string;

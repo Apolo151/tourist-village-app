@@ -96,7 +96,7 @@ export default function Dashboard() {
   };
 
   return (
-    <Box>
+    <Box sx={{ width: '100%' }}>
       <Typography variant="h4" gutterBottom>
         Dashboard
       </Typography>
