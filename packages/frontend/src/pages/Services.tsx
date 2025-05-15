@@ -30,8 +30,11 @@ import {
   TableCell,
   TableContainer,
   TableHead,
-  TableRow
+  TableRow,
+  FormHelperText
 } from '@mui/material';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
   Search as SearchIcon, 
@@ -43,7 +46,7 @@ import {
   Schedule as ScheduleIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { mockServiceTypes, mockApartments, mockServiceRequests } from '../mockData';
+import { mockServiceTypes, mockApartments, mockServiceRequests, mockBookings } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { ServiceType, ServiceRequest } from '../types';
 
@@ -78,8 +81,9 @@ export default function Services() {
   const [openRequestDialog, setOpenRequestDialog] = useState(false);
   const [selectedApartment, setSelectedApartment] = useState('');
   const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
-  const [requestDate, setRequestDate] = useState('');
-  const [serviceDate, setServiceDate] = useState('');
+  const [requestDate, setRequestDate] = useState<Date | null>(new Date());
+  const [serviceDate, setServiceDate] = useState<Date | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState('');
   const [notes, setNotes] = useState('');
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const [tabValue, setTabValue] = useState(0);
@@ -133,9 +137,9 @@ export default function Services() {
     setStatusFilter(event.target.value);
   };
   
-  const handleOpenRequestDialog = (service: ServiceType) => {
+  const handleOpenRequestDialog = (service: ServiceType | null = null) => {
     setSelectedService(service);
-    setRequestDate(new Date().toISOString().split('T')[0]); // Set current date as default request date
+    setRequestDate(new Date());
     setOpenRequestDialog(true);
   };
   
@@ -143,13 +147,26 @@ export default function Services() {
     setOpenRequestDialog(false);
     setSelectedService(null);
     setSelectedApartment('');
-    setRequestDate('');
-    setServiceDate('');
+    setSelectedBooking('');
+    setRequestDate(new Date());
+    setServiceDate(null);
     setNotes('');
   };
   
   const handleApartmentChange = (event: SelectChangeEvent) => {
     setSelectedApartment(event.target.value);
+    // Reset booking when apartment changes
+    setSelectedBooking('');
+  };
+  
+  const handleBookingChange = (event: SelectChangeEvent) => {
+    setSelectedBooking(event.target.value);
+  };
+  
+  const handleServiceChange = (event: SelectChangeEvent) => {
+    const serviceId = event.target.value;
+    const service = mockServiceTypes.find(type => type.id === serviceId);
+    setSelectedService(service || null);
   };
   
   const handleRequestSubmit = () => {
@@ -157,11 +174,12 @@ export default function Services() {
     const newServiceRequest: Partial<ServiceRequest> = {
       serviceTypeId: selectedService?.id,
       apartmentId: selectedApartment,
-      requestDate: requestDate,
-      serviceDate: serviceDate,
+      requestDate: requestDate ? requestDate.toISOString().split('T')[0] : '',
+      serviceDate: serviceDate ? serviceDate.toISOString().split('T')[0] : '',
       notes: notes,
       status: 'pending',
-      userId: currentUser?.id
+      userId: currentUser?.id,
+      bookingId: selectedBooking || undefined
     };
     
     console.log('Creating service request:', newServiceRequest);
@@ -196,137 +214,125 @@ export default function Services() {
     }
   };
 
-  return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Services</Typography>
-          {currentUser?.role === 'admin' && (
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddServiceType}
-            >
-              Add Service Type
-            </Button>
-          )}
-        </Box>
-        
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-          <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
-            <Tab label="Service Types" id="services-tab-0" aria-controls="services-tabpanel-0" />
-            <Tab label="Service Requests" id="services-tab-1" aria-controls="services-tabpanel-1" />
-          </Tabs>
-        </Box>
-        
-        <TabPanel value={tabValue} index={0}>
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <TextField
-              label="Search Services"
-              variant="outlined"
-              size="small"
-              fullWidth
-              value={searchTerm}
-              onChange={handleSearchChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              placeholder="Search by service name or description"
-            />
-          </Paper>
-          
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)'
-            },
-            gap: 3
-          }}>
-            {filteredServices.length > 0 ? (
-              filteredServices.map(service => (
-                <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6" 
-                        onClick={() => currentUser?.role === 'admin' && handleServiceTypeClick(service.id)} 
-                        sx={{ 
-                          cursor: currentUser?.role === 'admin' ? 'pointer' : 'default',
-                          color: 'primary.main',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <BuildIcon sx={{ mr: 1 }} fontSize="small" />
-                        {service.name}
-                      </Typography>
-                      <Chip 
-                        label={`${service.cost} EGP`} 
-                        color="primary" 
-                        variant="outlined"
-                      />
-                    </Box>
-                    
-                    <Divider sx={{ my: 1 }} />
-                    
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                      {service.description}
-                    </Typography>
-                  </CardContent>
-                  
-                  <CardActions sx={{ p: 2, pt: 0 }}>
-                    {currentUser?.role !== 'admin' && (
-                      <Button 
-                        size="small" 
-                        color="primary"
-                        startIcon={<EventAvailableIcon />}
-                        onClick={() => handleOpenRequestDialog(service)}
-                        fullWidth
-                        variant="contained"
-                      >
-                        Request Service
-                      </Button>
-                    )}
-                    {currentUser?.role === 'admin' && (
-                      <Button 
-                        size="small" 
-                        color="primary"
-                        startIcon={<InfoIcon />}
-                        onClick={() => handleServiceTypeClick(service.id)}
-                        fullWidth
-                        variant="outlined"
-                      >
-                        View Details
-                      </Button>
-                    )}
-                  </CardActions>
-                </Card>
-              ))
-            ) : (
-              <Box sx={{ gridColumn: '1 / -1' }}>
-                <Paper sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography>
-                    No services found matching your criteria.
-                  </Typography>
-                </Paper>
+  // Box component returning ServiceType grid
+  const renderServiceTypeGrid = () => (
+    <Box
+      sx={{ 
+        display: 'grid',
+        gridTemplateColumns: {
+          xs: '1fr',
+          sm: 'repeat(2, 1fr)',
+          md: 'repeat(3, 1fr)'
+        },
+        gap: 3
+      }}
+    >
+      {filteredServices.length > 0 ? (
+        filteredServices.map(service => (
+          <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <CardContent sx={{ flexGrow: 1 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6" 
+                  onClick={() => currentUser?.role === 'admin' && handleServiceTypeClick(service.id)} 
+                  sx={{ 
+                    cursor: currentUser?.role === 'admin' ? 'pointer' : 'default',
+                    color: 'primary.main',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <BuildIcon sx={{ mr: 1 }} fontSize="small" />
+                  {service.name}
+                </Typography>
+                <Chip 
+                  label={`${service.cost} EGP`} 
+                  color="primary" 
+                  variant="outlined"
+                />
               </Box>
-            )}
+              
+              <Divider sx={{ my: 1 }} />
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                {service.description}
+              </Typography>
+            </CardContent>
+            
+            <CardActions sx={{ p: 2, pt: 0 }}>
+              {currentUser?.role !== 'admin' && (
+                <Button 
+                  size="small" 
+                  color="primary"
+                  startIcon={<EventAvailableIcon />}
+                  onClick={() => handleOpenRequestDialog(service)}
+                  fullWidth
+                  variant="contained"
+                >
+                  Request Service
+                </Button>
+              )}
+              {currentUser?.role === 'admin' && (
+                <Button 
+                  size="small" 
+                  color="primary"
+                  startIcon={<InfoIcon />}
+                  onClick={() => handleServiceTypeClick(service.id)}
+                  fullWidth
+                  variant="outlined"
+                >
+                  View Details
+                </Button>
+              )}
+            </CardActions>
+          </Card>
+        ))
+      ) : (
+        <Box sx={{ gridColumn: '1 / -1' }}>
+          <Paper sx={{ p: 3, textAlign: 'center' }}>
+            <Typography>
+              No services found matching your criteria.
+            </Typography>
+          </Paper>
+        </Box>
+      )}
+    </Box>
+  );
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
+      <Container maxWidth="lg">
+        <Box sx={{ py: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4">Services</Typography>
           </Box>
-        </TabPanel>
-        
-        <TabPanel value={tabValue} index={1}>
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          
+          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+            <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
+              <Tab label="Service Types" id="services-tab-0" aria-controls="services-tabpanel-0" />
+              <Tab label="Service Requests" id="services-tab-1" aria-controls="services-tabpanel-1" />
+            </Tabs>
+          </Box>
+          
+          <TabPanel value={tabValue} index={0}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">Service Types</Typography>
+              {currentUser?.role === 'admin' && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddServiceType}
+                >
+                  Add Service Type
+                </Button>
+              )}
+            </Box>
+            
+            <Paper sx={{ p: 2, mb: 3 }}>
               <TextField
                 label="Search Services"
                 variant="outlined"
                 size="small"
-                sx={{ flexGrow: 1, minWidth: '200px' }}
+                fullWidth
                 value={searchTerm}
                 onChange={handleSearchChange}
                 InputProps={{
@@ -336,205 +342,295 @@ export default function Services() {
                     </InputAdornment>
                   ),
                 }}
-                placeholder="Search by service name"
+                placeholder="Search by service name or description"
               />
+            </Paper>
+            
+            {renderServiceTypeGrid()}
+          </TabPanel>
+          
+          <TabPanel value={tabValue} index={1}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">Service Requests</Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={() => handleOpenRequestDialog()}
+              >
+                Create a Service Request
+              </Button>
+            </Box>
+            
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <TextField
+                  label="Search Services"
+                  variant="outlined"
+                  size="small"
+                  sx={{ flexGrow: 1, minWidth: '200px' }}
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                  placeholder="Search by service name"
+                />
+                
+                <FormControl size="small" sx={{ minWidth: '200px' }}>
+                  <InputLabel id="apartment-filter-label">Apartment</InputLabel>
+                  <Select
+                    labelId="apartment-filter-label"
+                    value={apartmentFilter}
+                    label="Apartment"
+                    onChange={handleApartmentFilterChange}
+                  >
+                    <MenuItem value="">All Apartments</MenuItem>
+                    {mockApartments.map(apt => (
+                      <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <FormControl size="small" sx={{ minWidth: '150px' }}>
+                  <InputLabel id="status-filter-label">Status</InputLabel>
+                  <Select
+                    labelId="status-filter-label"
+                    value={statusFilter}
+                    label="Status"
+                    onChange={handleStatusFilterChange}
+                  >
+                    <MenuItem value="">All Statuses</MenuItem>
+                    <MenuItem value="pending">Pending</MenuItem>
+                    <MenuItem value="completed">Completed</MenuItem>
+                    <MenuItem value="cancelled">Cancelled</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+            </Paper>
+            
+            <TableContainer component={Paper}>
+              <Table sx={{ minWidth: 650 }} aria-label="service requests table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Service</TableCell>
+                    <TableCell>Apartment</TableCell>
+                    <TableCell>Request Date</TableCell>
+                    <TableCell>Service Date</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filteredRequests.length > 0 ? (
+                    filteredRequests.map(request => {
+                      const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
+                      const apartment = mockApartments.find(apt => apt.id === request.apartmentId);
+                      
+                      return (
+                        <TableRow
+                          key={request.id}
+                          sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                          hover
+                        >
+                          <TableCell component="th" scope="row">
+                            {serviceType?.name || 'Unknown'}
+                          </TableCell>
+                          <TableCell>{apartment?.name || 'Unknown'}</TableCell>
+                          <TableCell>{request.requestDate}</TableCell>
+                          <TableCell>{request.serviceDate}</TableCell>
+                          <TableCell>
+                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                              {getStatusIcon(request.status)}
+                              <Typography sx={{ ml: 1, textTransform: 'capitalize' }}>
+                                {request.status}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button
+                              size="small"
+                              onClick={() => handleServiceRequestClick(request.id)}
+                              variant="outlined"
+                            >
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        No service requests found matching your criteria.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </TabPanel>
+        </Box>
+        
+        {/* Service Request Dialog */}
+        <Dialog open={openRequestDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
+          <DialogTitle>
+            {selectedService ? `Request Service: ${selectedService.name}` : 'Create a Service Request'}
+          </DialogTitle>
+          <DialogContent dividers>
+            <Box component="form" sx={{ mt: 1 }}>
+              {!selectedService && (
+                <FormControl fullWidth margin="normal" required>
+                  <InputLabel id="service-select-label">Service Type</InputLabel>
+                  <Select
+                    labelId="service-select-label"
+                    value={selectedService ? String(selectedService.id) : ''}
+                    label="Service Type"
+                    onChange={handleServiceChange}
+                  >
+                    {mockServiceTypes.map(service => (
+                      <MenuItem key={service.id} value={String(service.id)}>{service.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              )}
               
-              <FormControl size="small" sx={{ minWidth: '200px' }}>
-                <InputLabel id="apartment-filter-label">Apartment</InputLabel>
+              <FormControl fullWidth margin="normal" required>
+                <InputLabel id="apartment-select-label">Related Apartment</InputLabel>
                 <Select
-                  labelId="apartment-filter-label"
-                  value={apartmentFilter}
-                  label="Apartment"
-                  onChange={handleApartmentFilterChange}
+                  labelId="apartment-select-label"
+                  value={selectedApartment}
+                  label="Related Apartment"
+                  onChange={handleApartmentChange}
                 >
-                  <MenuItem value="">All Apartments</MenuItem>
                   {mockApartments.map(apt => (
                     <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
               
-              <FormControl size="small" sx={{ minWidth: '150px' }}>
-                <InputLabel id="status-filter-label">Status</InputLabel>
-                <Select
-                  labelId="status-filter-label"
-                  value={statusFilter}
-                  label="Status"
-                  onChange={handleStatusFilterChange}
-                >
-                  <MenuItem value="">All Statuses</MenuItem>
-                  <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                  <MenuItem value="cancelled">Cancelled</MenuItem>
-                </Select>
-              </FormControl>
+              {selectedApartment && (
+                <FormControl fullWidth margin="normal">
+                  <InputLabel id="booking-select-label">Related Booking (Optional)</InputLabel>
+                  <Select
+                    labelId="booking-select-label"
+                    value={selectedBooking}
+                    label="Related Booking (Optional)"
+                    onChange={handleBookingChange}
+                  >
+                    <MenuItem value="">
+                      <em>None</em>
+                    </MenuItem>
+                    {mockBookings
+                      .filter(booking => booking.apartmentId === selectedApartment)
+                      .map(booking => (
+                        <MenuItem key={booking.id} value={booking.id}>
+                          {booking.arrivalDate} - {booking.leavingDate} ({booking.state})
+                        </MenuItem>
+                      ))}
+                  </Select>
+                  <FormHelperText>
+                    {mockBookings.filter(booking => booking.apartmentId === selectedApartment).length === 0 
+                      ? 'No bookings found for this apartment' 
+                      : 'Select a booking if this service is related to a specific booking'}
+                  </FormHelperText>
+                </FormControl>
+              )}
+              
+              <Box sx={{ mt: 2 }}>
+                <DatePicker
+                  label="Request Date"
+                  value={requestDate}
+                  onChange={(newValue) => {
+                    setRequestDate(newValue);
+                  }}
+                  disablePast={false}
+                  readOnly
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      margin: "normal",
+                      required: true,
+                      helperText: "Date when the request is created (today)"
+                    }
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ mt: 2 }}>
+                <DatePicker
+                  label="Wanted Service Date"
+                  value={serviceDate}
+                  onChange={(newValue) => {
+                    setServiceDate(newValue);
+                  }}
+                  disablePast
+                  slotProps={{
+                    textField: {
+                      fullWidth: true,
+                      margin: "normal",
+                      required: true,
+                      helperText: "When would you like the service to be performed"
+                    }
+                  }}
+                />
+              </Box>
+              
+              <TextField
+                margin="normal"
+                fullWidth
+                id="notes"
+                label="Notes"
+                multiline
+                rows={4}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any additional information that might be helpful"
+              />
+              
+              {selectedService && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom>Service Details:</Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Service:</strong> {selectedService.name}
+                  </Typography>
+                  <Typography variant="body2" gutterBottom>
+                    <strong>Cost:</strong> {selectedService.cost} EGP
+                  </Typography>
+                  <Typography variant="body2">
+                    <strong>Description:</strong> {selectedService.description}
+                  </Typography>
+                </Box>
+              )}
             </Box>
-          </Paper>
-          
-          <TableContainer component={Paper}>
-            <Table sx={{ minWidth: 650 }} aria-label="service requests table">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Service</TableCell>
-                  <TableCell>Apartment</TableCell>
-                  <TableCell>Request Date</TableCell>
-                  <TableCell>Service Date</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filteredRequests.length > 0 ? (
-                  filteredRequests.map(request => {
-                    const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
-                    const apartment = mockApartments.find(apt => apt.id === request.apartmentId);
-                    
-                    return (
-                      <TableRow
-                        key={request.id}
-                        sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
-                        hover
-                      >
-                        <TableCell component="th" scope="row">
-                          {serviceType?.name || 'Unknown'}
-                        </TableCell>
-                        <TableCell>{apartment?.name || 'Unknown'}</TableCell>
-                        <TableCell>{request.requestDate}</TableCell>
-                        <TableCell>{request.serviceDate}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            {getStatusIcon(request.status)}
-                            <Typography sx={{ ml: 1, textTransform: 'capitalize' }}>
-                              {request.status}
-                            </Typography>
-                          </Box>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Button
-                            size="small"
-                            onClick={() => handleServiceRequestClick(request.id)}
-                            variant="outlined"
-                          >
-                            View
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} align="center">
-                      No service requests found matching your criteria.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </TabPanel>
-      </Box>
-      
-      {/* Service Request Dialog */}
-      <Dialog open={openRequestDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          Request Service: {selectedService?.name}
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box component="form" sx={{ mt: 1 }}>
-            <FormControl fullWidth margin="normal" required>
-              <InputLabel id="apartment-select-label">Related Apartment</InputLabel>
-              <Select
-                labelId="apartment-select-label"
-                value={selectedApartment}
-                label="Related Apartment"
-                onChange={handleApartmentChange}
-              >
-                {mockApartments.map(apt => (
-                  <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="requestDate"
-              label="Request Date"
-              type="date"
-              value={requestDate}
-              onChange={(e) => setRequestDate(e.target.value)}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              disabled
-              helperText="Date when the request is created (today)"
-            />
-            
-            <TextField
-              margin="normal"
-              required
-              fullWidth
-              id="serviceDate"
-              label="Wanted Service Date"
-              type="date"
-              value={serviceDate}
-              onChange={(e) => setServiceDate(e.target.value)}
-              InputLabelProps={{
-                shrink: true,
-              }}
-              helperText="When would you like the service to be performed"
-            />
-            
-            <TextField
-              margin="normal"
-              fullWidth
-              id="notes"
-              label="Notes"
-              multiline
-              rows={4}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add any additional information that might be helpful"
-            />
-            
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>Service Details:</Typography>
-              <Typography variant="body2" gutterBottom>
-                <strong>Service:</strong> {selectedService?.name}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                <strong>Cost:</strong> {selectedService?.cost} EGP
-              </Typography>
-              <Typography variant="body2">
-                <strong>Description:</strong> {selectedService?.description}
-              </Typography>
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button 
-            onClick={handleRequestSubmit}
-            variant="contained"
-            disabled={!selectedApartment || !serviceDate}
-          >
-            Submit Request
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Success Snackbar */}
-      <Snackbar
-        open={openSnackbar}
-        autoHideDuration={6000}
-        onClose={() => setOpenSnackbar(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert onClose={() => setOpenSnackbar(false)} severity="success" sx={{ width: '100%' }}>
-          Service request submitted successfully!
-        </Alert>
-      </Snackbar>
-    </Container>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseDialog}>Cancel</Button>
+            <Button 
+              onClick={handleRequestSubmit}
+              variant="contained"
+              disabled={!selectedService || !selectedApartment || !serviceDate}
+            >
+              Submit Request
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* Success Snackbar */}
+        <Snackbar
+          open={openSnackbar}
+          autoHideDuration={6000}
+          onClose={() => setOpenSnackbar(false)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setOpenSnackbar(false)} severity="success" sx={{ width: '100%' }}>
+            Service request submitted successfully!
+          </Alert>
+        </Snackbar>
+      </Container>
+    </LocalizationProvider>
   );
 } 

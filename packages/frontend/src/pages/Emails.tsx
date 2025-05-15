@@ -141,6 +141,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
     }
   };
   
+  // Look up creator information if available
+  const creator = formData.createdById ? mockUsers.find(user => user.id === formData.createdById) : null;
+  
   return (
     <Box component="form" onSubmit={handleSubmit} noValidate>
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -236,7 +239,6 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               onChange={handleChange}
               error={!!errors.from}
               helperText={errors.from}
-              disabled={isEdit} // Don't allow changing sender in edit mode
             />
           </Grid>
           
@@ -265,6 +267,21 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.subject}
             />
           </Grid>
+          
+          {formData.createdById && (
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                label="Created By"
+                value={creator ? `${creator.name} (${creator.email})` : formData.createdById}
+                InputProps={{
+                  readOnly: true,
+                }}
+                variant="filled"
+                helperText="User who created this email"
+              />
+            </Grid>
+          )}
           
           <Grid size={12}>
             <TextField
@@ -315,6 +332,9 @@ function EmailDetail({ email, onEdit, onBack }: {
   const apartment = mockApartments.find(apt => apt.id === email.apartmentId);
   const booking = email.bookingId ? mockBookings.find(b => b.id === email.bookingId) : null;
   const { currentUser } = useAuth();
+  
+  // Find creator if available
+  const creator = email.createdById ? mockUsers.find(user => user.id === email.createdById) : null;
   
   return (
     <Box>
@@ -413,6 +433,18 @@ function EmailDetail({ email, onEdit, onBack }: {
                 </Box>
               </Box>
             </Grid>
+            
+            {email.createdById && (
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <Box>
+                    <Typography variant="body1">{creator?.name || 'Unknown'}</Typography>
+                    <Typography variant="caption" color="text.secondary">{creator?.email || email.createdById}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            )}
           </Grid>
         </Box>
         
