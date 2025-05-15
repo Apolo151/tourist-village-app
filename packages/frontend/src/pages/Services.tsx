@@ -10,10 +10,6 @@ import {
   CardActions,
   TextField,
   InputAdornment,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   FormControl,
   InputLabel,
   Select,
@@ -31,10 +27,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  FormHelperText
 } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
+import { LocalizationProvider } from '@mui/x-date-pickers';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
   Search as SearchIcon, 
@@ -46,9 +41,9 @@ import {
   Schedule as ScheduleIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { mockServiceTypes, mockApartments, mockServiceRequests, mockBookings } from '../mockData';
+import { mockServiceTypes, mockApartments, mockServiceRequests} from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { ServiceType, ServiceRequest } from '../types';
+import type { ServiceType } from '../types';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -78,13 +73,6 @@ function TabPanel(props: TabPanelProps) {
 
 export default function Services() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [openRequestDialog, setOpenRequestDialog] = useState(false);
-  const [selectedApartment, setSelectedApartment] = useState('');
-  const [selectedService, setSelectedService] = useState<ServiceType | null>(null);
-  const [requestDate, setRequestDate] = useState<Date | null>(new Date());
-  const [serviceDate, setServiceDate] = useState<Date | null>(null);
-  const [selectedBooking, setSelectedBooking] = useState('');
-  const [notes, setNotes] = useState('');
   const [openSnackbar, setOpenSnackbar] = useState(false);
   const [tabValue, setTabValue] = useState(0);
   const [apartmentFilter, setApartmentFilter] = useState('');
@@ -138,55 +126,7 @@ export default function Services() {
   };
   
   const handleOpenRequestDialog = (service: ServiceType | null = null) => {
-    setSelectedService(service);
-    setRequestDate(new Date());
-    setOpenRequestDialog(true);
-  };
-  
-  const handleCloseDialog = () => {
-    setOpenRequestDialog(false);
-    setSelectedService(null);
-    setSelectedApartment('');
-    setSelectedBooking('');
-    setRequestDate(new Date());
-    setServiceDate(null);
-    setNotes('');
-  };
-  
-  const handleApartmentChange = (event: SelectChangeEvent) => {
-    setSelectedApartment(event.target.value);
-    // Reset booking when apartment changes
-    setSelectedBooking('');
-  };
-  
-  const handleBookingChange = (event: SelectChangeEvent) => {
-    setSelectedBooking(event.target.value);
-  };
-  
-  const handleServiceChange = (event: SelectChangeEvent) => {
-    const serviceId = event.target.value;
-    const service = mockServiceTypes.find(type => type.id === serviceId);
-    setSelectedService(service || null);
-  };
-  
-  const handleRequestSubmit = () => {
-    // In a real app, this would send data to an API
-    const newServiceRequest: Partial<ServiceRequest> = {
-      serviceTypeId: selectedService?.id,
-      apartmentId: selectedApartment,
-      requestDate: requestDate ? requestDate.toISOString().split('T')[0] : '',
-      serviceDate: serviceDate ? serviceDate.toISOString().split('T')[0] : '',
-      notes: notes,
-      status: 'pending',
-      userId: currentUser?.id,
-      bookingId: selectedBooking || undefined
-    };
-    
-    console.log('Creating service request:', newServiceRequest);
-    
-    // Show success message and close dialog
-    setOpenSnackbar(true);
-    handleCloseDialog();
+    navigate('/services/requests/create' + (service ? `?serviceId=${service.id}` : ''));
   };
   
   const handleAddServiceType = () => {
@@ -474,150 +414,6 @@ export default function Services() {
             </TableContainer>
           </TabPanel>
         </Box>
-        
-        {/* Service Request Dialog */}
-        <Dialog open={openRequestDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-          <DialogTitle>
-            {selectedService ? `Request Service: ${selectedService.name}` : 'Create a Service Request'}
-          </DialogTitle>
-          <DialogContent dividers>
-            <Box component="form" sx={{ mt: 1 }}>
-              {!selectedService && (
-                <FormControl fullWidth margin="normal" required>
-                  <InputLabel id="service-select-label">Service Type</InputLabel>
-                  <Select
-                    labelId="service-select-label"
-                    value={selectedService ? String((selectedService as ServiceType).id) : ''}
-                    label="Service Type"
-                    onChange={handleServiceChange}
-                  >
-                    {mockServiceTypes.map(service => (
-                      <MenuItem key={service.id} value={String(service.id)}>{service.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              )}
-              
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel id="apartment-select-label">Related Apartment</InputLabel>
-                <Select
-                  labelId="apartment-select-label"
-                  value={selectedApartment}
-                  label="Related Apartment"
-                  onChange={handleApartmentChange}
-                >
-                  {mockApartments.map(apt => (
-                    <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              {selectedApartment && (
-                <FormControl fullWidth margin="normal">
-                  <InputLabel id="booking-select-label">Related Booking (Optional)</InputLabel>
-                  <Select
-                    labelId="booking-select-label"
-                    value={selectedBooking}
-                    label="Related Booking (Optional)"
-                    onChange={handleBookingChange}
-                  >
-                    <MenuItem value="">
-                      <em>None</em>
-                    </MenuItem>
-                    {mockBookings
-                      .filter(booking => booking.apartmentId === selectedApartment)
-                      .map(booking => (
-                        <MenuItem key={booking.id} value={booking.id}>
-                          {booking.arrivalDate} - {booking.leavingDate} ({booking.state})
-                        </MenuItem>
-                      ))}
-                  </Select>
-                  <FormHelperText>
-                    {mockBookings.filter(booking => booking.apartmentId === selectedApartment).length === 0 
-                      ? 'No bookings found for this apartment' 
-                      : 'Select a booking if this service is related to a specific booking'}
-                  </FormHelperText>
-                </FormControl>
-              )}
-              
-              <Box sx={{ mt: 2 }}>
-                <DatePicker
-                  label="Request Date"
-                  value={requestDate}
-                  onChange={(newValue) => {
-                    setRequestDate(newValue);
-                  }}
-                  disablePast={false}
-                  readOnly
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      margin: "normal",
-                      required: true,
-                      helperText: "Date when the request is created (today)"
-                    }
-                  }}
-                />
-              </Box>
-              
-              <Box sx={{ mt: 2 }}>
-                <DatePicker
-                  label="Wanted Service Date"
-                  value={serviceDate}
-                  onChange={(newValue) => {
-                    setServiceDate(newValue);
-                  }}
-                  disablePast
-                  slotProps={{
-                    textField: {
-                      fullWidth: true,
-                      margin: "normal",
-                      required: true,
-                      helperText: "When would you like the service to be performed"
-                    }
-                  }}
-                />
-              </Box>
-              
-              <TextField
-                margin="normal"
-                fullWidth
-                id="notes"
-                label="Notes"
-                multiline
-                rows={4}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any additional information that might be helpful"
-              />
-              
-              {selectedService && (
-                <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-                  <Typography variant="subtitle2" gutterBottom>Service Details:</Typography>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>Service:</strong> {selectedService.name}
-                  </Typography>
-                  <Typography variant="body2" gutterBottom>
-                    <strong>Cost:</strong> {selectedService.cost} EGP
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Description:</strong> {selectedService.description}
-                  </Typography>
-                </Box>
-              )}
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleCloseDialog}>Cancel</Button>
-            <Button 
-              onClick={handleRequestSubmit}
-              variant="contained"
-              disabled={!selectedService || !selectedApartment || !serviceDate}
-            >
-              Submit Request
-            </Button>
-          </DialogActions>
-        </Dialog>
         
         {/* Success Snackbar */}
         <Snackbar

@@ -10,6 +10,7 @@ import Services from './pages/Services';
 import ServiceTypeDetails from './pages/ServiceTypeDetails';
 import ServiceRequestDetails from './pages/ServiceRequestDetails';
 import Bookings from './pages/Bookings';
+import BookingDetails from './pages/BookingDetails';
 import Utilities from './pages/Utilities';
 import UtilityReadingDetails from './pages/UtilityReadingDetails';
 import Payments from './pages/Payments';
@@ -22,6 +23,7 @@ import UserBills from './pages/UserBills';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
+import CreateServiceRequest from './pages/CreateServiceRequest';
 
 // Create a theme
 const theme = createTheme({
@@ -61,14 +63,17 @@ function App() {
                 </Route>
                 
                 {/* Bookings */}
-                <Route path="/bookings" element={<Bookings />} />
-                <Route path="/bookings/:id" element={<Bookings />} />
-                <Route path="/bookings/new" element={<Bookings />} />
+                <Route element={<ProtectedRoute requiredRole="admin" />}>
+                  <Route path="/bookings" element={<Bookings />} />
+                  <Route path="/bookings/:id" element={<BookingDetails />} />
+                  <Route path="/bookings/new" element={<BookingDetails />} />
+                </Route>
                 
                 {/* Services */}
                 <Route path="/services" element={<Services />} />
                 <Route path="/services/types/:id" element={<ServiceTypeDetails />} />
                 <Route path="/services/requests/:id" element={<ServiceRequestDetails />} />
+                <Route path="/services/requests/create" element={<CreateServiceRequest />} />
                 
                 {/* Admin-only service routes */}
                 <Route element={<ProtectedRoute requiredRole="admin" />}>

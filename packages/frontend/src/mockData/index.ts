@@ -65,6 +65,44 @@ export const mockApartments: Apartment[] = [
     bedrooms: 1,
     bathrooms: 1
   },
+  { 
+    id: 'apt4', 
+    name: 'Luxury Beach House', 
+    village: 'Sharm',
+    phase: 'Phase 2',
+    status: 'Available',
+    payingStatus: 'Payed By Transfer',
+    city: 'Sharm El Sheikh', 
+    address: '15 Coral Bay, Sharm El Sheikh', 
+    ownerId: 'user4',
+    ownerName: 'Ahmed Owner',
+    purchaseDate: '2023-01-05',
+    description: 'Luxurious beachfront property with private access',
+    images: ['/assets/apt4-1.jpg', '/assets/apt4-2.jpg'],
+    amenities: ['Private Beach', 'Infinity Pool', 'Smart Home System', 'Home Theater'],
+    size: 200,
+    bedrooms: 4,
+    bathrooms: 3
+  },
+  { 
+    id: 'apt5', 
+    name: 'Garden Villa', 
+    village: 'Luxor',
+    phase: 'Phase 1',
+    status: 'Occupied By Renter',
+    payingStatus: 'Payed By Rent',
+    city: 'Luxor', 
+    address: '92 Valley Road, Luxor', 
+    ownerId: 'user2',
+    ownerName: 'John Owner',
+    purchaseDate: '2023-03-20',
+    description: 'Spacious villa with extensive gardens and Nile view',
+    images: ['/assets/apt5-1.jpg', '/assets/apt5-2.jpg', '/assets/apt5-3.jpg'],
+    amenities: ['Large Garden', 'Nile View', 'Outdoor Kitchen', 'Guest House'],
+    size: 180,
+    bedrooms: 3,
+    bathrooms: 2.5
+  }
 ];
 
 export const mockBookings: Booking[] = [

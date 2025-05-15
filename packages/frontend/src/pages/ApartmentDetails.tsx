@@ -373,11 +373,11 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
   };
   
   const handleAddPayment = () => {
-    navigate(`/payments/new?apartmentId=${id}`);
+    navigate(`/payments/new?apartmentId=${id}&userId=${apartment?.ownerId}`);
   };
   
   const handleRequestService = () => {
-    navigate(`/services/new?apartmentId=${id}`);
+    navigate(`/services/requests/create?apartmentId=${id}&userId=${apartment?.ownerId}`);
   };
   
   const handleViewBills = () => {
@@ -860,7 +860,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                 <Button 
                   variant="contained" 
                   startIcon={<ConstructionIcon />}
-                  onClick={() => navigate(`/services/new?apartmentId=${id}`)}
+                  onClick={handleRequestService}
                 >
                   New Service Request
                 </Button>
