@@ -5,6 +5,12 @@ export interface User {
   email: string;
   role: 'admin' | 'owner' | 'renter';
   phone?: string;
+  permissions?: {
+    villageAccess: string[]; // IDs of villages the user can access
+    canView: boolean;
+    canAdd: boolean;
+    canEdit: boolean;
+  };
 }
 
 // Apartment Types
@@ -113,6 +119,21 @@ export interface Settings {
   electricityPrice: number;
   gasPrice: number;
   waterPrice: number;
+}
+
+export interface Village {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  country: string;
+  electricityPrice: number;
+  gasPrice: number;
+  waterPrice: number;
+  numberOfPhases: number;
+  contactEmail: string;
+  contactPhone: string;
+  description: string;
 }
 
 export interface PaymentMethod {

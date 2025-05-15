@@ -1,4 +1,4 @@
-import type { Apartment, Booking, Email, Payment, ServiceRequest, ServiceType, User, Utility, PaymentMethod, Settings } from '../types';
+import type { Apartment, Booking, Email, Payment, ServiceRequest, ServiceType, User, Utility, PaymentMethod, Settings, Village } from '../types';
 
 export const mockUsers: User[] = [
   { id: 'user1', name: 'Admin User', email: 'admin@example.com', role: 'admin', phone: '+201234567890' },
@@ -319,5 +319,50 @@ export const mockPaymentMethods: PaymentMethod[] = [
 export const mockSettings: Settings = {
   electricityPrice: 1.5,
   gasPrice: 1.2,
-  waterPrice: 0.75,
-}; 
+  waterPrice: 0.75
+};
+
+export const mockVillages: Village[] = [
+  {
+    id: 'village1',
+    name: 'Sharm',
+    address: '123 Sharm El-Sheikh Road',
+    city: 'Sharm El-Sheikh',
+    country: 'Egypt',
+    electricityPrice: 1.5,
+    gasPrice: 1.2,
+    waterPrice: 0.75,
+    numberOfPhases: 3,
+    contactEmail: 'info@sharm-village.com',
+    contactPhone: '+20123456789',
+    description: 'A beautiful resort village in Sharm El-Sheikh with beach access and modern amenities.'
+  },
+  {
+    id: 'village2',
+    name: 'Luxor',
+    address: '45 Luxor Temple Road',
+    city: 'Luxor',
+    country: 'Egypt',
+    electricityPrice: 1.6,
+    gasPrice: 1.3,
+    waterPrice: 0.8,
+    numberOfPhases: 2,
+    contactEmail: 'info@luxor-village.com',
+    contactPhone: '+20123456790',
+    description: 'A historic village near the ancient temples of Luxor with beautiful gardens and pools.'
+  },
+  {
+    id: 'village3',
+    name: 'International Resort',
+    address: '78 International Road',
+    city: 'Cairo',
+    country: 'Egypt',
+    electricityPrice: 1.7,
+    gasPrice: 1.4,
+    waterPrice: 0.85,
+    numberOfPhases: 4,
+    contactEmail: 'info@international-resort.com',
+    contactPhone: '+20123456791',
+    description: 'A luxury international resort with world-class facilities and services.'
+  }
+]; 

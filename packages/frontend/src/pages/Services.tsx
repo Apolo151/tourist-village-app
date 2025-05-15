@@ -487,7 +487,7 @@ export default function Services() {
                   <InputLabel id="service-select-label">Service Type</InputLabel>
                   <Select
                     labelId="service-select-label"
-                    value={selectedService ? String(selectedService.id) : ''}
+                    value={selectedService ? String((selectedService as ServiceType).id) : ''}
                     label="Service Type"
                     onChange={handleServiceChange}
                   >
