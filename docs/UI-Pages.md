@@ -1,76 +1,125 @@
-## UI Pages
-
 - Home (Reports) Page: Shows general interactive analytics
 	- Content:
 		- General Financial Report
 			- Fields: City, Apartment, Payment Method, Balance, Running Total
 			- Ability to filter by: City, Payment Method
 		- "Export to PDF/Excel" Button
-- Apartments Page: List all Apartments, with the ability to filter by city
+- Apartments Page: List all Apartments, with the ability to filter by Village (Sharm, Luxor, International Resort)
+	- Content:
+		- Apartments List
+			- Row Fields: Apartment Name, Apartment Phase, Status (automatically calculated from related Bookings), Paying Status
+				- Status: Available, Occupied by Owner, Occupied By Renter
+				- Paying Status: Payed By Transfer, Payed By Rent, Non-Payer
+		- "Add a new Apartment" Button
+			- Fields: Apartment Name, Owner Name, Village, Apartment Phase (Dropdown from Village Phases), Purchase Date
 	- Sub-Pages:
 		- Apartment Details Page: 
 			- Admin: can view and edit everything related to the apartment from here
-				- Content: Apartment Info, Owner Profile, Purchase Date, Bookings, Service Requests, Related Emails, Utilities Readings
+				- Content: Apartment Info, Owner Profile, Purchase Date, Related Bookings, Service Requests, Related Emails, Utilities Readings
+					- Apartment Money: 
+						- Total Money Spent On (EGP and BGP): from sum of Payments related to this Apartment
+						- Total Money Requested (EGP and BGP): from sum of Service Requests for this Apartment
+						- Net Money (EGP and BGP): "Total Money Requested" - "Total Money Spend On"
+						- Should have a Button "View all Billss" -> redirects to the Bills page for this Apartment
 			- User: view details and book Apartment
 				- Content: Apartment Info, "Book Now" Button (redirect to booking page)
+			- Should have Quick actions
+				- Add a new Booking: create a new Booking for this Apartment
+				- Add a new Email: create a new Email related to this Apartment
+				- Add a Payment: create a new Payment related to this Apartment
+				- Request a Service: create a new Service Request related to this Apartment
 - Emails Page (Admin only): List all Emails, with ability to filter by Apartment
 	- Content: 
 		- Emails List
 		- "Add a new email" button
-			- Fields: Date, From, To, Subject, Email Content, related Apartment
+			- Fields: Date, From, To, Subject, Email Content, related Apartment, related Booking (Optional), Email Type
+				- Email Type: Complaint, Booking Request, Service Request, Inquiry
 			- Store the current signed user id (the user who created the Email)
-- Services Page: List Service Types
+- Service Types and Service Requests Page: List Service Types and Service Requests
 	- Content:
 		- Service Types List
+		- Service Requests List
 		- "Add a new Service Type" Button (Admin Only)
-			- Fields: Service Name, Cost, Description
+			- Fields: Service Name, Cost, Currency (EGP, GBP), Description, Assignee (Optional)
 		- "Request Service" for each Service Type (User only)
-			- Fields: Related Apartment, Request Date (date of request creation), Wanted Service Date (when will the service be done), Notes
+			- Fields: Related Apartment, Request Date (date of request creation), Wanted Service Date (when will the service be done), Notes, Related Booking (Optional), Assignee (Optional)
+				- Notes:
+					- Assignee will default to the Service Type Assignee, but can be changed
 	- Sub-Pages:
 		- Service Type Details Page: Ability to view and edit Service Type details
+		- Service Request Details Page: Ability to view and edit Service Request details
 - Utilities Page (Admin Only): List all Utilities Readings, with ability to filter by specific Apartment or Booking
 	- Content: 
 		- Utilities Readings List
 		- "Add a new Reading" button
-			- Fields: The Reading, Type (start of booking, end of booking), Notes, Related Apartment, Related Booking
+			- Fields: The Start Reading, The End Reading, Utility Type (Water, Electricity), Start Date, End Date, Notes, Related Apartment, Related Booking
 				- The Reading's start and end date should be the the same as the Booking dates by default
 					- They can be changed to be within the booking dates (but not outside them)
-				- Option to add an end reading while creating the start reading
 			- Store the current signed user id (the user who created the Reading)
 			- Notes:
 				- After a booking has a start and end reading
 				- The system should automatically calculate the bill for this utility (Water, Electricity), and add it to the user account
 					- should be added by the end date to the user's bills (in EGP), with the related booking, and the name of the person in the booking
 					- Equation: (End Reading - Start Reading) * Utility Price (stored in the settings)
-- Bookings Page (Admin only): List all Bookings, with ability to filter by Apartment, Date, or State
+- Bookings Page (Admin only): List all Bookings, with ability to filter by Apartment, Date (Arrival and Leaving), State, User Type(Owner, Renter)
+	- Filters: Default to showing current and upcoming Bookings only
 	- Content:
 		- Bookings List
+			- Fields in each row: Booking ID, User Name, User Type (Owner, Renter), Related Apartment, Arrival DateTime, Leaving DateTime, Booking Status
 			- Clicking on a Booking, should open a Booking Details Page
 		- "Create a new Booking" Button
-			- Fields: Related Apartment, Related User, Arrival Date, Leaving Date, Booking State
-				- Booking State: Has not Arrived, In village, Left (defaults to has not arrived when first created)
+			- Fields: Related Apartment,User Type (Renter or Owner), Person Name, No. of People Arriving, Arrival DateTime, Leaving DateTime, Booking Status, Notes, Flight Details (like notes)
+				- Booking Status: Has not Arrived, In village, Left (defaults to has not arrived when first created)
 			- Notes:
 				- Should prevent booking when there is a conflict in dates with another booking (disallow selecting invalid dates)
 	- Sub-Pages:
 		- Booking Details Page: admin can view and edit Booking details
-			- can add a Utility reading (related to this booking)
+			- has an "Add a Utility Reading" Button (related to this booking)
+			- has an "Add a Payment" Button (related to this booking)
+			- Should view related Booking stuff:
+				- Related Payments
+				- Related Service Requests
+				- Related Emails
+				- Related Transactions
+					- According to Booking Type:
+						- Renter: Show all Transactions related to this Booking
+						- Owner: Show all Transactions related to this Owner (not just this Booking)
 - Payments Page: List all Payments, with the ability to filter by Apartment, Booking, User (and User Type) 
 	- Contents:
 		- Payments List
 		- "add a new Payment" Button
-			- Fields: Cost, Currency, Description, Place of Payment, User Type (Owner or Renter), Related User, Related Apartment, Related Booking (can be null)
+			- Fields: Cost, Currency (EGP or GBP), Description, Payment Type (Cash, Bank, Visa), User Type (Owner or Renter), Related User, Related Apartment, Related Booking (can be null)
+				- All Payments Must be related with an Apartment
+					- In the Transactions Page, It appears in the Apartment Transactions
+				- Renter Payments Must be related with a Booking
+					- in the Transactions Page, it appears in the Booking Transactions
 			- Store the current signed user id (the user who created the Payment)
-- Users Accounts Page: List User Accounts, with ability to filter by user type
+- Bills Page: List Bills (Service Requests, Payments) Totals and Summary for User and Apartment, with ability to view details about a User or Apartment
+	- Content:
+		- List of Bills
+			- Default to showing the current year bills only
+				- Should show a note at the top with the Running Total for the previous years
+			- Show all Bills with ability to filter by User Type, Date Range, Village
+				- Fields:
+					- Village, Apartment, User Name, 
+					- Total Money Spent On (EGP and BGP): from sum of Payments related to this Apartment
+					- Total Money Requested (EGP and BGP): from sum of Service Requests for this Apartment
+					- Net Money (EGP and BGP): "Total Money Requested" - "Total Money Spend On"
+						- Should have two action fields (view Apartment Bills, View User Bills)
+		- "Add a Payment" Button
 	- Sub-Pages
-		- Owner Account Page:
-			- View all Service Requests made by the Owner and their total cost
-			- View all Payments made by the Owner
-			- Show the Difference between both
-			- Ability to filter by Apartment and Date
-			- Ability to export date to PDF/EXCEL
-		- Renter Account Page:
-			- View related Bookings
-			- View Payments and Service Requests (like the owner)
+		- Apartment Bills: View All Bills (Payments and Service Requests) for this Apartment, with the Total at the Top of the Page
+			- Fields: Description, Type (Payment/Service Request), Booking ID (Optional), Booking Arrival Date (Optional), Person Name (from Booking, Optional)
+				- Total Money Spent On (EGP and BGP): from sum of Payments related to this Apartment
+				- Total Money Requested (EGP and BGP): from sum of Service Requests for this Apartment
+				- Net Money (EGP and BGP): "Total Money Requested" - "Total Money Spend On"
+		- User Bills: View all Bills for the User, with Total at the Top of the Page
+			- Fields: Description, Type (Payment/Service Request), Booking ID (Optional), Booking Arrival Date (Optional), Person Name (from Booking, Optional)
+				- Total Money Spent On (EGP and BGP): from sum of Payments related to this Apartment
+				- Total Money Requested (EGP and BGP): from sum of Service Requests for this Apartment
+				- Net Money (EGP and BGP): "Total Money Requested" - "Total Money Spend On"
+	- Should allow Reasonable Filtering in all Pages
+	- Can Export this data in PDF/Excel Formats
 - Settings Page (Admin Only):
 	- Content
 		- General Settings: TBD
@@ -79,9 +128,14 @@
 		- Payment Methods: Add/Edit/Delete
 		- Village Details
 			- Electricity and Gas Price for the village (can be edited)
+			- Number of Phases
+			- Address
+			- etc..
 		- Reports Formatting: TBD
 
 **Notes**
 
 - Have Alerts for outlier events
     - Examples: Missing Readings, Pending Requests, High Debt
+- Any Thing in the System must be related to an Apartment
+	- Can Also be related to a Booking
