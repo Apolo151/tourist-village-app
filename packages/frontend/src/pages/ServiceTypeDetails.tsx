@@ -7,16 +7,21 @@ import {
   Button, 
   TextField, 
   Container, 
-  Alert, 
-  InputAdornment
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormHelperText
 } from '@mui/material';
+import type { SelectChangeEvent } from '@mui/material';
 import { 
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
   Edit as EditIcon,
   Cancel as CancelIcon
 } from '@mui/icons-material';
-import { mockServiceTypes } from '../mockData';
+import { mockServiceTypes, mockUsers } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { ServiceType } from '../types';
 
@@ -25,14 +30,14 @@ export default function ServiceTypeDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
-  const isNew = location.pathname === '/services/new';
+  const isNew = location.pathname.includes('/services/types/new');
   const [isEditing, setIsEditing] = useState(isNew);
   const [error, setError] = useState('');
   
   // Find service type from mock data
   const initialServiceType = id 
     ? mockServiceTypes.find(service => service.id === id) 
-    : { id: '', name: '', cost: 0, description: '' };
+    : { id: '', name: '', cost: 0, currency: 'EGP' as const, description: '', assigneeId: '' };
   
   const [serviceType, setServiceType] = useState<ServiceType | undefined>(initialServiceType);
   
@@ -54,6 +59,16 @@ export default function ServiceTypeDetails() {
       setServiceType({
         ...serviceType,
         [name]: name === 'cost' ? parseFloat(value) || 0 : value,
+      });
+    }
+  };
+
+  const handleSelectChange = (e: SelectChangeEvent) => {
+    const { name, value } = e.target;
+    if (serviceType && name) {
+      setServiceType({
+        ...serviceType,
+        [name]: value,
       });
     }
   };
@@ -161,7 +176,7 @@ export default function ServiceTypeDetails() {
               />
             </Box>
             
-            <Box sx={{ gridColumn: { xs: '1', md: '1' } }}>
+            <Box>
               <TextField
                 fullWidth
                 label="Cost"
@@ -171,12 +186,50 @@ export default function ServiceTypeDetails() {
                 onChange={handleInputChange}
                 disabled={!isEditing}
                 required
-                InputProps={{
-                  startAdornment: <InputAdornment position="start">EGP</InputAdornment>,
-                }}
                 error={isEditing && (serviceType?.cost || 0) <= 0}
                 helperText={isEditing && (serviceType?.cost || 0) <= 0 ? 'Cost must be greater than 0' : ''}
               />
+            </Box>
+            
+            <Box>
+              <FormControl fullWidth disabled={!isEditing}>
+                <InputLabel id="currency-label">Currency</InputLabel>
+                <Select
+                  labelId="currency-label"
+                  id="currency"
+                  name="currency"
+                  value={serviceType?.currency || 'EGP'}
+                  onChange={handleSelectChange}
+                  label="Currency"
+                >
+                  <MenuItem value="EGP">EGP</MenuItem>
+                  <MenuItem value="GBP">GBP</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+            
+            <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
+              <FormControl fullWidth disabled={!isEditing}>
+                <InputLabel id="assignee-label">Assignee</InputLabel>
+                <Select
+                  labelId="assignee-label"
+                  id="assigneeId"
+                  name="assigneeId"
+                  value={serviceType?.assigneeId || ''}
+                  onChange={handleSelectChange}
+                  label="Assignee"
+                >
+                  <MenuItem value="">
+                    <em>Not Assigned</em>
+                  </MenuItem>
+                  {mockUsers.filter(user => user.role === 'admin').map(user => (
+                    <MenuItem key={user.id} value={user.id}>
+                      {user.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+                <FormHelperText>Select who will be responsible for this service</FormHelperText>
+              </FormControl>
             </Box>
             
             <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>

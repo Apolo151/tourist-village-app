@@ -44,7 +44,9 @@ export interface ServiceType {
   id: string;
   name: string;
   cost: number;
+  currency: 'EGP' | 'GBP';
   description: string;
+  assigneeId?: string;
 }
 
 export interface ServiceRequest {
@@ -56,22 +58,25 @@ export interface ServiceRequest {
   notes?: string;
   status: 'pending' | 'completed' | 'cancelled';
   userId: string;
+  bookingId?: string;
+  assigneeId?: string;
 }
 
 // Utility Types
-export type UtilityType = 'water' | 'electricity' | 'gas';
-export type ReadingType = 'start' | 'end';
-
-export interface UtilityReading {
+export interface Utility {
   id: string;
   apartmentId: string;
-  bookingId?: string;
-  type: ReadingType;
-  utilityType: UtilityType;
-  value: number;
-  date: string;
-  notes?: string;
+  bookingId: string;
+  utilityType: 'water' | 'electricity';
+  startReading: number;
+  endReading?: number;
+  startDate: string;
+  endDate?: string;
+  startNotes?: string;
+  endNotes?: string;
   createdById: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 // Payment Types

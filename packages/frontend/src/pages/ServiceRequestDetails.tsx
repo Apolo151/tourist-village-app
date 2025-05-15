@@ -12,7 +12,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -23,7 +24,7 @@ import {
   CheckCircle as CheckCircleIcon,
   Block as BlockIcon
 } from '@mui/icons-material';
-import { mockServiceRequests, mockServiceTypes, mockApartments } from '../mockData';
+import { mockServiceRequests, mockServiceTypes, mockApartments, mockBookings, mockUsers } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { ServiceRequest } from '../types';
 
@@ -50,6 +51,14 @@ export default function ServiceRequestDetails() {
     ? mockApartments.find(apt => apt.id === serviceRequest.apartmentId)
     : undefined;
   
+  const booking = serviceRequest?.bookingId
+    ? mockBookings.find(b => b.id === serviceRequest.bookingId)
+    : undefined;
+  
+  const assignee = serviceRequest?.assigneeId
+    ? mockUsers.find(user => user.id === serviceRequest.assigneeId)
+    : undefined;
+  
   useEffect(() => {
     // Set error if service request not found
     if (!serviceRequest) {
@@ -62,6 +71,15 @@ export default function ServiceRequestDetails() {
       setServiceRequest({
         ...serviceRequest,
         status: e.target.value as 'pending' | 'completed' | 'cancelled',
+      });
+    }
+  };
+  
+  const handleAssigneeChange = (e: SelectChangeEvent) => {
+    if (serviceRequest) {
+      setServiceRequest({
+        ...serviceRequest,
+        assigneeId: e.target.value,
       });
     }
   };
@@ -143,7 +161,7 @@ export default function ServiceRequestDetails() {
               startIcon={<EditIcon />}
               onClick={handleEdit}
             >
-              Update Status
+              Update Request
             </Button>
           )}
         </Box>
@@ -165,51 +183,93 @@ export default function ServiceRequestDetails() {
             <Divider sx={{ my: 2 }} />
           </Box>
           
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
-            <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
               <Typography variant="body1">{apartment?.name || 'Unknown'}</Typography>
-            </Box>
+            </Grid>
             
-            <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="subtitle2" color="text.secondary">Cost</Typography>
-              <Typography variant="body1">{serviceType?.cost || 0} EGP</Typography>
-            </Box>
-          </Box>
-          
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 3 }}>
-            <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+              <Typography variant="body1">
+                {serviceType?.cost || 0} {serviceType?.currency || 'EGP'}
+              </Typography>
+            </Grid>
+            
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="subtitle2" color="text.secondary">Request Date</Typography>
               <Typography variant="body1">{serviceRequest?.requestDate || 'N/A'}</Typography>
-            </Box>
+            </Grid>
             
-            <Box sx={{ flex: '1 1 45%', minWidth: '200px' }}>
+            <Grid size={{ xs: 12, md: 6 }}>
               <Typography variant="subtitle2" color="text.secondary">Service Date</Typography>
               <Typography variant="body1">{serviceRequest?.serviceDate || 'N/A'}</Typography>
-            </Box>
-          </Box>
-          
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
-            <Typography variant="body1">{serviceRequest?.notes || 'No notes provided'}</Typography>
-          </Box>
+            </Grid>
+            
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
+              <Typography variant="body1">
+                {booking 
+                  ? `${apartment?.name} (${booking.arrivalDate} - ${booking.leavingDate})` 
+                  : 'No related booking'
+                }
+              </Typography>
+            </Grid>
+            
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="subtitle2" color="text.secondary">Assignee</Typography>
+              <Typography variant="body1">
+                {assignee?.name || 'Not assigned'}
+              </Typography>
+            </Grid>
+            
+            <Grid size={12}>
+              <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
+              <Typography variant="body1">{serviceRequest?.notes || 'No notes provided'}</Typography>
+            </Grid>
+          </Grid>
           
           {isEditing && (
             <Box sx={{ mt: 3 }}>
               <Divider sx={{ my: 2 }} />
-              <FormControl fullWidth>
-                <InputLabel id="status-select-label">Status</InputLabel>
-                <Select
-                  labelId="status-select-label"
-                  value={serviceRequest?.status || ''}
-                  label="Status"
-                  onChange={handleStatusChange}
-                >
-                  <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                  <MenuItem value="cancelled">Cancelled</MenuItem>
-                </Select>
-              </FormControl>
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="status-select-label">Status</InputLabel>
+                    <Select
+                      labelId="status-select-label"
+                      value={serviceRequest?.status || ''}
+                      label="Status"
+                      onChange={handleStatusChange}
+                    >
+                      <MenuItem value="pending">Pending</MenuItem>
+                      <MenuItem value="completed">Completed</MenuItem>
+                      <MenuItem value="cancelled">Cancelled</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <FormControl fullWidth>
+                    <InputLabel id="assignee-select-label">Assignee</InputLabel>
+                    <Select
+                      labelId="assignee-select-label"
+                      value={serviceRequest?.assigneeId || ''}
+                      label="Assignee"
+                      onChange={handleAssigneeChange}
+                    >
+                      <MenuItem value="">
+                        <em>Not Assigned</em>
+                      </MenuItem>
+                      {mockUsers.filter(user => user.role === 'admin').map(user => (
+                        <MenuItem key={user.id} value={user.id}>
+                          {user.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
               
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
                 <Button

@@ -24,7 +24,7 @@ import {
   Divider,
   Card,
   Alert,
-  Grid as MuiGrid,
+  Grid,
   CircularProgress,
   FormHelperText
 } from '@mui/material';
@@ -147,8 +147,8 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
         <Typography variant="h6" gutterBottom>Email Information</Typography>
         <Divider sx={{ mb: 3 }} />
         
-        <MuiGrid container spacing={3}>
-          <MuiGrid item xs={12} md={6}>
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               required
               fullWidth
@@ -161,9 +161,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.date}
               InputLabelProps={{ shrink: true }}
             />
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth required error={!!errors.emailType}>
               <InputLabel>Email Type</InputLabel>
               <Select
@@ -179,9 +179,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               </Select>
               {errors.emailType && <FormHelperText>{errors.emailType}</FormHelperText>}
             </FormControl>
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth required error={!!errors.apartmentId}>
               <InputLabel>Related Apartment</InputLabel>
               <Select
@@ -196,9 +196,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               </Select>
               {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
             </FormControl>
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth disabled={!formData.apartmentId || relatedBookings.length === 0}>
               <InputLabel>Related Booking (Optional)</InputLabel>
               <Select
@@ -224,9 +224,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
                     : 'Optional: Select a related booking'}
               </FormHelperText>
             </FormControl>
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               required
               fullWidth
@@ -238,9 +238,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.from}
               disabled={isEdit} // Don't allow changing sender in edit mode
             />
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <TextField
               required
               fullWidth
@@ -251,9 +251,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               error={!!errors.to}
               helperText={errors.to}
             />
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12}>
+          <Grid size={12}>
             <TextField
               required
               fullWidth
@@ -264,9 +264,9 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               error={!!errors.subject}
               helperText={errors.subject}
             />
-          </MuiGrid>
+          </Grid>
           
-          <MuiGrid item xs={12}>
+          <Grid size={12}>
             <TextField
               required
               fullWidth
@@ -280,8 +280,8 @@ function EmailForm({ email, isEdit, onSave, onCancel }: {
               helperText={errors.content}
               placeholder="Write your email content here..."
             />
-          </MuiGrid>
-        </MuiGrid>
+          </Grid>
+        </Grid>
       </Paper>
       
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
@@ -345,13 +345,13 @@ function EmailDetail({ email, onEdit, onBack }: {
       
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ mb: 3 }}>
-          <MuiGrid container spacing={2}>
-            <MuiGrid item xs={12} sm={6} md={4}>
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Typography variant="subtitle2" color="text.secondary">Date</Typography>
               <Typography variant="body1">{new Date(email.date).toLocaleDateString()}</Typography>
-            </MuiGrid>
+            </Grid>
             
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Typography variant="subtitle2" color="text.secondary">Email Type</Typography>
               <Typography variant="body1">
                 <Chip 
@@ -364,9 +364,9 @@ function EmailDetail({ email, onEdit, onBack }: {
                   }
                 />
               </Typography>
-            </MuiGrid>
+            </Grid>
             
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Typography variant="subtitle2" color="text.secondary">Related Apartment</Typography>
               <Typography variant="body1">
                 <Chip 
@@ -376,10 +376,10 @@ function EmailDetail({ email, onEdit, onBack }: {
                   variant="outlined"
                 />
               </Typography>
-            </MuiGrid>
+            </Grid>
             
             {booking && (
-              <MuiGrid item xs={12} sm={6} md={4}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
                 <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
                 <Typography variant="body1">
                   <Chip 
@@ -389,10 +389,10 @@ function EmailDetail({ email, onEdit, onBack }: {
                     variant="outlined"
                   />
                 </Typography>
-              </MuiGrid>
+              </Grid>
             )}
             
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Typography variant="subtitle2" color="text.secondary">From</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
@@ -401,9 +401,9 @@ function EmailDetail({ email, onEdit, onBack }: {
                   <Typography variant="caption" color="text.secondary">{email.from}</Typography>
                 </Box>
               </Box>
-            </MuiGrid>
+            </Grid>
             
-            <MuiGrid item xs={12} sm={6} md={4}>
+            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
               <Typography variant="subtitle2" color="text.secondary">To</Typography>
               <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
@@ -412,8 +412,8 @@ function EmailDetail({ email, onEdit, onBack }: {
                   <Typography variant="caption" color="text.secondary">{email.to}</Typography>
                 </Box>
               </Box>
-            </MuiGrid>
-          </MuiGrid>
+            </Grid>
+          </Grid>
         </Box>
         
         <Divider sx={{ my: 3 }} />

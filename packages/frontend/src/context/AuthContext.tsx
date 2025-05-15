@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const user = mockUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
     
-    if (user) {
+    if (user && password) {
       setCurrentUser(user);
       return true;
     }

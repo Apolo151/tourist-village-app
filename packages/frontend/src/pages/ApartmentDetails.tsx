@@ -30,11 +30,7 @@ import {
   Select,
   MenuItem,
   FormHelperText,
-  InputAdornment,
   Grid,
-  IconButton,
-  Tooltip,
-  Stack,
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon
@@ -55,14 +51,11 @@ import {
   Construction as ConstructionIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
-  Send as SendIcon,
   RequestPage as RequestPageIcon,
   Payments as PaymentsIcon,
-  Receipt as ReceiptIcon,
   ArticleOutlined as BillsIcon,
-  Add as AddIcon
 } from '@mui/icons-material';
-import { mockApartments, mockUsers, mockBookings, mockServiceRequests, mockEmails, mockUtilityReadings, mockServiceTypes, mockPayments } from '../mockData';
+import { mockApartments, mockUsers, mockBookings, mockServiceRequests, mockEmails, mockUtilities, mockServiceTypes, mockPayments } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import type { Apartment } from '../types';
 
@@ -112,7 +105,6 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
       amenities: []
     }
   );
-  const [amenity, setAmenity] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   // Get phases for the selected village
@@ -159,30 +151,6 @@ function ApartmentForm({ apartment, isNew, onSave, onCancel }: {
         setFormData(prev => ({ ...prev, ownerName: owner.name }));
       }
     }
-  };
-  
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    const numValue = value === '' ? '' : Number(value);
-    setFormData(prev => ({ ...prev, [name]: numValue }));
-  };
-  
-  const handleAddAmenity = () => {
-    if (amenity.trim() === '') return;
-    
-    setFormData(prev => ({
-      ...prev,
-      amenities: [...(prev.amenities || []), amenity.trim()]
-    }));
-    
-    setAmenity('');
-  };
-  
-  const handleRemoveAmenity = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      amenities: prev.amenities?.filter((_, i) => i !== index)
-    }));
   };
   
   const validate = (): boolean => {
@@ -337,7 +305,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
   const relatedEmails = apartment ? mockEmails.filter(email => email.apartmentId === id) : [];
   
   // Get utility readings
-  const utilityReadings = apartment ? mockUtilityReadings.filter(reading => reading.apartmentId === id) : [];
+  const utilityReadings = apartment ? mockUtilities.filter(utility => utility.apartmentId === id) : [];
   
   // Get payments for this apartment
   const relatedPayments = apartment ? mockPayments.filter(payment => payment.apartmentId === id) : [];
@@ -548,7 +516,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
         <Paper sx={{ mb: 3, overflow: 'hidden' }}>
           <Box sx={{ p: 3 }}>
             <Grid container spacing={3}>
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="h6" gutterBottom>
                   Apartment Information
                 </Typography>
@@ -600,7 +568,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                 </List>
               </Grid>
               
-              <Grid item xs={12} md={6}>
+              <Grid size={{ xs: 12, md: 6 }}>
                 <Typography variant="h6" gutterBottom>
                   Status Information
                 </Typography>
@@ -1027,37 +995,42 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                     <TableHead>
                       <TableRow>
                         <TableCell>Booking</TableCell>
-                        <TableCell>Type</TableCell>
                         <TableCell>Utility</TableCell>
-                        <TableCell>Reading</TableCell>
-                        <TableCell>Date</TableCell>
+                        <TableCell>Start Reading</TableCell>
+                        <TableCell>End Reading</TableCell>
+                        <TableCell>Start Date</TableCell>
+                        <TableCell>End Date</TableCell>
                         <TableCell>Notes</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {utilityReadings.map(reading => {
-                        const booking = reading.bookingId 
-                          ? mockBookings.find(b => b.id === reading.bookingId) 
+                      {utilityReadings.map(utility => {
+                        const booking = utility.bookingId 
+                          ? mockBookings.find(b => b.id === utility.bookingId) 
                           : null;
                         return (
-                          <TableRow key={reading.id}>
+                          <TableRow key={utility.id}>
                             <TableCell>
                               {booking 
                                 ? `${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}` 
                                 : '-'
                               }
                             </TableCell>
+                            <TableCell>{utility.utilityType}</TableCell>
+                            <TableCell>{utility.startReading}</TableCell>
+                            <TableCell>{utility.endReading || '-'}</TableCell>
+                            <TableCell>{new Date(utility.startDate).toLocaleDateString()}</TableCell>
+                            <TableCell>{utility.endDate ? new Date(utility.endDate).toLocaleDateString() : '-'}</TableCell>
                             <TableCell>
-                              <Chip 
-                                label={reading.type} 
-                                color={reading.type === 'start' ? 'primary' : 'secondary'}
-                                size="small"
-                              />
+                              {utility.startNotes || utility.endNotes ? (
+                                <>
+                                  {utility.startNotes && <div>Start: {utility.startNotes}</div>}
+                                  {utility.endNotes && <div>End: {utility.endNotes}</div>}
+                                </>
+                              ) : (
+                                '-'
+                              )}
                             </TableCell>
-                            <TableCell>{reading.utilityType}</TableCell>
-                            <TableCell>{reading.value}</TableCell>
-                            <TableCell>{new Date(reading.date).toLocaleDateString()}</TableCell>
-                            <TableCell>{reading.notes || '-'}</TableCell>
                           </TableRow>
                         );
                       })}

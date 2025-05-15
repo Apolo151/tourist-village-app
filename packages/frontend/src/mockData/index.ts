@@ -1,4 +1,4 @@
-import type { Apartment, Booking, Email, Payment, ServiceRequest, ServiceType, User, UtilityReading, PaymentMethod, Settings } from '../types';
+import type { Apartment, Booking, Email, Payment, ServiceRequest, ServiceType, User, Utility, PaymentMethod, Settings } from '../types';
 
 export const mockUsers: User[] = [
   { id: 'user1', name: 'Admin User', email: 'admin@example.com', role: 'admin', phone: '+201234567890' },
@@ -98,9 +98,9 @@ export const mockBookings: Booking[] = [
 ];
 
 export const mockServiceTypes: ServiceType[] = [
-  { id: 'service1', name: 'Cleaning', cost: 50, description: 'Full apartment cleaning service' },
-  { id: 'service2', name: 'Maintenance', cost: 100, description: 'General maintenance and repairs' },
-  { id: 'service3', name: 'Pool Service', cost: 75, description: 'Pool cleaning and maintenance' },
+  { id: 'service1', name: 'Cleaning', cost: 50, currency: 'EGP', description: 'Full apartment cleaning service', assigneeId: 'user1' },
+  { id: 'service2', name: 'Maintenance', cost: 100, currency: 'EGP', description: 'General maintenance and repairs', assigneeId: 'user1' },
+  { id: 'service3', name: 'Pool Service', cost: 75, currency: 'GBP', description: 'Pool cleaning and maintenance' },
 ];
 
 export const mockServiceRequests: ServiceRequest[] = [
@@ -111,7 +111,9 @@ export const mockServiceRequests: ServiceRequest[] = [
     requestDate: '2023-07-10', 
     serviceDate: '2023-07-20', 
     status: 'completed',
-    userId: 'user2'
+    userId: 'user2',
+    bookingId: 'booking1',
+    assigneeId: 'user1'
   },
   { 
     id: 'request2', 
@@ -121,51 +123,104 @@ export const mockServiceRequests: ServiceRequest[] = [
     serviceDate: '2023-08-05', 
     notes: 'Fix kitchen sink',
     status: 'pending',
-    userId: 'user2'
+    userId: 'user2',
+    bookingId: 'booking2'
   },
 ];
 
-export const mockUtilityReadings: UtilityReading[] = [
+export const mockUtilities: Utility[] = [
+  
   { 
-    id: 'reading1', 
+    id: 'utility1', 
     apartmentId: 'apt1', 
     bookingId: 'booking1', 
-    type: 'start', 
     utilityType: 'electricity', 
-    value: 1200, 
-    date: '2023-07-15',
-    createdById: 'user1'
+    startReading: 1200, 
+    endReading: 1350,
+    startDate: '2023-07-15',
+    endDate: '2023-07-25',
+    startNotes: 'Initial reading at check-in',
+    endNotes: 'Final reading at check-out',
+    createdById: 'user1',
+    createdAt: '2023-07-15T10:00:00Z',
+    updatedAt: '2023-07-25T10:00:00Z'
   },
   { 
-    id: 'reading2', 
+    id: 'utility2', 
     apartmentId: 'apt1', 
     bookingId: 'booking1', 
-    type: 'end', 
+    utilityType: 'water', 
+    startReading: 500, 
+    endReading: 550,
+    startDate: '2023-07-15',
+    endDate: '2023-07-25',
+    startNotes: 'Initial reading taken at check-in',
+    endNotes: 'Final reading taken at check-out',
+    createdById: 'user1',
+    createdAt: '2023-07-15T10:00:00Z',
+    updatedAt: '2023-07-25T10:00:00Z'
+  },
+  { 
+    id: 'utility3', 
+    apartmentId: 'apt2', 
+    bookingId: 'booking2', 
     utilityType: 'electricity', 
-    value: 1350, 
-    date: '2023-07-25',
-    createdById: 'user1'
+    startReading: 2000,
+    endReading: 2075,
+    startDate: '2023-08-01',
+    endDate: '2023-08-10',
+    startNotes: 'Initial reading by admin',
+    endNotes: 'Final reading by maintenance',
+    createdById: 'user1',
+    createdAt: '2023-08-01T10:00:00Z',
+    updatedAt: '2023-08-10T16:30:00Z'
   },
   { 
-    id: 'reading3', 
-    apartmentId: 'apt1', 
-    bookingId: 'booking1', 
-    type: 'start', 
+    id: 'utility4', 
+    apartmentId: 'apt2', 
+    bookingId: 'booking2', 
     utilityType: 'water', 
-    value: 500, 
-    date: '2023-07-15',
-    createdById: 'user1'
+    startReading: 1000, 
+    endReading: 1080,
+    startDate: '2023-08-01',
+    endDate: '2023-08-10',
+    startNotes: 'Initial water meter reading',
+    endNotes: 'Final water meter reading',
+    createdById: 'user1',
+    createdAt: '2023-08-01T09:30:00Z',
+    updatedAt: '2023-08-10T15:45:00Z'
   },
   { 
-    id: 'reading4', 
-    apartmentId: 'apt1', 
-    bookingId: 'booking1', 
-    type: 'end', 
-    utilityType: 'water', 
-    value: 550, 
-    date: '2023-07-25',
-    createdById: 'user1'
+    id: 'utility5', 
+    apartmentId: 'apt3', 
+    bookingId: 'booking3', 
+    utilityType: 'electricity', 
+    startReading: 3500, 
+    endReading: 3650,
+    startDate: '2023-09-05',
+    endDate: '2023-09-15',
+    startNotes: 'Initial electricity reading for booking',
+    endNotes: 'Final electricity reading at departure',
+    createdById: 'user1',
+    createdAt: '2023-09-05T11:00:00Z',
+    updatedAt: '2023-09-15T14:00:00Z'
   },
+  { 
+    id: 'utility6', 
+    apartmentId: 'apt3', 
+    bookingId: 'booking3', 
+    utilityType: 'water', 
+    startReading: 750, 
+    endReading: 825,
+    startDate: '2023-09-05',
+    endDate: '2023-09-15',
+    startNotes: 'Initial water reading for Downtown Condo',
+    endNotes: 'Final water reading recorded by admin',
+    createdById: 'user1',
+    createdAt: '2023-09-05T11:15:00Z',
+    updatedAt: '2023-09-15T14:15:00Z'
+  }
+
 ];
 
 export const mockPayments: Payment[] = [
