@@ -39,8 +39,6 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
-  RequestPage as RequestPageIcon,
-  ArticleOutlined as BillsIcon,
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -332,28 +330,21 @@ const BookingDetails: React.FC = () => {
   
   // Add new payment
   const handleAddPayment = () => {
-    // Get the user type and user ID from the booking
-    const user = mockUsers.find(u => u.id === formData.userId);
-    const userType = user?.role || 'renter';
+    if (!formData.id || !formData.apartmentId || !formData.userId) {
+      return;
+    }
+    
+    // Navigate to new payment page with pre-filled data
+    navigate(`/payments/new?bookingId=${formData.id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}&userType=${formData.userType}`);
+  };
 
-    // Create a description based on the booking
-    const description = `Payment for booking ${id} (${format(formData.arrivalDate!, 'MMM dd, yyyy')} - ${format(formData.leavingDate!, 'MMM dd, yyyy')})`;
-
-    // Log the data being passed
-    console.log('Adding payment with data:', {
-      bookingId: id,
-      apartmentId: formData.apartmentId,
-      userId: formData.userId,
-      userType,
-      description,
-      user,
-      formData
-    });
-
-    // Navigate to payment creation with pre-filled data
-    const url = `/payments/new?bookingId=${id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}&userType=${userType}&description=${encodeURIComponent(description)}`;
-    console.log('Navigating to:', url);
-    navigate(url);
+  const handleAddServiceRequest = () => {
+    if (!formData.id || !formData.apartmentId || !formData.userId) {
+      return;
+    }
+    
+    // Navigate to create service request page with pre-filled data
+    navigate(`/services/new?bookingId=${formData.id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}`);
   };
 
   // Toggle edit mode
@@ -387,12 +378,9 @@ const BookingDetails: React.FC = () => {
   };
 
   // Quick actions for admin
-  const quickActions = [
+  const actions = [
     { icon: <PaymentIcon />, name: 'Add Payment', onClick: handleAddPayment },
-    { icon: <UtilityIcon />, name: 'Add Utility Reading', onClick: handleAddUtilityReading },
-    { icon: <RequestPageIcon />, name: 'Request Service', onClick: () => navigate(`/services/requests/create?bookingId=${id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}`) },
-    { icon: <EmailIcon />, name: 'Send Email', onClick: () => navigate(`/emails/new?bookingId=${id}&apartmentId=${formData.apartmentId}`) },
-    { icon: <BillsIcon />, name: 'View Bills', onClick: () => navigate(`/bills?bookingId=${id}`) },
+    { icon: <ServiceIcon />, name: 'Add Service Request', onClick: handleAddServiceRequest },
   ];
 
   const handleBack = () => {
@@ -473,11 +461,11 @@ const BookingDetails: React.FC = () => {
         {/* Quick actions speed dial (admin only) */}
         {currentUser?.role === 'admin' && !isNew && (
           <SpeedDial
-            ariaLabel="Quick actions"
-            sx={{ position: 'fixed', bottom: 24, right: 24 }}
+            ariaLabel="Quick Actions"
+            sx={{ position: 'fixed', bottom: 16, right: 16 }}
             icon={<SpeedDialIcon />}
           >
-            {quickActions.map((action) => (
+            {actions.map((action) => (
               <SpeedDialAction
                 key={action.name}
                 icon={action.icon}

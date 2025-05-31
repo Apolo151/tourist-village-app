@@ -97,9 +97,9 @@ function App() {
                 
                 {/* Payments (accessible to all users) */}
                 <Route path="/payments" element={<Payments />} />
+                <Route path="/payments/new" element={<PaymentDetails />} />
                 <Route path="/payments/:id" element={<PaymentDetails />} />
                 <Route path="/payments/:id/edit" element={<PaymentDetails />} />
-                <Route path="/payments/new" element={<PaymentDetails />} />
                 
                 {/* Bills */}
                 <Route path="/bills" element={<Bills />} />
