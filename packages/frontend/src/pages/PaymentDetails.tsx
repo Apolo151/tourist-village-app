@@ -200,20 +200,25 @@ export default function PaymentDetails() {
     if (isNew) {
       // Add to mock data
       mockPayments.push(updatedPayment as Payment);
+      // Navigate to the created payment's details page
+      navigate(`/payments/${updatedPayment.id}`);
     } else {
       // Update in mock data
       const index = mockPayments.findIndex(p => p.id === id);
       if (index !== -1) {
         mockPayments[index] = updatedPayment as Payment;
       }
+      // Navigate back to payments list for edits
+      navigate('/payments');
     }
-    
-    // Navigate back to payments list
-    navigate('/payments');
   };
   
   const handleCancel = () => {
     navigate(id && !isNew ? `/payments/${id}` : '/payments');
+  };
+  
+  const handleBack = () => {
+    navigate(-1);
   };
   
   if (loading) {
@@ -288,11 +293,10 @@ export default function PaymentDetails() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Button
-              component={RouterLink}
-              to="/payments"
               variant="text"
               color="primary"
               startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
             >
               Back
             </Button>

@@ -74,7 +74,7 @@ export default function ServiceTypeDetails() {
   };
   
   const handleBack = () => {
-    navigate('/services');
+    navigate(-1);
   };
   
   const handleEdit = () => {
@@ -101,8 +101,12 @@ export default function ServiceTypeDetails() {
     console.log('Saving service type:', serviceType);
     
     if (isNew) {
-      // Redirect to services page after creating
-      navigate('/services');
+      // Generate an ID for the new service type
+      const newServiceTypeId = `service${Date.now()}`;
+      console.log('Creating service type with ID:', newServiceTypeId);
+      
+      // Navigate to the created service type details page
+      navigate(`/services/types/${newServiceTypeId}`);
     } else {
       // Exit edit mode
       setIsEditing(false);

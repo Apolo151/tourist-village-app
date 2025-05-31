@@ -34,7 +34,8 @@ import {
   Add as AddIcon, 
   FilterList as FilterListIcon,
   FileDownload as FileDownloadIcon,
-  Assignment as AssignmentIcon
+  Assignment as AssignmentIcon,
+  TouchApp as TouchAppIcon
 } from '@mui/icons-material';
 import { mockApartments, mockUsers, mockVillages, mockBookings, mockServiceRequests, mockServiceTypes, mockPayments } from '../mockData';
 import { format } from 'date-fns';
@@ -76,8 +77,8 @@ interface BillSummary {
 }
 
 interface HighlightedBillSummary {
-  ownerSummary: BillSummary;
-  renterSummary?: BillSummary;
+  ownerSummary: BillSummary & { userName: string };
+  renterSummary?: BillSummary & { userName: string };
 }
 
 // Interface for the payment dialog form
@@ -141,13 +142,24 @@ export default function Bills() {
 
     setHighlightedBill(billId);
     
+    // Get owner user for this apartment
+    const apartment = mockApartments.find(apt => apt.id === bill.apartmentId);
+    const ownerUser = apartment ? mockUsers.find(u => u.id === apartment.ownerId) : null;
+    
     const summary: HighlightedBillSummary = {
-      ownerSummary: calculateBillSummary(bill.apartmentId, 'owner'),
+      ownerSummary: {
+        ...calculateBillSummary(bill.apartmentId, 'owner'),
+        userName: ownerUser?.name || 'Unknown Owner'
+      },
     };
 
     // If there's a booking, add renter summary
     if (bill.bookingId) {
-      summary.renterSummary = calculateBillSummary(bill.apartmentId, 'renter');
+      const renterUser = mockUsers.find(u => u.id === bill.userId && bill.userType === 'renter');
+      summary.renterSummary = {
+        ...calculateBillSummary(bill.apartmentId, 'renter'),
+        userName: renterUser?.name || 'Unknown Renter'
+      };
     }
 
     setHighlightedBillSummary(summary);
@@ -413,14 +425,14 @@ export default function Bills() {
             <Typography variant="h6" gutterBottom>Selected Bill Summary</Typography>
             <Box sx={{ display: 'flex', gap: 4 }}>
               <Box>
-                <Typography variant="subtitle1" color="primary">Owner Summary</Typography>
+                <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
                 <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneySpentGBP} GBP</Typography>
                 <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneyRequestedGBP} GBP</Typography>
                 <Typography>Net Money: {highlightedBillSummary.ownerSummary.netMoneyEGP} EGP / {highlightedBillSummary.ownerSummary.netMoneyGBP} GBP</Typography>
               </Box>
               {highlightedBillSummary.renterSummary && (
                 <Box>
-                  <Typography variant="subtitle1" color="secondary">Renter Summary</Typography>
+                  <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
                   <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneySpentGBP} GBP</Typography>
                   <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneyRequestedGBP} GBP</Typography>
                   <Typography>Net Money: {highlightedBillSummary.renterSummary.netMoneyEGP} EGP / {highlightedBillSummary.renterSummary.netMoneyGBP} GBP</Typography>
@@ -532,24 +544,103 @@ export default function Bills() {
                   <TableRow 
                     key={bill.id}
                     selected={bill.id === highlightedBill}
-                    onClick={() => handleHighlightBill(bill.id)}
-                    sx={{ cursor: 'pointer' }}
                   >
                     <TableCell>{bill.description}</TableCell>
                     <TableCell>{getBillTypeChip(bill.billType)}</TableCell>
                     <TableCell>{bill.village}</TableCell>
                     <TableCell>{bill.apartmentName}</TableCell>
                     <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {bill.userName}
-                        <Chip 
-                          label={bill.userType === 'owner' ? 'Owner' : 'Renter'} 
-                          color={bill.userType === 'owner' ? 'primary' : 'default'}
-                          size="small"
-                          variant="outlined"
-                          sx={{ height: '18px', fontSize: '0.65rem' }}
-                        />
-                      </Box>
+                      <Tooltip title="Click to view financial summary for this apartment" arrow>
+                        <Box 
+                          component="button"
+                          sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 0.5,
+                            cursor: 'pointer',
+                            border: 'none',
+                            background: 'transparent',
+                            padding: '8px 12px',
+                            borderRadius: 2,
+                            transition: 'all 0.2s ease-in-out',
+                            textAlign: 'left',
+                            width: '100%',
+                            minHeight: '40px',
+                            '&:hover': {
+                              backgroundColor: 'primary.light',
+                              color: 'primary.contrastText',
+                              transform: 'translateY(-1px)',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                              '& .click-icon': {
+                                opacity: 1,
+                                transform: 'scale(1.1)'
+                              },
+                              '& .user-name': {
+                                color: 'primary.contrastText'
+                              },
+                              '& .MuiChip-root': {
+                                backgroundColor: 'rgba(255,255,255,0.2)',
+                                color: 'primary.contrastText',
+                                borderColor: 'rgba(255,255,255,0.3)'
+                              }
+                            },
+                            '&:active': {
+                              transform: 'translateY(0px)',
+                              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+                            },
+                            ...(bill.id === highlightedBill && {
+                              backgroundColor: 'primary.main',
+                              color: 'primary.contrastText',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                              '& .user-name': {
+                                color: 'primary.contrastText'
+                              },
+                              '& .MuiChip-root': {
+                                backgroundColor: 'rgba(255,255,255,0.2)',
+                                color: 'primary.contrastText',
+                                borderColor: 'rgba(255,255,255,0.3)'
+                              }
+                            })
+                          }}
+                          onClick={() => handleHighlightBill(bill.id)}
+                        >
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                            <Typography 
+                              className="user-name"
+                              variant="body2" 
+                              sx={{ 
+                                fontWeight: 500,
+                                color: 'text.primary'
+                              }}
+                            >
+                              {bill.userName}
+                            </Typography>
+                            <Chip 
+                              label={bill.userType === 'owner' ? 'Owner' : 'Renter'} 
+                              color={bill.userType === 'owner' ? 'primary' : 'default'}
+                              size="small"
+                              variant="outlined"
+                              sx={{ 
+                                height: '20px', 
+                                fontSize: '0.65rem'
+                              }}
+                            />
+                          </Box>
+                          <TouchAppIcon 
+                            className="click-icon"
+                            sx={{ 
+                              fontSize: '16px',
+                              opacity: 0.6,
+                              color: 'text.secondary',
+                              transition: 'all 0.2s ease-in-out',
+                              ...(bill.id === highlightedBill && {
+                                opacity: 1,
+                                color: 'primary.contrastText'
+                              })
+                            }} 
+                          />
+                        </Box>
+                      </Tooltip>
                     </TableCell>
                     <TableCell>{bill.bookingId || '-'}</TableCell>
                     <TableCell>{bill.bookingArrivalDate ? new Date(bill.bookingArrivalDate).toLocaleDateString() : '-'}</TableCell>

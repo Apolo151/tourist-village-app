@@ -65,7 +65,7 @@ export default function CreateServiceRequest() {
   };
   
   const handleBack = () => {
-    navigate('/services');
+    navigate(-1);
   };
   
   const handleSubmit = () => {
@@ -76,6 +76,7 @@ export default function CreateServiceRequest() {
     
     // In a real app, this would send data to an API
     const newServiceRequest: Partial<ServiceRequest> = {
+      id: `request${Date.now()}`, // Generate a unique ID
       serviceTypeId: selectedService,
       apartmentId: selectedApartment,
       requestDate: requestDate.toISOString().split('T')[0],
@@ -88,8 +89,8 @@ export default function CreateServiceRequest() {
     
     console.log('Creating service request:', newServiceRequest);
     
-    // Navigate back to services page
-    navigate('/services', { state: { success: true, message: 'Service request created successfully' } });
+    // Navigate to the created service request details page
+    navigate(`/services/requests/${newServiceRequest.id}`, { state: { success: true, message: 'Service request created successfully' } });
   };
   
   const selectedServiceType = mockServiceTypes.find(type => type.id === selectedService);

@@ -247,9 +247,9 @@ const UtilityReadingDetails: React.FC = () => {
       // Show success message
       setSaveSuccess(true);
       
-      // Navigate away after a delay
+      // Navigate to the created utility's details page after a delay
       setTimeout(() => {
-        navigate('/utilities');
+        navigate(`/utilities/${newUtility.id}`);
       }, 1500);
     } else if (existingUtility) {
       const updatedUtility: Partial<Utility> = {
