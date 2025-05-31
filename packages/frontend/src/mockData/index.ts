@@ -109,30 +109,68 @@ export const mockBookings: Booking[] = [
   { 
     id: 'booking1', 
     apartmentId: 'apt1', 
-    userId: 'user3', 
+    userId: 'user3',
+    personName: 'Sarah Renter',
+    peopleCount: 2,
     arrivalDate: '2023-07-15', 
     leavingDate: '2023-07-25', 
     state: 'left',
-    createdAt: '2023-06-10'
+    createdAt: '2023-06-10',
+    notes: 'Summer vacation',
+    flightDetails: 'Flight MS789 arriving at 3:00 PM'
   },
   { 
     id: 'booking2', 
     apartmentId: 'apt2', 
-    userId: 'user3', 
+    userId: 'user3',
+    personName: 'Sarah Renter',
+    peopleCount: 4,
     arrivalDate: '2023-08-01', 
     leavingDate: '2023-08-10', 
     state: 'inVillage',
-    createdAt: '2023-07-05'
+    createdAt: '2023-07-05',
+    notes: 'Family vacation',
+    flightDetails: 'Flight MS321 arriving at 1:00 PM'
   },
   { 
     id: 'booking3', 
     apartmentId: 'apt1', 
-    userId: 'user3', 
+    userId: 'user3',
+    personName: 'Sarah Renter',
+    peopleCount: 2,
     arrivalDate: '2023-09-05', 
     leavingDate: '2023-09-15', 
     state: 'notArrived',
-    createdAt: '2023-08-01'
+    createdAt: '2023-08-01',
+    notes: 'End of summer vacation',
+    flightDetails: 'Flight MS654 arriving at 11:00 AM'
   },
+  {
+    id: 'booking2025_1',
+    apartmentId: 'apt1',
+    userId: 'user3',
+    personName: 'Sarah Renter',
+    peopleCount: 3,
+    arrivalDate: '2025-01-15',
+    leavingDate: '2025-01-25',
+    state: 'notArrived',
+    notes: 'Early 2025 vacation',
+    flightDetails: 'Flight MS123 arriving at 10:00 AM',
+    createdAt: '2025-01-01'
+  },
+  {
+    id: 'booking2025_2',
+    apartmentId: 'apt2',
+    userId: 'user3',
+    personName: 'Sarah Renter',
+    peopleCount: 2,
+    arrivalDate: '2025-02-10',
+    leavingDate: '2025-02-25',
+    state: 'notArrived',
+    notes: 'Winter vacation',
+    flightDetails: 'Flight MS456 arriving at 2:00 PM',
+    createdAt: '2025-01-15'
+  }
 ];
 
 export const mockServiceTypes: ServiceType[] = [
@@ -171,6 +209,39 @@ export const mockServiceRequests: ServiceRequest[] = [
     requestDate: '2023-09-01', 
     serviceDate: '2023-09-05', 
     notes: 'Regular pool maintenance',
+    status: 'completed',
+    userId: 'user4',
+    assigneeId: 'user1'
+  },
+  { 
+    id: 'request2025_1', 
+    serviceTypeId: 'service1', 
+    apartmentId: 'apt1', 
+    requestDate: '2025-01-10', 
+    serviceDate: '2025-01-20', 
+    status: 'completed',
+    userId: 'user2',
+    bookingId: 'booking2025_1',
+    assigneeId: 'user1'
+  },
+  { 
+    id: 'request2025_2', 
+    serviceTypeId: 'service2', 
+    apartmentId: 'apt2', 
+    requestDate: '2025-02-15', 
+    serviceDate: '2025-02-20', 
+    notes: 'Fix bathroom plumbing',
+    status: 'pending',
+    userId: 'user2',
+    bookingId: 'booking2025_2'
+  },
+  { 
+    id: 'request2025_3', 
+    serviceTypeId: 'service3', 
+    apartmentId: 'apt3', 
+    requestDate: '2025-03-01', 
+    serviceDate: '2025-03-05', 
+    notes: 'Monthly pool service',
     status: 'completed',
     userId: 'user4',
     assigneeId: 'user1'
@@ -298,6 +369,43 @@ export const mockPayments: Payment[] = [
     createdById: 'user1',
     createdAt: '2023-07-10'
   },
+  { 
+    id: 'payment2025_1', 
+    cost: 6000, 
+    currency: 'EGP', 
+    description: 'Annual maintenance fee 2025', 
+    placeOfPayment: 'Bank transfer', 
+    userType: 'owner', 
+    userId: 'user2', 
+    apartmentId: 'apt1',
+    createdById: 'user1',
+    createdAt: '2025-01-05'
+  },
+  { 
+    id: 'payment2025_2', 
+    cost: 4000, 
+    currency: 'EGP', 
+    description: 'Booking payment for 2025 season', 
+    placeOfPayment: 'Cash', 
+    userType: 'renter', 
+    userId: 'user3', 
+    apartmentId: 'apt1',
+    bookingId: 'booking2025_1',
+    createdById: 'user1',
+    createdAt: '2025-01-10'
+  },
+  { 
+    id: 'payment2025_3', 
+    cost: 100, 
+    currency: 'GBP', 
+    description: 'Pool service fee', 
+    placeOfPayment: 'Bank transfer', 
+    userType: 'owner', 
+    userId: 'user4', 
+    apartmentId: 'apt3',
+    createdById: 'user1',
+    createdAt: '2025-03-05'
+  }
 ];
 
 export const mockEmails: Email[] = [

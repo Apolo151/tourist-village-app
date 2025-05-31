@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -34,14 +33,13 @@ import {
   Search as SearchIcon, 
   Add as AddIcon, 
   FilterList as FilterListIcon,
-  Person as PersonIcon,
-  Home as HomeIcon,
   FileDownload as FileDownloadIcon,
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
-import { mockApartments, mockUsers, mockVillages, mockBookings, mockServiceRequests, mockServiceTypes, mockPayments, mockUtilities, generateBillNumber } from '../mockData';
-import { startOfYear, endOfYear, format } from 'date-fns';
+import { mockApartments, mockUsers, mockVillages, mockBookings, mockServiceRequests, mockServiceTypes, mockPayments } from '../mockData';
+import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 // Type for bill display data
 interface BillDisplayData {
@@ -54,12 +52,32 @@ interface BillDisplayData {
   billDate: string;
   dueDate: string;
   isPaid: boolean;
-  totalAmountEGP: number;
-  totalAmountGBP: number;
   description: string;
-  billType: 'service' | 'payment' | 'utility' | 'other';
+  billType: 'service' | 'payment';
   apartmentId: string;
   userId: string;
+  bookingId?: string;
+  bookingArrivalDate?: string;
+  totalMoneySpentEGP: number;
+  totalMoneySpentGBP: number;
+  totalMoneyRequestedEGP: number;
+  totalMoneyRequestedGBP: number;
+  netMoneyEGP: number;
+  netMoneyGBP: number;
+}
+
+interface BillSummary {
+  totalMoneySpentEGP: number;
+  totalMoneySpentGBP: number;
+  totalMoneyRequestedEGP: number;
+  totalMoneyRequestedGBP: number;
+  netMoneyEGP: number;
+  netMoneyGBP: number;
+}
+
+interface HighlightedBillSummary {
+  ownerSummary: BillSummary;
+  renterSummary?: BillSummary;
 }
 
 // Interface for the payment dialog form
@@ -78,15 +96,15 @@ export default function Bills() {
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
-  const [billTypeFilter, setBillTypeFilter] = useState<'service' | 'payment' | 'utility' | 'other' | ''>('');
-  const [isPaidFilter, setIsPaidFilter] = useState<boolean | ''>('');
   const [billDisplayData, setBillDisplayData] = useState<BillDisplayData[]>([]);
   const [prevYearTotalEGP, setPrevYearTotalEGP] = useState(0);
   const [prevYearTotalGBP, setPrevYearTotalGBP] = useState(0);
   const [currentYear] = useState(new Date().getFullYear());
-  const [startDate, setStartDate] = useState<Date | null>(startOfYear(new Date()));
-  const [endDate, setEndDate] = useState<Date | null>(endOfYear(new Date()));
+  const [startDate, setStartDate] = useState<Date | null>(new Date(currentYear, 0, 1));
+  const [endDate, setEndDate] = useState<Date | null>(new Date(currentYear, 11, 31));
   const [openAddPaymentDialog, setOpenAddPaymentDialog] = useState(false);
+  const [highlightedBill, setHighlightedBill] = useState<string | null>(null);
+  const [highlightedBillSummary, setHighlightedBillSummary] = useState<HighlightedBillSummary | null>(null);
   const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
     cost: 0,
     currency: 'EGP',
@@ -97,8 +115,43 @@ export default function Bills() {
     apartmentId: '',
   });
   
-  const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
+
+  // Calculate bill summary for a specific user type and apartment
+  const calculateBillSummary = (apartmentId: string, userType: 'owner' | 'renter'): BillSummary => {
+    const relevantBills = billDisplayData.filter(bill => 
+      bill.apartmentId === apartmentId && bill.userType === userType
+    );
+
+    return {
+      totalMoneySpentEGP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneySpentEGP, 0),
+      totalMoneySpentGBP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneySpentGBP, 0),
+      totalMoneyRequestedEGP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneyRequestedEGP, 0),
+      totalMoneyRequestedGBP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneyRequestedGBP, 0),
+      netMoneyEGP: relevantBills.reduce((sum, bill) => sum + bill.netMoneyEGP, 0),
+      netMoneyGBP: relevantBills.reduce((sum, bill) => sum + bill.netMoneyGBP, 0),
+    };
+  };
+
+  // Handle bill highlighting
+  const handleHighlightBill = (billId: string) => {
+    const bill = billDisplayData.find(b => b.id === billId);
+    if (!bill) return;
+
+    setHighlightedBill(billId);
+    
+    const summary: HighlightedBillSummary = {
+      ownerSummary: calculateBillSummary(bill.apartmentId, 'owner'),
+    };
+
+    // If there's a booking, add renter summary
+    if (bill.bookingId) {
+      summary.renterSummary = calculateBillSummary(bill.apartmentId, 'renter');
+    }
+
+    setHighlightedBillSummary(summary);
+  };
 
   // Process bill data from service requests and payments
   useEffect(() => {
@@ -116,6 +169,7 @@ export default function Bills() {
       const serviceType = mockServiceTypes.find(st => st.id === request.serviceTypeId);
       const apartment = mockApartments.find(apt => apt.id === request.apartmentId) || { name: 'Unknown', village: 'Unknown' };
       const user = mockUsers.find(u => u.id === request.userId) || { name: 'Unknown', role: 'owner' };
+      const booking = mockBookings.find(b => b.apartmentId === request.apartmentId && b.userId === request.userId);
       
       if (serviceType) {
         // Only include service requests within date range
@@ -126,7 +180,7 @@ export default function Bills() {
         ) {
           billsData.push({
             id: request.id,
-            billNumber: generateBillNumber('service', request.id),
+            billNumber: request.id,
             apartmentName: apartment.name,
             userName: user.name,
             village: apartment.village as string,
@@ -134,12 +188,18 @@ export default function Bills() {
             billDate: request.requestDate,
             dueDate: calculateDueDate(request.serviceDate || request.requestDate),
             isPaid: request.status === 'completed',
-            totalAmountEGP: serviceType.currency === 'EGP' ? serviceType.cost : 0,
-            totalAmountGBP: serviceType.currency === 'GBP' ? serviceType.cost : 0,
+            totalMoneySpentEGP: 0,
+            totalMoneySpentGBP: 0,
+            totalMoneyRequestedEGP: serviceType.currency === 'EGP' ? serviceType.cost : 0,
+            totalMoneyRequestedGBP: serviceType.currency === 'GBP' ? serviceType.cost : 0,
+            netMoneyEGP: serviceType.currency === 'EGP' ? -serviceType.cost : 0,
+            netMoneyGBP: serviceType.currency === 'GBP' ? -serviceType.cost : 0,
             description: `${serviceType.name} - ${serviceType.description}`,
             billType: 'service',
             apartmentId: request.apartmentId,
-            userId: request.userId
+            userId: request.userId,
+            bookingId: booking?.id,
+            bookingArrivalDate: booking?.arrivalDate
           });
         }
       }
@@ -149,6 +209,7 @@ export default function Bills() {
     mockPayments.forEach(payment => {
       const apartment = mockApartments.find(apt => apt.id === payment.apartmentId) || { name: 'Unknown', village: 'Unknown' };
       const user = mockUsers.find(u => u.id === payment.userId) || { name: 'Unknown', role: 'owner' };
+      const booking = mockBookings.find(b => b.id === payment.bookingId);
       
       // Only include payments within date range
       const paymentDate = new Date(payment.createdAt);
@@ -158,7 +219,7 @@ export default function Bills() {
       ) {
         billsData.push({
           id: payment.id,
-          billNumber: generateBillNumber('payment', payment.id),
+          billNumber: payment.id,
           apartmentName: apartment.name,
           userName: user.name,
           village: apartment.village as string,
@@ -166,63 +227,19 @@ export default function Bills() {
           billDate: payment.createdAt,
           dueDate: calculateDueDate(payment.createdAt),
           isPaid: true, // Payments are already paid
-          totalAmountEGP: payment.currency === 'EGP' ? payment.cost : 0,
-          totalAmountGBP: payment.currency === 'GBP' ? payment.cost : 0,
+          totalMoneySpentEGP: payment.currency === 'EGP' ? payment.cost : 0,
+          totalMoneySpentGBP: payment.currency === 'GBP' ? payment.cost : 0,
+          totalMoneyRequestedEGP: 0,
+          totalMoneyRequestedGBP: 0,
+          netMoneyEGP: payment.currency === 'EGP' ? payment.cost : 0,
+          netMoneyGBP: payment.currency === 'GBP' ? payment.cost : 0,
           description: payment.description,
           billType: 'payment',
           apartmentId: payment.apartmentId,
-          userId: payment.userId
+          userId: payment.userId,
+          bookingId: payment.bookingId,
+          bookingArrivalDate: booking?.arrivalDate
         });
-      }
-    });
-    
-    // 3. Process utilities as bills
-    mockUtilities.forEach(utility => {
-      // Skip utilities without end readings
-      if (!utility.endReading) return;
-      
-      const apartment = mockApartments.find(apt => apt.id === utility.apartmentId) || { name: 'Unknown', village: 'Unknown' };
-      const booking = mockBookings.find(b => b.id === utility.bookingId);
-      const user = booking ? mockUsers.find(u => u.id === booking.userId) : null;
-      
-      if (user) {
-        // Calculate utility cost
-        const consumption = utility.endReading - utility.startReading;
-        const village = mockVillages.find(v => v.name === apartment.village);
-        let unitPrice = 0;
-        
-        if (utility.utilityType === 'electricity' && village) {
-          unitPrice = village.electricityPrice;
-        } else if (utility.utilityType === 'water' && village) {
-          unitPrice = village.waterPrice;
-        }
-        
-        const cost = consumption * unitPrice;
-        
-        // Only include utilities within date range
-        const utilityDate = new Date(utility.endDate || utility.startDate);
-        if (
-          (!startDate || utilityDate >= startDate) &&
-          (!endDate || utilityDate <= endDate)
-        ) {
-          billsData.push({
-            id: utility.id,
-            billNumber: generateBillNumber('utility', utility.id),
-            apartmentName: apartment.name,
-            userName: user.name,
-            village: apartment.village as string,
-            userType: user.role === 'owner' ? 'owner' : 'renter',
-            billDate: utility.endDate || utility.startDate,
-            dueDate: calculateDueDate(utility.endDate || utility.startDate),
-            isPaid: true, // Assuming utilities are paid
-            totalAmountEGP: cost, // Assume EGP
-            totalAmountGBP: 0,
-            description: `${utility.utilityType.charAt(0).toUpperCase() + utility.utilityType.slice(1)} consumption (${consumption} units)`,
-            billType: 'utility',
-            apartmentId: utility.apartmentId,
-            userId: user.id
-          });
-        }
       }
     });
     
@@ -230,8 +247,6 @@ export default function Bills() {
     const filteredDisplayData = billsData.filter(bill => {
       const matchesVillage = villageFilter ? bill.village === villageFilter : true;
       const matchesUserType = userTypeFilter ? bill.userType === userTypeFilter : true;
-      const matchesBillType = billTypeFilter ? bill.billType === billTypeFilter : true;
-      const matchesIsPaid = isPaidFilter !== '' ? bill.isPaid === isPaidFilter : true;
       const matchesSearch = 
         !searchTerm || 
         bill.apartmentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -239,7 +254,7 @@ export default function Bills() {
         bill.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill.description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      return matchesVillage && matchesUserType && matchesBillType && matchesIsPaid && matchesSearch;
+      return matchesVillage && matchesUserType && matchesSearch;
     });
     
     // Sort by date (newest first)
@@ -257,15 +272,15 @@ export default function Bills() {
     billsData.forEach(bill => {
       const billDate = new Date(bill.billDate);
       if (billDate >= prevYearStart && billDate <= prevYearEnd) {
-        totalPrevEGP += bill.totalAmountEGP;
-        totalPrevGBP += bill.totalAmountGBP;
+        totalPrevEGP += bill.totalMoneySpentEGP;
+        totalPrevGBP += bill.totalMoneySpentGBP;
       }
     });
     
     setPrevYearTotalEGP(totalPrevEGP);
     setPrevYearTotalGBP(totalPrevGBP);
     
-  }, [searchTerm, villageFilter, userTypeFilter, billTypeFilter, isPaidFilter, startDate, endDate, currentYear]);
+  }, [searchTerm, villageFilter, userTypeFilter, startDate, endDate, currentYear]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -279,14 +294,6 @@ export default function Bills() {
     setUserTypeFilter(event.target.value as 'owner' | 'renter' | '');
   };
   
-  const handleBillTypeFilterChange = (event: SelectChangeEvent) => {
-    setBillTypeFilter(event.target.value as 'service' | 'payment' | 'utility' | 'other' | '');
-  };
-  
-  const handleIsPaidFilterChange = (event: SelectChangeEvent) => {
-    setIsPaidFilter(event.target.value === 'true' ? true : event.target.value === 'false' ? false : '');
-  };
-  
   const handleStartDateChange = (date: Date | null) => {
     setStartDate(date);
   };
@@ -296,16 +303,7 @@ export default function Bills() {
   };
   
   const handleViewBillDetails = (billId: string) => {
-    // In a real app, this would navigate to a bill details page
-    console.log(`View bill details for ${billId}`);
-  };
-  
-  const handleViewApartmentBills = (apartmentId: string) => {
-    navigate(`/bills/apartment/${apartmentId}`);
-  };
-  
-  const handleViewUserBills = (userId: string) => {
-    navigate(`/bills/user/${userId}`);
+    navigate(`/bills/${billId}`);
   };
   
   const handleAddPayment = () => {
@@ -351,13 +349,7 @@ export default function Bills() {
     };
     
     console.log('Creating new payment:', newPayment);
-    
-    // In a real app, you would save this to your backend
-    // For now we'll just close the dialog
     handleClosePaymentDialog();
-    
-    // You could add the payment to local state here in a real implementation
-    // For example: setPayments([...payments, newPayment]);
   };
   
   const handleExportData = () => {
@@ -366,12 +358,10 @@ export default function Bills() {
   };
 
   // Get bill type label with color
-  const getBillTypeChip = (type: 'service' | 'payment' | 'utility' | 'other') => {
+  const getBillTypeChip = (type: 'service' | 'payment') => {
     const typeConfig = {
       service: { label: 'Service', color: 'primary' as const },
-      payment: { label: 'Payment', color: 'success' as const },
-      utility: { label: 'Utility', color: 'info' as const },
-      other: { label: 'Other', color: 'default' as const }
+      payment: { label: 'Payment', color: 'success' as const }
     };
     
     return (
@@ -401,6 +391,7 @@ export default function Bills() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={handleAddPayment}
+              sx={{ mr: 1 }}
             >
               Add Payment
             </Button>
@@ -410,11 +401,34 @@ export default function Bills() {
         {/* Previous Year Summary */}
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body1">
-            Total Bills for Previous Year ({currentYear - 1}): 
+            Running Total for Previous Years: 
             <strong> {prevYearTotalEGP.toFixed(2)} EGP</strong> and 
             <strong> {prevYearTotalGBP.toFixed(2)} GBP</strong>
           </Typography>
         </Alert>
+
+        {/* Highlighted Bill Summary */}
+        {highlightedBillSummary && (
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="h6" gutterBottom>Selected Bill Summary</Typography>
+            <Box sx={{ display: 'flex', gap: 4 }}>
+              <Box>
+                <Typography variant="subtitle1" color="primary">Owner Summary</Typography>
+                <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneySpentGBP} GBP</Typography>
+                <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneyRequestedGBP} GBP</Typography>
+                <Typography>Net Money: {highlightedBillSummary.ownerSummary.netMoneyEGP} EGP / {highlightedBillSummary.ownerSummary.netMoneyGBP} GBP</Typography>
+              </Box>
+              {highlightedBillSummary.renterSummary && (
+                <Box>
+                  <Typography variant="subtitle1" color="secondary">Renter Summary</Typography>
+                  <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneySpentGBP} GBP</Typography>
+                  <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneyRequestedGBP} GBP</Typography>
+                  <Typography>Net Money: {highlightedBillSummary.renterSummary.netMoneyEGP} EGP / {highlightedBillSummary.renterSummary.netMoneyGBP} GBP</Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        )}
         
         {/* Filters */}
         <Paper sx={{ p: 2, mb: 3 }}>
@@ -473,38 +487,6 @@ export default function Bills() {
               </FormControl>
             </Box>
             
-            <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Bill Type</InputLabel>
-                <Select
-                  value={billTypeFilter}
-                  label="Bill Type"
-                  onChange={handleBillTypeFilterChange}
-                >
-                  <MenuItem value="">All Types</MenuItem>
-                  <MenuItem value="service">Service</MenuItem>
-                  <MenuItem value="payment">Payment</MenuItem>
-                  <MenuItem value="utility">Utility</MenuItem>
-                  <MenuItem value="other">Other</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            
-            <Box sx={{ flex: '1 1 120px', minWidth: '120px' }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Payment Status</InputLabel>
-                <Select
-                  value={isPaidFilter === true ? 'true' : isPaidFilter === false ? 'false' : ''}
-                  label="Payment Status"
-                  onChange={handleIsPaidFilterChange}
-                >
-                  <MenuItem value="">All Status</MenuItem>
-                  <MenuItem value="true">Paid</MenuItem>
-                  <MenuItem value="false">Unpaid</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            
             <Box sx={{ flex: '1 1 300px', minWidth: '260px' }}>
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <DatePicker
@@ -531,25 +513,30 @@ export default function Bills() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Bill #</TableCell>
-                <TableCell>Date</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Type</TableCell>
                 <TableCell>Village</TableCell>
                 <TableCell>Apartment</TableCell>
-                <TableCell>User</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Description</TableCell>
-                <TableCell align="right">Amount (EGP)</TableCell>
-                <TableCell align="right">Amount (GBP)</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell align="center">Actions</TableCell>
+                <TableCell>User Name</TableCell>
+                <TableCell>Booking ID</TableCell>
+                <TableCell>Booking Arrival Date</TableCell>
+                <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
+                <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
+                <TableCell align="right">Net Money (EGP/GBP)</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {billDisplayData.length > 0 ? (
                 billDisplayData.map((bill) => (
-                  <TableRow key={bill.id}>
-                    <TableCell>{bill.billNumber}</TableCell>
-                    <TableCell>{new Date(bill.billDate).toLocaleDateString()}</TableCell>
+                  <TableRow 
+                    key={bill.id}
+                    selected={bill.id === highlightedBill}
+                    onClick={() => handleHighlightBill(bill.id)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell>{bill.description}</TableCell>
+                    <TableCell>{getBillTypeChip(bill.billType)}</TableCell>
                     <TableCell>{bill.village}</TableCell>
                     <TableCell>{bill.apartmentName}</TableCell>
                     <TableCell>
@@ -564,45 +551,37 @@ export default function Bills() {
                         />
                       </Box>
                     </TableCell>
-                    <TableCell>{getBillTypeChip(bill.billType)}</TableCell>
-                    <TableCell>{bill.description}</TableCell>
+                    <TableCell>{bill.bookingId || '-'}</TableCell>
+                    <TableCell>{bill.bookingArrivalDate ? new Date(bill.bookingArrivalDate).toLocaleDateString() : '-'}</TableCell>
                     <TableCell align="right">
-                      {bill.totalAmountEGP > 0 ? `${bill.totalAmountEGP.toLocaleString()} EGP` : '-'}
+                      {bill.totalMoneySpentEGP > 0 && `${bill.totalMoneySpentEGP.toLocaleString()} EGP`}
+                      {bill.totalMoneySpentEGP > 0 && bill.totalMoneySpentGBP > 0 && ' / '}
+                      {bill.totalMoneySpentGBP > 0 && `${bill.totalMoneySpentGBP.toLocaleString()} GBP`}
+                      {bill.totalMoneySpentEGP === 0 && bill.totalMoneySpentGBP === 0 && '-'}
                     </TableCell>
                     <TableCell align="right">
-                      {bill.totalAmountGBP > 0 ? `${bill.totalAmountGBP.toLocaleString()} GBP` : '-'}
+                      {bill.totalMoneyRequestedEGP > 0 && `${bill.totalMoneyRequestedEGP.toLocaleString()} EGP`}
+                      {bill.totalMoneyRequestedEGP > 0 && bill.totalMoneyRequestedGBP > 0 && ' / '}
+                      {bill.totalMoneyRequestedGBP > 0 && `${bill.totalMoneyRequestedGBP.toLocaleString()} GBP`}
+                      {bill.totalMoneyRequestedEGP === 0 && bill.totalMoneyRequestedGBP === 0 && '-'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {bill.netMoneyEGP > 0 && `${bill.netMoneyEGP.toLocaleString()} EGP`}
+                      {bill.netMoneyEGP > 0 && bill.netMoneyGBP > 0 && ' / '}
+                      {bill.netMoneyGBP > 0 && `${bill.netMoneyGBP.toLocaleString()} GBP`}
+                      {bill.netMoneyEGP === 0 && bill.netMoneyGBP === 0 && '-'}
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={bill.isPaid ? 'Paid' : 'Unpaid'} 
-                        color={bill.isPaid ? 'success' : 'error'}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell align="center">
                       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                         <Tooltip title="View Bill Details">
                           <IconButton 
                             size="small" 
-                            onClick={() => handleViewBillDetails(bill.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewBillDetails(bill.id);
+                            }}
                           >
                             <AssignmentIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="View Apartment Bills">
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleViewApartmentBills(bill.apartmentId)}
-                          >
-                            <HomeIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="View User Bills">
-                          <IconButton 
-                            size="small" 
-                            onClick={() => handleViewUserBills(bill.userId)}
-                          >
-                            <PersonIcon fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </Box>

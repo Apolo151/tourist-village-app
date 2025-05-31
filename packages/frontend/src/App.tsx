@@ -18,8 +18,7 @@ import PaymentDetails from './pages/PaymentDetails';
 import Emails from './pages/Emails';
 import Settings from './pages/Settings';
 import Bills from './pages/Bills';
-import ApartmentBills from './pages/ApartmentBills';
-import UserBills from './pages/UserBills';
+import BillDetails from './pages/BillDetails';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -104,8 +103,7 @@ function App() {
                 
                 {/* Bills */}
                 <Route path="/bills" element={<Bills />} />
-                <Route path="/bills/apartment/:apartmentId" element={<ApartmentBills />} />
-                <Route path="/bills/user/:userId" element={<UserBills />} />
+                <Route path="/bills/:id" element={<BillDetails />} />
               </Route>
             </Route>
             

@@ -45,6 +45,8 @@ export interface Booking {
   createdAt: string;
   notes?: string;
   flightDetails?: string;
+  personName: string;
+  peopleCount: number;
 }
 
 // Service Types
