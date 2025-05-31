@@ -13,7 +13,6 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  Grid,
   Breadcrumbs,
   Link,
   Stack,
@@ -58,7 +57,7 @@ export default function PaymentDetails() {
     cost: 0,
     currency: 'EGP',
     description: '',
-    placeOfPayment: '',
+    placeOfPayment: mockPaymentMethods[0]?.name || '', // Set default payment method
     userType: 'owner',
     userId: '',
     apartmentId: '',
@@ -68,6 +67,43 @@ export default function PaymentDetails() {
   // Load payment data
   useEffect(() => {
     if (isNew) {
+      // Get URL parameters
+      const params = new URLSearchParams(window.location.search);
+      const bookingId = params.get('bookingId');
+      const apartmentId = params.get('apartmentId');
+      const userId = params.get('userId');
+      const userType = params.get('userType') as 'owner' | 'renter';
+      const description = params.get('description');
+
+      // Log the URL parameters
+      console.log('URL Parameters:', {
+        bookingId,
+        apartmentId,
+        userId,
+        userType,
+        description,
+        allParams: Object.fromEntries(params.entries())
+      });
+
+      // Get the booking details if we have a booking ID
+      const booking = bookingId ? mockBookings.find(b => b.id === bookingId) : null;
+      const user = userId ? mockUsers.find(u => u.id === userId) : null;
+
+      console.log('Found related data:', { booking, user });
+
+      // Set initial form data
+      const updatedFormData = {
+        ...formData,
+        bookingId: bookingId || undefined,
+        apartmentId: apartmentId || '',
+        userId: userId || '',
+        userType: userType || (user?.role as 'owner' | 'renter') || 'renter',
+        description: description || '',
+        placeOfPayment: mockPaymentMethods[0]?.name || '', // Set default payment method
+      };
+
+      console.log('Setting form data to:', updatedFormData);
+      setFormData(updatedFormData);
       setLoading(false);
       return;
     }
@@ -104,6 +140,7 @@ export default function PaymentDetails() {
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    console.log('Input change:', { name, value });
     setFormData(prev => ({
       ...prev,
       [name]: name === 'cost' ? parseFloat(value) : value
@@ -112,6 +149,7 @@ export default function PaymentDetails() {
   
   const handleSelectChange = (e: SelectChangeEvent) => {
     const { name, value } = e.target;
+    console.log('Select change:', { name, value });
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -219,34 +257,34 @@ export default function PaymentDetails() {
       {!isNew && !isEditing && originalPayment && (
         <Card sx={{ mb: 4 }}>
           <CardContent>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Payment ID</Typography>
                 <Typography variant="body1">{originalPayment.id}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              </Box>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Date</Typography>
                 <Typography variant="body1">{new Date(originalPayment.createdAt).toLocaleString()}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              </Box>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
                 <Typography variant="body1">{creator?.name || 'Unknown'}</Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              </Box>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                 <Chip label="Completed" color="success" size="small" />
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              </Box>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
                 <Typography variant="body1" sx={{ fontWeight: 'bold', color: originalPayment.cost < 0 ? 'error.main' : 'success.main' }}>
                   {originalPayment.cost.toLocaleString()} {originalPayment.currency}
                 </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
+              </Box>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <Typography variant="subtitle2" color="text.secondary">Payment Method</Typography>
                 <Typography variant="body1">{originalPayment.placeOfPayment}</Typography>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
           </CardContent>
         </Card>
       )}
@@ -256,8 +294,8 @@ export default function PaymentDetails() {
           <Stack spacing={3}>
             <Typography variant="h6">{isEditing || isNew ? 'Payment Information' : 'Details'}</Typography>
             
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, md: 6 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <FormControl fullWidth disabled={!isEditing && !isNew}>
                   <InputLabel>Apartment *</InputLabel>
                   <Select
@@ -272,9 +310,9 @@ export default function PaymentDetails() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <FormControl fullWidth disabled={!isEditing && !isNew}>
                   <InputLabel>User Type *</InputLabel>
                   <Select
@@ -288,9 +326,9 @@ export default function PaymentDetails() {
                     <MenuItem value="renter">Renter</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid size={{ xs: 12, md: 6 }}>
+              <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                 <FormControl fullWidth disabled={!isEditing && !isNew}>
                   <InputLabel>User *</InputLabel>
                   <Select
@@ -311,10 +349,10 @@ export default function PaymentDetails() {
                     }
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
               {formData.userType === 'renter' && formData.apartmentId && (
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
                   <FormControl fullWidth disabled={!isEditing && !isNew}>
                     <InputLabel>Related Booking {formData.userType === 'renter' ? '*' : ''}</InputLabel>
                     <Select
@@ -337,16 +375,16 @@ export default function PaymentDetails() {
                       }
                     </Select>
                   </FormControl>
-                </Grid>
+                </Box>
               )}
-            </Grid>
+            </Box>
             
             <Divider />
             
             <Typography variant="h6">Payment Details</Typography>
             
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ width: '100%' }}>
                 <TextField
                   name="description"
                   label="Description *"
@@ -356,9 +394,9 @@ export default function PaymentDetails() {
                   required
                   disabled={!isEditing && !isNew}
                 />
-              </Grid>
+              </Box>
               
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <TextField
                   name="cost"
                   label="Amount *"
@@ -370,9 +408,9 @@ export default function PaymentDetails() {
                   required
                   disabled={!isEditing && !isNew}
                 />
-              </Grid>
+              </Box>
               
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <FormControl fullWidth disabled={!isEditing && !isNew}>
                   <InputLabel>Currency *</InputLabel>
                   <Select
@@ -386,9 +424,9 @@ export default function PaymentDetails() {
                     <MenuItem value="GBP">GBP</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <FormControl fullWidth disabled={!isEditing && !isNew}>
                   <InputLabel>Payment Type *</InputLabel>
                   <Select
@@ -403,8 +441,8 @@ export default function PaymentDetails() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
             
             {(isEditing || isNew) && (
               <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
@@ -448,9 +486,9 @@ export default function PaymentDetails() {
         <Box sx={{ mb: 4 }}>
           <Typography variant="h6" gutterBottom>Related Information</Typography>
           
-          <Grid container spacing={3}>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {apartment && (
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <Card>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>Apartment</Typography>
@@ -466,11 +504,11 @@ export default function PaymentDetails() {
                     </Button>
                   </CardContent>
                 </Card>
-              </Grid>
+              </Box>
             )}
             
             {user && (
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <Card>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>User</Typography>
@@ -489,11 +527,11 @@ export default function PaymentDetails() {
                     </Button>
                   </CardContent>
                 </Card>
-              </Grid>
+              </Box>
             )}
             
             {booking && (
-              <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ width: { xs: '100%', md: '31%' } }}>
                 <Card>
                   <CardContent>
                     <Typography variant="h6" gutterBottom>Booking</Typography>
@@ -513,9 +551,9 @@ export default function PaymentDetails() {
                     </Button>
                   </CardContent>
                 </Card>
-              </Grid>
+              </Box>
             )}
-          </Grid>
+          </Box>
         </Box>
       )}
     </Box>

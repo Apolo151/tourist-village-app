@@ -803,7 +803,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                 <Table sx={{ minWidth: 650 }} aria-label="bookings table">
                   <TableHead>
                     <TableRow>
-                      <TableCell>Renter</TableCell>
+                      <TableCell>Name</TableCell>
                       <TableCell>Arrival Date</TableCell>
                       <TableCell>Leaving Date</TableCell>
                       <TableCell>Status</TableCell>
@@ -875,6 +875,7 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                         <TableCell>Request Date</TableCell>
                         <TableCell>Service Date</TableCell>
                         <TableCell>Status</TableCell>
+                        <TableCell>Related Booking</TableCell>
                         <TableCell>Notes</TableCell>
                         <TableCell align="right">Actions</TableCell>
                       </TableRow>
@@ -882,6 +883,9 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                     <TableBody>
                       {relatedServiceRequests.map(request => {
                         const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
+                        const relatedBooking = request.bookingId ? mockBookings.find(b => b.id === request.bookingId) : null;
+                        const bookingUser = relatedBooking ? mockUsers.find(u => u.id === relatedBooking.userId) : null;
+                        
                         return (
                           <TableRow key={request.id}>
                             <TableCell>{serviceType?.name || 'Unknown'}</TableCell>
@@ -897,6 +901,20 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
                                 }
                                 size="small"
                               />
+                            </TableCell>
+                            <TableCell>
+                              {relatedBooking ? (
+                                <Box>
+                                  <Typography variant="body2">
+                                    {bookingUser?.name || 'Unknown'}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {new Date(relatedBooking.arrivalDate).toLocaleDateString()} - {new Date(relatedBooking.leavingDate).toLocaleDateString()}
+                                  </Typography>
+                                </Box>
+                              ) : (
+                                '-'
+                              )}
                             </TableCell>
                             <TableCell>{request.notes || '-'}</TableCell>
                             <TableCell align="right">

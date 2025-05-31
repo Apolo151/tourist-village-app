@@ -23,6 +23,9 @@ import {
   ListItemText,
   ListItemIcon,
   ListItemSecondaryAction,
+  SpeedDial,
+  SpeedDialAction,
+  SpeedDialIcon,
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -32,7 +35,12 @@ import {
   Receipt as BillIcon,
   WaterDrop as UtilityIcon,
   Add as AddIcon,
-  ArrowBack as BackIcon
+  ArrowBack as BackIcon,
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  RequestPage as RequestPageIcon,
+  ArticleOutlined as BillsIcon,
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -81,6 +89,9 @@ const BookingDetails: React.FC = () => {
   
   // Tab management
   const [activeTab, setActiveTab] = useState(0);
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -259,7 +270,9 @@ const BookingDetails: React.FC = () => {
       arrivalDate: formData.arrivalDate ? format(formData.arrivalDate, 'yyyy-MM-dd') : '',
       leavingDate: formData.leavingDate ? format(formData.leavingDate, 'yyyy-MM-dd') : '',
       state: formData.state,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      notes: formData.notes,
+      flightDetails: formData.flightDetails
     };
     
     if (isNew) {
@@ -319,8 +332,68 @@ const BookingDetails: React.FC = () => {
   
   // Add new payment
   const handleAddPayment = () => {
-    navigate(`/payments/new?bookingId=${id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}`);
+    // Get the user type and user ID from the booking
+    const user = mockUsers.find(u => u.id === formData.userId);
+    const userType = user?.role || 'renter';
+
+    // Create a description based on the booking
+    const description = `Payment for booking ${id} (${format(formData.arrivalDate!, 'MMM dd, yyyy')} - ${format(formData.leavingDate!, 'MMM dd, yyyy')})`;
+
+    // Log the data being passed
+    console.log('Adding payment with data:', {
+      bookingId: id,
+      apartmentId: formData.apartmentId,
+      userId: formData.userId,
+      userType,
+      description,
+      user,
+      formData
+    });
+
+    // Navigate to payment creation with pre-filled data
+    const url = `/payments/new?bookingId=${id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}&userType=${userType}&description=${encodeURIComponent(description)}`;
+    console.log('Navigating to:', url);
+    navigate(url);
   };
+
+  // Toggle edit mode
+  const handleToggleEdit = () => {
+    setIsEditing(!isEditing);
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    // Reset form data to original booking data
+    if (id) {
+      const booking = mockBookings.find(b => b.id === id);
+      if (booking) {
+        const user = mockUsers.find(u => u.id === booking.userId);
+        setFormData({
+          id: booking.id,
+          apartmentId: booking.apartmentId,
+          userId: booking.userId,
+          userType: user?.role as 'owner' | 'renter' || 'renter',
+          personName: user?.name || '',
+          peopleCount: 1,
+          arrivalDate: parseISO(booking.arrivalDate),
+          leavingDate: parseISO(booking.leavingDate),
+          state: booking.state,
+          notes: booking.notes || '',
+          flightDetails: booking.flightDetails || ''
+        });
+      }
+    }
+    setIsEditing(false);
+  };
+
+  // Quick actions for admin
+  const quickActions = [
+    { icon: <PaymentIcon />, name: 'Add Payment', onClick: handleAddPayment },
+    { icon: <UtilityIcon />, name: 'Add Utility Reading', onClick: handleAddUtilityReading },
+    { icon: <RequestPageIcon />, name: 'Request Service', onClick: () => navigate(`/services/requests/create?bookingId=${id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}`) },
+    { icon: <EmailIcon />, name: 'Send Email', onClick: () => navigate(`/emails/new?bookingId=${id}&apartmentId=${formData.apartmentId}`) },
+    { icon: <BillsIcon />, name: 'View Bills', onClick: () => navigate(`/bills?bookingId=${id}`) },
+  ];
 
   return (
     <Container maxWidth="lg">
@@ -340,25 +413,37 @@ const BookingDetails: React.FC = () => {
             </Typography>
           </Box>
           
-          {!isNew && (
-            <Box>
+          <Box>
+            {!isNew && !isEditing && (
               <Button
                 variant="contained"
-                startIcon={<UtilityIcon />}
-                onClick={handleAddUtilityReading}
+                startIcon={<EditIcon />}
+                onClick={handleToggleEdit}
                 sx={{ mr: 1 }}
               >
-                Add Utility Reading
+                Edit
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<PaymentIcon />}
-                onClick={handleAddPayment}
-              >
-                Add Payment
-              </Button>
-            </Box>
-          )}
+            )}
+            {!isNew && (
+              <>
+                <Button
+                  variant="contained"
+                  startIcon={<UtilityIcon />}
+                  onClick={handleAddUtilityReading}
+                  sx={{ mr: 1 }}
+                >
+                  Add Utility Reading
+                </Button>
+                <Button
+                  variant="contained"
+                  startIcon={<PaymentIcon />}
+                  onClick={handleAddPayment}
+                >
+                  Add Payment
+                </Button>
+              </>
+            )}
+          </Box>
         </Box>
 
         {success && (
@@ -380,6 +465,24 @@ const BookingDetails: React.FC = () => {
           </Box>
         )}
 
+        {/* Quick actions speed dial (admin only) */}
+        {currentUser?.role === 'admin' && !isNew && (
+          <SpeedDial
+            ariaLabel="Quick actions"
+            sx={{ position: 'fixed', bottom: 24, right: 24 }}
+            icon={<SpeedDialIcon />}
+          >
+            {quickActions.map((action) => (
+              <SpeedDialAction
+                key={action.name}
+                icon={action.icon}
+                tooltipTitle={action.name}
+                onClick={action.onClick}
+              />
+            ))}
+          </SpeedDial>
+        )}
+
         {/* Booking Details Tab */}
         {(activeTab === 0 || isNew) && (
           <Paper sx={{ p: 3 }}>
@@ -387,7 +490,7 @@ const BookingDetails: React.FC = () => {
               <Grid container spacing={3}>
                 {/* Apartment Selection */}
                 <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth error={!!errors.apartmentId} disabled={!isNew}>
+                  <FormControl fullWidth error={!!errors.apartmentId} disabled={!isEditing && !isNew}>
                     <InputLabel>Apartment</InputLabel>
                     <Select
                       name="apartmentId"
@@ -408,7 +511,7 @@ const BookingDetails: React.FC = () => {
 
                 {/* User Type Selection */}
                 <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth disabled={!isNew}>
+                  <FormControl fullWidth disabled={!isEditing && !isNew}>
                     <InputLabel>User Type</InputLabel>
                     <Select
                       name="userType"
@@ -425,7 +528,7 @@ const BookingDetails: React.FC = () => {
                 {/* User Selection or Name Input */}
                 {formData.userType === 'owner' ? (
                   <Grid size={{xs: 12, md: 6}}>
-                    <FormControl fullWidth error={!!errors.userId}>
+                    <FormControl fullWidth error={!!errors.userId} disabled={!isEditing && !isNew}>
                       <InputLabel>Owner</InputLabel>
                       <Select
                         name="userId"
@@ -453,6 +556,7 @@ const BookingDetails: React.FC = () => {
                       onChange={handleChange}
                       error={!!errors.personName}
                       helperText={errors.personName}
+                      disabled={!isEditing && !isNew}
                     />
                   </Grid>
                 )}
@@ -469,6 +573,7 @@ const BookingDetails: React.FC = () => {
                     error={!!errors.peopleCount}
                     helperText={errors.peopleCount}
                     InputProps={{ inputProps: { min: 1 } }}
+                    disabled={!isEditing && !isNew}
                   />
                 </Grid>
 
@@ -483,7 +588,8 @@ const BookingDetails: React.FC = () => {
                         textField: {
                           fullWidth: true,
                           error: !!errors.arrivalDate,
-                          helperText: errors.arrivalDate
+                          helperText: errors.arrivalDate,
+                          disabled: !isEditing && !isNew
                         }
                       }}
                     />
@@ -500,7 +606,8 @@ const BookingDetails: React.FC = () => {
                         textField: {
                           fullWidth: true,
                           error: !!errors.leavingDate,
-                          helperText: errors.leavingDate
+                          helperText: errors.leavingDate,
+                          disabled: !isEditing && !isNew
                         }
                       }}
                     />
@@ -509,7 +616,7 @@ const BookingDetails: React.FC = () => {
 
                 {/* Booking Status */}
                 <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth>
+                  <FormControl fullWidth disabled={!isEditing && !isNew}>
                     <InputLabel>Booking Status</InputLabel>
                     <Select
                       name="state"
@@ -525,7 +632,7 @@ const BookingDetails: React.FC = () => {
                 </Grid>
 
                 {/* Notes and Flight Details */}
-                <Grid size={{xs: 12 }}>
+                <Grid size={{xs: 12}}>
                   <TextField
                     fullWidth
                     label="Notes"
@@ -534,10 +641,11 @@ const BookingDetails: React.FC = () => {
                     onChange={handleChange}
                     multiline
                     rows={3}
+                    disabled={!isEditing && !isNew}
                   />
                 </Grid>
 
-                <Grid size={{xs: 12 }}>
+                <Grid size={{xs: 12}}>
                   <TextField
                     fullWidth
                     label="Flight Details"
@@ -546,26 +654,32 @@ const BookingDetails: React.FC = () => {
                     onChange={handleChange}
                     multiline
                     rows={2}
+                    disabled={!isEditing && !isNew}
                   />
                 </Grid>
 
-                {/* Submit Button */}
-                <Grid size={{xs: 12 }}>
+                {/* Submit and Cancel Buttons */}
+                <Grid size={{xs: 12}}>
                   <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    <Button 
-                      component={RouterLink} 
-                      to="/bookings" 
-                      variant="outlined"
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      type="submit" 
-                      variant="contained" 
-                      color="primary"
-                    >
-                      {isNew ? 'Create Booking' : 'Save Changes'}
-                    </Button>
+                    {(isNew || isEditing) && (
+                      <>
+                        <Button 
+                          variant="outlined"
+                          startIcon={<CancelIcon />}
+                          onClick={isNew ? () => navigate('/bookings') : handleCancelEdit}
+                        >
+                          Cancel
+                        </Button>
+                        <Button 
+                          type="submit" 
+                          variant="contained" 
+                          color="primary"
+                          startIcon={<SaveIcon />}
+                        >
+                          {isNew ? 'Create Booking' : 'Save Changes'}
+                        </Button>
+                      </>
+                    )}
                   </Box>
                 </Grid>
               </Grid>

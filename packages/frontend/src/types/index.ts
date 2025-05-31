@@ -43,6 +43,8 @@ export interface Booking {
   leavingDate: string;
   state: 'notArrived' | 'inVillage' | 'left';
   createdAt: string;
+  notes?: string;
+  flightDetails?: string;
 }
 
 // Service Types
