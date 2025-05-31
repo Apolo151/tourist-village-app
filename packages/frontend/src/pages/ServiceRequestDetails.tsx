@@ -85,7 +85,7 @@ export default function ServiceRequestDetails() {
   };
   
   const handleBack = () => {
-    navigate('/services');
+    navigate(-1);
   };
   
   const handleEdit = () => {
@@ -142,17 +142,16 @@ export default function ServiceRequestDetails() {
     <Container maxWidth="lg">
       <Box sx={{ py: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button 
-              startIcon={<ArrowBackIcon />} 
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="text"
+              color="primary"
+              startIcon={<ArrowBackIcon />}
               onClick={handleBack}
-              sx={{ mr: 2 }}
             >
               Back
             </Button>
-            <Typography variant="h5">
-              Service Request Details
-            </Typography>
+            <Typography variant="h4">Service Request Details</Typography>
           </Box>
           
           {currentUser?.role === 'admin' && !isEditing && (

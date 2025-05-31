@@ -115,17 +115,22 @@ const BillDetails: React.FC = () => {
     }
   }
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   if (!bill) {
     return (
       <Box p={3}>
         <Typography variant="h5">Bill not found</Typography>
         <Button
-          variant="outlined"
+          variant="text"
+          color="primary"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/bills')}
+          onClick={handleBack}
           sx={{ mt: 2 }}
         >
-          Back to Bills
+          Back
         </Button>
       </Box>
     );
@@ -146,9 +151,10 @@ const BillDetails: React.FC = () => {
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Button
-            variant="outlined"
+            variant="text"
+            color="primary"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/bills')}
+            onClick={handleBack}
           >
             Back
           </Button>

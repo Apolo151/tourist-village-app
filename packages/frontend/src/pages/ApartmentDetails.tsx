@@ -392,17 +392,22 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
     { icon: <RequestPageIcon />, name: 'Request a Service', onClick: handleRequestService }
   ];
   
+  const handleBack = () => {
+    navigate(-1);
+  };
+  
   // Show form for new/edit apartment, or error if apartment not found in view mode
   if (isNew || isEditing) {
     return (
       <Container maxWidth="lg">
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Button 
-                startIcon={<ArrowBackIcon />} 
-                onClick={() => navigate('/apartments')}
-                sx={{ mr: 2 }}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button
+                variant="text"
+                color="primary"
+                startIcon={<ArrowBackIcon />}
+                onClick={handleBack}
               >
                 Back
               </Button>
@@ -464,11 +469,12 @@ export default function ApartmentDetails({ isEditing, isNew }: ApartmentDetailsP
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button 
-              startIcon={<ArrowBackIcon />} 
-              onClick={() => navigate('/apartments')}
-              sx={{ mr: 2 }}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="text"
+              color="primary"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
             >
               Back
             </Button>

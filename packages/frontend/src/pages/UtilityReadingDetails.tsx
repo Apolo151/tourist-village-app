@@ -25,6 +25,7 @@ import { format, isAfter, isBefore, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { mockUtilities, mockApartments, mockBookings } from '../mockData';
 import type { Utility, Apartment, Booking } from '../types';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 interface FormData {
   apartmentId: string;
@@ -281,6 +282,10 @@ const UtilityReadingDetails: React.FC = () => {
     }
   };
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   if (loading) {
     return (
       <Container maxWidth="md">
@@ -300,9 +305,17 @@ const UtilityReadingDetails: React.FC = () => {
     <Container maxWidth="md">
       <Box sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            {isNew ? 'Add New Utility Reading' : isAddingEndReading ? 'Add End Reading' : 'Edit Utility Reading'}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="text"
+              color="primary"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleBack}
+            >
+              Back
+            </Button>
+            <Typography variant="h4">Utility Reading Details</Typography>
+          </Box>
           <Button component={RouterLink} to="/utilities" variant="outlined">
             Back to Utilities
           </Button>

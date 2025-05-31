@@ -395,16 +395,21 @@ const BookingDetails: React.FC = () => {
     { icon: <BillsIcon />, name: 'View Bills', onClick: () => navigate(`/bills?bookingId=${id}`) },
   ];
 
+  const handleBack = () => {
+    navigate(-1);
+  };
+
   return (
     <Container maxWidth="lg">
       <Box sx={{ mt: 4, mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
             <Button 
-              component={RouterLink} 
-              to="/bookings" 
-              sx={{ mr: 2 }}
+              variant="text"
+              color="primary"
               startIcon={<BackIcon />}
+              onClick={handleBack}
+              sx={{ mr: 2 }}
             >
               Back
             </Button>

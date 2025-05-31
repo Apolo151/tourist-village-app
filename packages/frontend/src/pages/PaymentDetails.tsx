@@ -180,6 +180,10 @@ export default function PaymentDetails() {
     navigate(id && !isNew ? `/payments/${id}` : '/payments');
   };
   
+  const handleBack = () => {
+    navigate(-1);
+  };
+  
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -200,7 +204,7 @@ export default function PaymentDetails() {
           onClick={() => navigate('/payments')}
           sx={{ mt: 2 }}
         >
-          Back to Payments
+          Back
         </Button>
       </Box>
     );
@@ -242,15 +246,23 @@ export default function PaymentDetails() {
       </Breadcrumbs>
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">
-          {isNew ? 'New Payment' : isEditing ? 'Edit Payment' : 'Payment Details'}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button
+            variant="text"
+            color="primary"
+            startIcon={<ArrowBackIcon />}
+            onClick={handleBack}
+          >
+            Back
+          </Button>
+          <Typography variant="h4">Payment Details</Typography>
+        </Box>
         <Button
           variant="outlined"
           startIcon={<ArrowBackIcon />}
           onClick={() => navigate('/payments')}
         >
-          Back to Payments
+          Back
         </Button>
       </Box>
       

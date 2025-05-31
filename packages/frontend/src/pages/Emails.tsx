@@ -339,17 +339,16 @@ function EmailDetail({ email, onEdit, onBack }: {
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Button 
-            startIcon={<ArrowBackIcon />} 
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button
+            variant="text"
+            color="primary"
+            startIcon={<ArrowBackIcon />}
             onClick={onBack}
-            sx={{ mr: 2 }}
           >
             Back
           </Button>
-          <Typography variant="h5">
-            {email.subject}
-          </Typography>
+          <Typography variant="h4">Email Details</Typography>
         </Box>
         
         {currentUser?.role === 'admin' && (
@@ -530,9 +529,8 @@ export default function Emails() {
     navigate('/emails/new');
   };
   
-  const handleBackToList = () => {
-    setIsEditing(false);
-    navigate('/emails');
+  const handleBack = () => {
+    navigate(-1);
   };
   
   const handleEdit = () => {
@@ -602,7 +600,7 @@ export default function Emails() {
           <EmailDetail 
             email={email}
             onEdit={handleEdit}
-            onBack={handleBackToList}
+            onBack={handleBack}
           />
         </Box>
       </Container>
@@ -617,7 +615,7 @@ export default function Emails() {
           <Alert severity="error" sx={{ mb: 3 }}>Email not found</Alert>
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={handleBackToList}
+            onClick={handleBack}
           >
             Back to Emails
           </Button>
