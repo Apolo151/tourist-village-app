@@ -1,1 +1,1 @@
-# tourist-village-ui
+# tourist-village-app
