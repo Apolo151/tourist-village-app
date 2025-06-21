@@ -13,16 +13,17 @@ erDiagram
         int    id PK
         string name
         string email
+        string phone_number
         string role       "admin | owner | renter"
     }
     APARTMENTS {
         int    id PK
         string name
         int    village_id FK
-        int    phase_id   FK
+        int    phase
         int    owner_id   FK "→ USERS.id"
         date   purchase_date
-        string paying_status
+        string paying_status    "transfer | rent | non-payer"
     }
     BOOKINGS {
         int    id PK
@@ -38,14 +39,15 @@ erDiagram
         int    id PK
         string name
         float  cost
-        string currency
+        enum currency   "EGP | BGP"
+        string description
         int    default_assignee_id FK "→ USERS.id"
     }
     SERVICE_REQUESTS {
         int    id PK
         int    type_id       FK "→ SERVICE_TYPES.id"
         int    apartment_id  FK
-        int    booking_id    FK
+        int    booking_id    FK "nullable"
         int    requester_id  FK "→ USERS.id"
         datetime date_action
         datetime date_created
@@ -73,7 +75,7 @@ erDiagram
     PAYMENTS {
         int    id PK
         int    apartment_id  FK
-        int    booking_id    FK
+        int    booking_id    FK "nullable"
         int    created_by    FK "→ USERS.id"
         float  amount
         string currency
@@ -85,13 +87,13 @@ erDiagram
     EMAILS {
         int    id PK
         int    apartment_id  FK
-        int    booking_id    FK
+        int    booking_id    FK "nullable"
         date   date
         string from
         string to
         string subject
         text   content
-        string type          "complaint | inquiry | other"
+        enum type          "complaint | inquiry | other"
         int    created_by    FK "→ USERS.id"
     }
 
