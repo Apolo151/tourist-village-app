@@ -8,10 +8,12 @@ export async function up(knex: Knex): Promise<void> {
     table.enum('currency', ['EGP', 'GBP']).notNullable();
     table.text('description').nullable();
     table.integer('default_assignee_id').unsigned().nullable();
+    table.integer('created_by').unsigned().notNullable();
     table.timestamps(true, true);
 
     // Foreign key constraints
     table.foreign('default_assignee_id').references('id').inTable('users');
+    table.foreign('created_by').references('id').inTable('users');
   });
 }
 

@@ -13,6 +13,7 @@ export async function up(knex: Knex): Promise<void> {
     table.enum('who_pays', ['owner', 'renter', 'company']).notNullable();
     table.text('notes').nullable();
     table.integer('assignee_id').unsigned().nullable();
+    table.integer('created_by').unsigned().notNullable();
     table.timestamps(true, true);
 
     // Foreign key constraints
@@ -21,6 +22,7 @@ export async function up(knex: Knex): Promise<void> {
     table.foreign('booking_id').references('id').inTable('bookings');
     table.foreign('requester_id').references('id').inTable('users');
     table.foreign('assignee_id').references('id').inTable('users');
+    table.foreign('created_by').references('id').inTable('users');
   });
 }
 

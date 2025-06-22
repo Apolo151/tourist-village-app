@@ -7,7 +7,7 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('booking_id').unsigned().nullable();
     table.integer('created_by').unsigned().notNullable();
     table.decimal('amount', 10, 2).notNullable();
-    table.string('currency').notNullable();
+    table.enum('currency', ['EGP', 'GBP']).notNullable();
     table.integer('method_id').unsigned().notNullable();
     table.enum('user_type', ['owner', 'renter']).notNullable();
     table.date('date').notNullable();

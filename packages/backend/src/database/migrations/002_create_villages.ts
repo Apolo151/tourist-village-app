@@ -5,9 +5,13 @@ export async function up(knex: Knex): Promise<void> {
     table.increments('id').primary();
     table.string('name').notNullable();
     table.decimal('electricity_price', 10, 4).notNullable();
-    table.decimal('gas_price', 10, 4).notNullable();
+    table.decimal('water_price', 10, 4).notNullable();
     table.integer('phases').notNullable();
+    table.integer('created_by').unsigned().nullable();
     table.timestamps(true, true);
+
+    // Foreign key constraints
+    table.foreign('created_by').references('id').inTable('users');
   });
 }
 

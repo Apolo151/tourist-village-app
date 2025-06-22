@@ -6,7 +6,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('name').notNullable();
     table.string('email').notNullable().unique();
     table.string('phone_number').nullable();
-    table.enum('role', ['admin', 'owner', 'renter']).notNullable();
+    table.enum('role', ['super_admin', 'admin', 'owner', 'renter']).notNullable();
     table.timestamps(true, true);
   });
 }

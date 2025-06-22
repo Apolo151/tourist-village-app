@@ -12,11 +12,13 @@ export async function up(knex: Knex): Promise<void> {
     table.date('start_date').notNullable();
     table.date('end_date').notNullable();
     table.enum('who_pays', ['owner', 'renter', 'company']).notNullable();
+    table.integer('created_by').unsigned().notNullable();
     table.timestamps(true, true);
 
     // Foreign key constraints
     table.foreign('booking_id').references('id').inTable('bookings');
     table.foreign('apartment_id').references('id').inTable('apartments');
+    table.foreign('created_by').references('id').inTable('users');
   });
 }
 
