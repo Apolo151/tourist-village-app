@@ -40,7 +40,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check routes (no auth required)
-app.use('/api/health', healthRouter);
+app.use('/health', healthRouter);
 
 // Authentication routes
 app.use('/auth', authRouter);
@@ -66,8 +66,8 @@ app.get('/', (req, res) => {
     status: 'running',
     environment: process.env.NODE_ENV || 'development',
     documentation: {
-      authentication: '/api/auth',
-      health: '/api/health'
+      authentication: '/auth',
+      health: '/health'
     },
     endpoints: {
       auth: {
