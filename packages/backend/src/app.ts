@@ -43,20 +43,20 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use('/api/health', healthRouter);
 
 // Authentication routes
-app.use('/api/auth', authRouter);
+app.use('/auth', authRouter);
 
 // Protected API routes
-app.use('/api/apartments', apartmentsRouter);
-app.use('/api/villages', villagesRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/bookings', bookingsRouter);
-app.use('/api/service-types', serviceTypesRouter);
-app.use('/api/service-requests', serviceRequestsRouter);
-app.use('/api/utility-readings', utilityReadingsRouter);
-app.use('/api/emails', emailsRouter);
-app.use('/api/payment-methods', paymentMethodsRouter);
-app.use('/api/payments', paymentsRouter);
-app.use('/api/bills', billsRouter);
+app.use('/apartments', apartmentsRouter);
+app.use('/villages', villagesRouter);
+app.use('/users', usersRouter);
+app.use('/bookings', bookingsRouter);
+app.use('/service-types', serviceTypesRouter);
+app.use('/service-requests', serviceRequestsRouter);
+app.use('/utility-readings', utilityReadingsRouter);
+app.use('/emails', emailsRouter);
+app.use('/payment-methods', paymentMethodsRouter);
+app.use('/payments', paymentsRouter);
+app.use('/bills', billsRouter);
 
 // Root endpoint - API documentation
 app.get('/', (req, res) => {
@@ -71,39 +71,39 @@ app.get('/', (req, res) => {
     },
     endpoints: {
       auth: {
-        base: '/api/auth',
+        base: '/auth',
         endpoints: [
-          'POST /api/auth/register',
-          'POST /api/auth/login', 
-          'POST /api/auth/refresh',
-          'POST /api/auth/logout',
-          'GET  /api/auth/me',
-          'POST /api/auth/change-password',
-          'POST /api/auth/verify-token',
-          'GET  /api/auth/health'
+          'POST /auth/register',
+          'POST /auth/login', 
+          'POST /auth/refresh',
+          'POST /auth/logout',
+          'GET  /auth/me',
+          'POST /auth/change-password',
+          'POST /auth/verify-token',
+          'GET  /auth/health'
         ]
       },
       management: {
-        apartments: '/api/apartments',
-        villages: '/api/villages',
-        users: '/api/users',
-        bookings: '/api/bookings'
+        apartments: '/apartments',
+        villages: '/villages',
+        users: '/users',
+        bookings: '/bookings'
       },
       services: {
-        serviceTypes: '/api/service-types',
-        serviceRequests: '/api/service-requests',
-        utilityReadings: '/api/utility-readings'
+        serviceTypes: '/service-types',
+        serviceRequests: '/service-requests',
+        utilityReadings: '/utility-readings'
       },
       financial: {
-        payments: '/api/payments',
-        paymentMethods: '/api/payment-methods',
-        bills: '/api/bills'
+        payments: '/payments',
+        paymentMethods: '/payment-methods',
+        bills: '/bills'
       },
       communication: {
-        emails: '/api/emails'
+        emails: '/emails'
       },
       monitoring: {
-        health: '/api/health'
+        health: '/health'
       }
     }
   });
@@ -146,8 +146,8 @@ app.use(/(.*)/, (req, res) => {
     error: 'Route not found',
     message: `The route ${req.method} ${req.originalUrl} does not exist`,
     availableRoutes: {
-      auth: '/api/auth',
-      health: '/api/health',
+      auth: '/auth',
+      health: '/health',
       documentation: '/'
     }
   });
