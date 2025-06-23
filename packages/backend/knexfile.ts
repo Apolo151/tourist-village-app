@@ -51,11 +51,11 @@ const config: { [key: string]: Knex.Config } = {
       ssl: { rejectUnauthorized: false },
     },
     migrations: {
-      directory: './dist/src//database/migrations',
+      directory: './src/database/migrations',
       extension: 'js',
     },
     seeds: {
-      directory: './dist/src/database/seeds',
+      directory: './src/database/seeds',
       extension: 'js',
     },
   },
