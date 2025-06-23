@@ -22,6 +22,24 @@ const config: { [key: string]: Knex.Config } = {
       extension: 'ts',
     },
   },
+  testing: {
+  client: 'postgresql',
+  connection: {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    database: process.env.DB_NAME || 'tourist_village_db_test',
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || 'password',
+  },
+  migrations: {
+    directory: './src/database/migrations',
+    extension: 'ts',
+  },
+  seeds: {
+    directory: './src/database/seeds',
+    extension: 'ts',
+  },
+  },
   production: {
     client: 'postgresql',
     connection: {
@@ -33,11 +51,11 @@ const config: { [key: string]: Knex.Config } = {
       ssl: { rejectUnauthorized: false },
     },
     migrations: {
-      directory: './dist/database/migrations',
+      directory: './dist/src//database/migrations',
       extension: 'js',
     },
     seeds: {
-      directory: './dist/database/seeds',
+      directory: './dist/src/database/seeds',
       extension: 'js',
     },
   },

@@ -5,13 +5,21 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "migrate:latest": "knex migrate:latest",
+    "start": "node dist/src/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "migrate": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
     "seed:run": "knex seed:run",
-    "seed:make": "knex seed:make"
+    "seed:make": "knex seed:make",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:verbose": "jest --verbose",
+    "test:services": "jest tests/services",
+    "test:routes": "jest tests/routes",
+    "test:middleware": "jest tests/middleware",
+    "test:ci": "jest --ci --coverage --watchAll=false"
   },
   "keywords": [
     "tourism",
@@ -22,14 +30,22 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/jest": "^30.0.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/supertest": "^6.0.3",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
     "knex": "^3.1.0",
     "morgan": "^1.10.0",
     "pg": "^8.16.2",
-    "swagger-ui-express": "^5.0.1"
+    "supertest": "^7.1.1",
+    "swagger-ui-express": "^5.0.1",
+    "ts-jest": "^29.4.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -37,6 +53,7 @@
     "@types/morgan": "^1.9.10",
     "@types/node": "^20.19.1",
     "@types/pg": "^8.15.4",
+    "jest": "^30.0.2",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
