@@ -6,8 +6,9 @@ erDiagram
         int    id PK
         string name
         float  electricity_price
-        float  gas_price
+        float  water_price
         int    phases
+        int    created_by FK "→ USERS.id"
     }
     USERS {
         int    id PK
@@ -114,6 +115,7 @@ erDiagram
     PAYMENT_METHODS ||--o{ PAYMENTS     : usedBy
     
     %% Missing foreign key relationships
+    USERS    ||--o{ VILLAGES          : createdBy
     USERS    ||--o{ SERVICE_TYPES     : defaultAssignee
     USERS    ||--o{ SERVICE_REQUESTS  : requester
     USERS    ||--o{ SERVICE_REQUESTS  : assignee
