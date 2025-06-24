@@ -50,6 +50,8 @@ export interface Apartment {
   
   // Computed/joined fields
   village?: {
+    electricity_price(waterStartReading: number, waterEndReading: number, arg2: string, electricity_price: any, water_price: number): unknown;
+    water_price: number;
     id: number;
     name: string;
   };

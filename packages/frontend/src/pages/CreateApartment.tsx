@@ -209,7 +209,7 @@ export default function CreateApartment() {
           <form onSubmit={handleSubmit}>
             <Grid container spacing={3}>
               {/* Apartment Name */}
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <TextField
                   fullWidth
                   label="Apartment Name"
@@ -223,7 +223,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Village */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth error={!!errors.village_id} required>
                   <InputLabel>Village</InputLabel>
                   <Select
@@ -250,7 +250,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Phase */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth error={!!errors.phase} required disabled={!formData.village_id}>
                   <InputLabel>Apartment Phase</InputLabel>
                   <Select
@@ -274,7 +274,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Owner */}
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <FormControl fullWidth error={!!errors.owner_id} required>
                   <InputLabel>Owner Name</InputLabel>
                   <Select
@@ -301,7 +301,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Purchase Date */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <TextField
                   fullWidth
                   label="Purchase Date"
@@ -316,7 +316,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Paying Status */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth required>
                   <InputLabel>Paying Status</InputLabel>
                   <Select
@@ -333,7 +333,7 @@ export default function CreateApartment() {
               </Grid>
 
               {/* Action Buttons */}
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
                   <Button
                     variant="outlined"

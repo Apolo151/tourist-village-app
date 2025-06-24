@@ -22,7 +22,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Grid,
   Card,
   CardContent,
   Divider,
@@ -749,7 +748,6 @@ export default function ApartmentDetails() {
         <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="md" fullWidth>
           <CreatePayment
             apartmentId={apartment?.id}
-            userId={apartment?.owner_id}
             onSuccess={() => {
               setOpenPaymentDialog(false);
               refreshRelatedData();

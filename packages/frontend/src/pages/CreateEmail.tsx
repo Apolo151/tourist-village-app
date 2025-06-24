@@ -45,22 +45,20 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
   // Determine mode based on URL
   const isEditing = Boolean(id) && location.pathname.includes('/edit');
   const isViewing = Boolean(id) && !location.pathname.includes('/edit');
-  const isCreating = !Boolean(id);
 
   // State
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   // Data
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [email, setEmail] = useState<Email | null>(null);
 
   // Form data
   const [formData, setFormData] = useState<CreateEmailRequest>({
-    apartment_id: undefined as any,
+    apartment_id: apartmentId || undefined as any,
     booking_id: undefined,
     date: new Date().toISOString().split('T')[0],
     from: currentUser?.email || '',
@@ -96,24 +94,10 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
         setApartments(apartmentsData.data);
         setBookings(bookingsData.bookings);
 
-        // If editing or viewing, load the email
-        if ((isEditing || isViewing) && id) {
-          const emailData = await emailService.getEmailById(parseInt(id));
-          setEmail(emailData);
-          
-          // Populate form with email data
-          setFormData({
-            apartment_id: emailData.apartment_id,
-            booking_id: emailData.booking_id,
-            date: emailData.date.split('T')[0], // Convert to YYYY-MM-DD format
-            from: emailData.from,
-            to: emailData.to,
-            subject: emailData.subject,
-            content: emailData.content,
-            type: emailData.type
-          });
-          
-          setSelectedDate(new Date(emailData.date));
+        // Load existing email if editing
+        if (isEditing && id) {
+          await emailService.getEmailById(parseInt(id));
+          // Set viewing/editing mode data here if needed
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -231,7 +215,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
     }
 
     try {
-      setSaving(true);
+      setSubmitting(true);
       
       if (isEditing && id) {
         // Update existing email
@@ -254,20 +238,28 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
       
       setSaveSuccess(true);
       
-      // Navigate back to emails list after a short delay
-      setTimeout(() => {
-        navigate('/emails');
-      }, 1500);
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Navigate back to emails list after a short delay
+        setTimeout(() => {
+          navigate('/emails');
+        }, 1500);
+      }
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save email');
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
   const handleBack = () => {
-    navigate('/emails');
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate('/emails');
+    }
   };
 
   if (loading) {
@@ -366,7 +358,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                     value={formData.apartment_id ? formData.apartment_id.toString() : ''}
                     onChange={handleSelectChange}
                     label={isViewing ? "Related Apartment" : "Related Apartment *"}
-                    disabled={isViewing}
+                    disabled={isViewing || (lockApartment && apartmentId !== undefined)}
                   >
                     <MenuItem value="">Select an apartment</MenuItem>
                     {apartments.map(apartment => (
@@ -478,14 +470,14 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                       type="submit"
                       variant="contained"
                       startIcon={<SaveIcon />}
-                      disabled={saving}
+                      disabled={submitting}
                     >
-                      {saving ? 'Saving...' : (isEditing ? 'Update Email' : 'Create Email')}
+                      {submitting ? 'Saving...' : (isEditing ? 'Update Email' : 'Create Email')}
                     </Button>
                     <Button
                       variant="outlined"
                       onClick={handleBack}
-                      disabled={saving}
+                      disabled={submitting}
                     >
                       Cancel
                     </Button>

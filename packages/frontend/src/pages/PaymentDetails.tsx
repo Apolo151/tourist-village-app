@@ -365,11 +365,11 @@ export default function PaymentDetails() {
               <Divider sx={{ mb: 2 }} />
               
               <Grid container spacing={2}>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Payment ID</Typography>
                   <Typography variant="body1">{payment.id}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
                   <Chip
                     label={paymentService.formatAmount(payment.amount, payment.currency)}
@@ -377,11 +377,11 @@ export default function PaymentDetails() {
                     size="small"
                   />
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Payment Method</Typography>
                   <Typography variant="body1">{payment.payment_method?.name || 'Unknown'}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">User Type</Typography>
                   <Chip
                     label={payment.user_type === 'owner' ? 'Owner' : 'Renter'}
@@ -389,19 +389,19 @@ export default function PaymentDetails() {
                     size="small"
                   />
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Date</Typography>
                   <Typography variant="body1">{formatDate(payment.date)}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
                   <Typography variant="body1">{payment.created_by_user?.name || 'Unknown'}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
                   <Typography variant="body1">{payment.apartment?.name || 'Unknown'}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <Typography variant="subtitle2" color="text.secondary">Booking</Typography>
                   <Typography variant="body1">
                     {payment.booking ? 
@@ -410,16 +410,16 @@ export default function PaymentDetails() {
                   </Typography>
                 </Grid>
                 {payment.description && (
-                  <Grid xs={12}>
+                  <Grid size={{xs: 12}}>
                     <Typography variant="subtitle2" color="text.secondary">Description</Typography>
                     <Typography variant="body1">{payment.description}</Typography>
                   </Grid>
                 )}
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <Typography variant="subtitle2" color="text.secondary">Created At</Typography>
                   <Typography variant="body1">{formatDateTime(payment.created_at)}</Typography>
                 </Grid>
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <Typography variant="subtitle2" color="text.secondary">Last Updated</Typography>
                   <Typography variant="body1">{formatDateTime(payment.updated_at)}</Typography>
                 </Grid>
@@ -436,7 +436,7 @@ export default function PaymentDetails() {
             
             <Stack spacing={3}>
               <Grid container spacing={2}>
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <FormControl fullWidth error={!!errors.apartment_id}>
                     <InputLabel>Apartment *</InputLabel>
                     <Select
@@ -458,7 +458,7 @@ export default function PaymentDetails() {
                   </FormControl>
                 </Grid>
                 
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <FormControl fullWidth error={!!errors.user_type}>
                     <InputLabel>User Type *</InputLabel>
                     <Select
@@ -474,7 +474,7 @@ export default function PaymentDetails() {
                   </FormControl>
                 </Grid>
                 
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <TextField
                     name="amount"
                     label="Amount *"
@@ -488,7 +488,7 @@ export default function PaymentDetails() {
                   />
                 </Grid>
                 
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <FormControl fullWidth error={!!errors.currency}>
                     <InputLabel>Currency *</InputLabel>
                     <Select
@@ -504,7 +504,7 @@ export default function PaymentDetails() {
                   </FormControl>
                 </Grid>
                 
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <FormControl fullWidth error={!!errors.method_id}>
                     <InputLabel>Payment Method *</InputLabel>
                     <Select
@@ -526,7 +526,7 @@ export default function PaymentDetails() {
                   </FormControl>
                 </Grid>
                 
-                <Grid xs={12} sm={6}>
+                <Grid size={{xs: 12, sm: 6}}>
                   <TextField
                     name="date"
                     label="Date *"
@@ -541,7 +541,7 @@ export default function PaymentDetails() {
                 </Grid>
                 
                 {formData.user_type === 'renter' && (
-                  <Grid xs={12}>
+                  <Grid size={{xs: 12}}>
                     <FormControl fullWidth error={!!errors.booking_id}>
                       <InputLabel>Booking {formData.user_type === 'renter' ? '*' : ''}</InputLabel>
                       <Select
@@ -565,7 +565,7 @@ export default function PaymentDetails() {
                   </Grid>
                 )}
                 
-                <Grid xs={12}>
+                <Grid size={{xs: 12}}>
                   <TextField
                     name="description"
                     label="Description"

@@ -24,7 +24,9 @@ import { Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
 import { apartmentService } from '../services/apartmentService';
 import { paymentService } from '../services/paymentService';
-import type { Apartment, Payment } from '../types';
+import type { Apartment as ServiceApartment } from '../services/apartmentService';
+import type { Payment as ServicePayment } from '../services/paymentService';
+import type { Apartment } from '../types';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -42,7 +44,7 @@ export default function Dashboard() {
   const [city, setCity] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [apartments, setApartments] = useState<Apartment[]>([]);
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<ServicePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   
@@ -61,7 +63,15 @@ export default function Dashboard() {
         paymentService.getPayments({ limit: 100 })
       ]);
 
-      setApartments(apartmentsResult.data);
+      setApartments(apartmentsResult.data.map((apt: ServiceApartment) => ({
+        ...apt,
+        created_by: (apt as any).created_by ?? 0, // fallback if missing
+        purchase_date: apt.purchase_date ?? '', // ensure string
+        paying_status:
+          apt.paying_status === 'transfer' ? 'payed_by_transfer' :
+          apt.paying_status === 'rent' ? 'payed_by_rent' :
+          'non_payer'
+      }) as Apartment));
       setPayments(paymentsResult.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');

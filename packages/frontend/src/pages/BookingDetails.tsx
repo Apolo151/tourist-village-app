@@ -184,7 +184,7 @@ const BookingDetails: React.FC = () => {
             number_of_people: bookingData.number_of_people,
             arrival_date: parseISO(bookingData.arrival_date),
             leaving_date: parseISO(bookingData.leaving_date),
-            status: bookingData.status,
+            status: bookingData.status === 'has_not_arrived' ? 'not_arrived' : bookingData.status,
             notes: bookingData.notes || ''
           });
         } catch (err) {
@@ -306,7 +306,7 @@ const BookingDetails: React.FC = () => {
           number_of_people: booking.number_of_people,
           arrival_date: parseISO(booking.arrival_date),
           leaving_date: parseISO(booking.leaving_date),
-          status: booking.status,
+          status: booking.status === 'has_not_arrived' ? 'not_arrived' : booking.status,
           notes: booking.notes || ''
         });
       }
@@ -453,7 +453,7 @@ const BookingDetails: React.FC = () => {
           <Paper sx={{ p: 3 }}>
               <form onSubmit={handleSubmit}>
               <Grid container spacing={3}>
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                     <FormControl fullWidth error={!!errors.apartment_id}>
                     <InputLabel>Apartment</InputLabel>
                     <Select
@@ -474,7 +474,7 @@ const BookingDetails: React.FC = () => {
                   </FormControl>
                 </Grid>
 
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                     <FormControl fullWidth error={!!errors.user_id}>
                       <InputLabel>User</InputLabel>
                     <Select
@@ -495,7 +495,7 @@ const BookingDetails: React.FC = () => {
                     </FormControl>
                   </Grid>
 
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                   <TextField
                       name="number_of_people"
                     label="Number of People"
@@ -507,7 +507,7 @@ const BookingDetails: React.FC = () => {
                   />
                 </Grid>
 
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                     <DateTimePicker
                       label="Arrival Date"
                       value={formData.arrival_date}
@@ -522,7 +522,7 @@ const BookingDetails: React.FC = () => {
                     />
                 </Grid>
 
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                     <DateTimePicker
                       label="Leaving Date"
                       value={formData.leaving_date}
@@ -537,7 +537,7 @@ const BookingDetails: React.FC = () => {
                     />
                 </Grid>
 
-                  <Grid xs={12} md={6}>
+                  <Grid size={{xs: 12, md: 6}}>
                     <FormControl fullWidth>
                       <InputLabel>Status</InputLabel>
                     <Select
@@ -552,7 +552,7 @@ const BookingDetails: React.FC = () => {
                   </FormControl>
                 </Grid>
 
-                  <Grid xs={12}>
+                  <Grid size={{xs: 12}}>
                   <TextField
                     name="notes"
                       label="Notes"
@@ -564,7 +564,7 @@ const BookingDetails: React.FC = () => {
                   />
                 </Grid>
 
-                  <Grid xs={12}>
+                  <Grid size={{xs: 12}}>
                     <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                         <Button 
                           variant="outlined"
@@ -598,7 +598,7 @@ const BookingDetails: React.FC = () => {
                     <Divider sx={{ mb: 2 }} />
                     
                     <Grid container spacing={2}>
-                      <Grid xs={12} md={4}>
+                      <Grid size={{xs: 12, md: 4}}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                           <HomeIcon color="primary" />
                           <Box>
@@ -608,7 +608,7 @@ const BookingDetails: React.FC = () => {
                         </Box>
                       </Grid>
                       
-                      <Grid xs={12} md={4}>
+                      <Grid size={{xs: 12, md: 4}}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                           <PersonIcon color="primary" />
                           <Box>
@@ -626,7 +626,7 @@ const BookingDetails: React.FC = () => {
                         </Box>
                       </Grid>
                       
-                      <Grid xs={12} md={4}>
+                      <Grid size={{xs: 12, md: 4}}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                           <CalendarIcon color="primary" />
                           <Box>
@@ -640,7 +640,7 @@ const BookingDetails: React.FC = () => {
                         </Box>
                       </Grid>
                       
-                      <Grid xs={12} md={4}>
+                      <Grid size={{xs: 12, md: 4}}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                           <PersonIcon color="primary" />
                           <Box>
@@ -650,18 +650,18 @@ const BookingDetails: React.FC = () => {
                         </Box>
                       </Grid>
                       
-                      <Grid xs={12} md={6}>
+                      <Grid size={{xs: 12, md: 6}}>
                         <Typography variant="subtitle2" color="text.secondary">Arrival Date</Typography>
                         <Typography variant="body1">{formatDate(booking.arrival_date)}</Typography>
                       </Grid>
                       
-                      <Grid xs={12} md={6}>
+                      <Grid size={{xs: 12, md: 6}}>
                         <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
                         <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
                       </Grid>
                       
                       {booking.notes && (
-                        <Grid xs={12}>
+                        <Grid size={{xs: 12}}>
                           <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
                           <Typography variant="body1">{booking.notes}</Typography>
                         </Grid>

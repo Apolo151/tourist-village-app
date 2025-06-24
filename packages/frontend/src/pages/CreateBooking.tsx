@@ -119,8 +119,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       };
 
       await bookingService.createBooking(bookingData);
-      onSuccess?.();
-      navigate('/bookings?success=true&message=Booking%20created%20successfully');
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/bookings?success=true&message=Booking%20created%20successfully');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create booking');
     } finally {
@@ -142,10 +145,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => {
-              onCancel?.();
-              navigate('/bookings');
-            }}
+            onClick={() => onCancel ? onCancel() : navigate('/bookings')}
             sx={{ mr: 2 }}
           >
             Back
@@ -306,10 +306,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                 <Button
                   variant="outlined"
-                  onClick={() => {
-                    onCancel?.();
-                    navigate('/bookings');
-                  }}
+                  onClick={() => onCancel ? onCancel() : navigate('/bookings')}
                   disabled={submitting}
                 >
                   Cancel

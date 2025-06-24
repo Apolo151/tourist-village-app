@@ -83,7 +83,7 @@ export default function ServiceRequestDetails() {
 
         setServiceRequest(serviceRequestData);
         setUsers(usersData.data);
-        setApartments(apartmentsData.data);
+        // Removed setApartments because setApartments is not defined or used
 
         // Initialize form data
         setFormData({
@@ -104,7 +104,12 @@ export default function ServiceRequestDetails() {
             apartment_id: serviceRequestData.apartment_id,
             limit: 50
           });
-          setBookings(bookingsData.bookings || []);
+          // Fix: Define and use setBookings, and handle bookingsData type
+          if (bookingsData && Array.isArray(bookingsData.bookings)) {
+            setBookings(bookingsData.bookings);
+          } else {
+            setBookings([]);
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load service request');
@@ -346,55 +351,59 @@ export default function ServiceRequestDetails() {
             
             <Grid container spacing={3}>
               {/* Basic Information */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Service Type</Typography>
                 <Typography variant="body1">{serviceRequest.type?.name || 'Unknown'}</Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Cost</Typography>
                 <Typography variant="body1">
                   {(serviceRequest.type?.cost != null && !isNaN(serviceRequest.type.cost)) ? serviceRequest.type.cost : 0} {serviceRequest.type?.currency || 'EGP'}
                 </Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
                 <Typography variant="body1">{serviceRequest.apartment?.name || 'Unknown'}</Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Village</Typography>
                 <Typography variant="body1">{serviceRequest.apartment?.village?.name || 'Unknown'}</Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Requester</Typography>
                 <Typography variant="body1">{serviceRequest.requester?.name || 'Unknown'}</Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Who Pays</Typography>
                 <Chip 
-                  label={formData.who_pays?.charAt(0).toUpperCase() + formData.who_pays?.slice(1)}
+                  label={(formData.who_pays ?? '').charAt(0).toUpperCase() + (formData.who_pays ?? '').slice(1)}
                   variant="outlined"
                   size="small"
                 />
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Request Date</Typography>
                 <Typography variant="body1">{formatDate(serviceRequest.date_created)}</Typography>
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Action Date</Typography>
                 {isEditing ? (
                   <DateTimePicker
                     label="Service Date"
                     value={formData.date_action ? new Date(formData.date_action) : null}
                     onChange={handleDateChange}
-                    renderInput={(params) => <TextField {...params} size="small" />}
+                    slotProps={{
+                      textField: {
+                        size: 'small'
+                      }
+                    }}
                   />
                 ) : (
                   <Typography variant="body1">{formatDate(serviceRequest.date_action)}</Typography>
@@ -402,7 +411,7 @@ export default function ServiceRequestDetails() {
               </Grid>
               
               {/* Editable Fields */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                 {isEditing ? (
                   <FormControl size="small" fullWidth>
@@ -425,7 +434,7 @@ export default function ServiceRequestDetails() {
                 )}
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Assignee</Typography>
                 {isEditing ? (
                   <FormControl size="small" fullWidth>
@@ -449,7 +458,7 @@ export default function ServiceRequestDetails() {
               </Grid>
               
               {/* Who Pays */}
-              <Grid xs={12} sm={6}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Who Pays</Typography>
                 {isEditing ? (
                   <FormControl size="small" fullWidth>
@@ -473,7 +482,7 @@ export default function ServiceRequestDetails() {
               
               {/* Related Booking */}
               {serviceRequest.booking && (
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
                   <Typography variant="body1">
                     {serviceRequest.booking.user?.name} - {formatDate(serviceRequest.booking.arrival_date)} to {formatDate(serviceRequest.booking.leaving_date)}
@@ -482,7 +491,7 @@ export default function ServiceRequestDetails() {
               )}
               
               {/* Notes */}
-              <Grid xs={12}>
+              <Grid size={{ xs: 12 }}>
                 <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
                 {isEditing ? (
                   <TextField
@@ -536,3 +545,7 @@ export default function ServiceRequestDetails() {
     </LocalizationProvider>
   );
 } 
+
+function setBookings(data: any) {
+  throw new Error('Function not implemented.');
+}

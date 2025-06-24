@@ -163,8 +163,8 @@ export default function CreateServiceType() {
 
       if (isNew) {
         // Create new service type
-        const newServiceType = await serviceRequestService.createServiceType(formData);
-        navigate(`/services?success=true&message=${encodeURIComponent('Service type created successfully')}&tab=0`);
+        await serviceRequestService.createServiceType(formData);
+        navigate('/services?tab=0&success=Service%20type%20created%20successfully');
       } else if (id) {
         // Update existing service type
         const updateData: UpdateServiceTypeRequest = {
@@ -175,8 +175,8 @@ export default function CreateServiceType() {
           default_assignee_id: formData.default_assignee_id
         };
         
-        const updatedServiceType = await serviceRequestService.updateServiceType(parseInt(id), updateData);
-        navigate(`/services?success=true&message=${encodeURIComponent('Service type updated successfully')}&tab=0`);
+        await serviceRequestService.updateServiceType(parseInt(id), updateData);
+        navigate('/services?tab=0&success=Service%20type%20updated%20successfully');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save service type');
@@ -240,7 +240,7 @@ export default function CreateServiceType() {
             <Typography variant="h6" gutterBottom>Service Type Information</Typography>
             
             <Grid container spacing={3}>
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <TextField
                   label="Service Name"
                   name="name"
@@ -254,7 +254,7 @@ export default function CreateServiceType() {
                 />
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <TextField
                   label="Cost"
                   name="cost"
@@ -269,7 +269,7 @@ export default function CreateServiceType() {
                 />
               </Grid>
               
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth required>
                   <InputLabel>Currency</InputLabel>
                   <Select
@@ -283,7 +283,7 @@ export default function CreateServiceType() {
                 </FormControl>
               </Grid>
               
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <TextField
                   label="Description"
                   name="description"
@@ -297,7 +297,7 @@ export default function CreateServiceType() {
                 />
               </Grid>
               
-              <Grid xs={12}>
+                <Grid size={{xs: 12}}>
                 <FormControl fullWidth>
                   <InputLabel>Default Assignee (Optional)</InputLabel>
                   <Select

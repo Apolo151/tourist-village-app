@@ -39,39 +39,40 @@ interface BillDisplayData {
 const BillDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const numericId = id ? Number(id) : undefined;
   
   // Find the bill from either service requests or payments
-  const serviceRequest = mockServiceRequests.find(sr => sr.id === id);
-  const payment = mockPayments.find(p => p.id === id);
+  const serviceRequest = mockServiceRequests.find(sr => sr.id === numericId);
+  const payment = mockPayments.find(p => p.id === numericId);
   
   let bill: BillDisplayData | undefined;
   
   if (serviceRequest) {
-    const serviceType = mockServiceTypes.find(st => st.id === serviceRequest.serviceTypeId);
-    const apartment = mockApartments.find(apt => apt.id === serviceRequest.apartmentId);
-    const user = mockUsers.find(u => u.id === serviceRequest.userId);
-    const booking = mockBookings.find(b => b.id === serviceRequest.bookingId);
+    const serviceType = mockServiceTypes.find(st => st.id === serviceRequest.service_type_id);
+    const apartment = mockApartments.find(apt => apt.id === serviceRequest.apartment_id);
+    const user = mockUsers.find(u => u.id === (typeof serviceRequest.userId === 'string' ? Number(serviceRequest.userId) : serviceRequest.userId));
+    const booking = mockBookings.find(b => b.id === (typeof serviceRequest.booking_id === 'string' ? Number(serviceRequest.booking_id) : serviceRequest.booking_id));
     
     if (serviceType && apartment && user) {
-      const dueDate = new Date(serviceRequest.serviceDate || serviceRequest.requestDate);
+      const dueDate = new Date(serviceRequest.wanted_service_date || serviceRequest.request_date);
       dueDate.setDate(dueDate.getDate() + 15);
       
       bill = {
-        id: serviceRequest.id,
-        billNumber: serviceRequest.id,
+        id: serviceRequest.id.toString(),
+        billNumber: serviceRequest.id.toString(),
         apartmentName: apartment.name,
         userName: user.name,
         village: apartment.village as string,
         userType: user.role === 'owner' ? 'owner' : 'renter',
-        billDate: serviceRequest.requestDate,
+        billDate: serviceRequest.request_date,
         dueDate: format(dueDate, 'yyyy-MM-dd'),
         isPaid: serviceRequest.status === 'completed',
         description: `${serviceType.name} - ${serviceType.description}`,
         billType: 'service',
-        apartmentId: serviceRequest.apartmentId,
-        userId: serviceRequest.userId,
-        bookingId: serviceRequest.bookingId,
-        bookingArrivalDate: booking?.arrivalDate,
+        apartmentId: serviceRequest.apartment_id.toString(),
+        userId: serviceRequest.userId.toString(),
+        bookingId: serviceRequest.booking_id?.toString(),
+        bookingArrivalDate: booking?.arrival_date,
         totalMoneySpentEGP: 0,
         totalMoneySpentGBP: 0,
         totalMoneyRequestedEGP: serviceType.currency === 'EGP' ? serviceType.cost : 0,
@@ -81,36 +82,36 @@ const BillDetails: React.FC = () => {
       };
     }
   } else if (payment) {
-    const apartment = mockApartments.find(apt => apt.id === payment.apartmentId);
-    const user = mockUsers.find(u => u.id === payment.userId);
-    const booking = mockBookings.find(b => b.id === payment.bookingId);
+    const apartment = mockApartments.find(apt => apt.id === payment.apartment_id);
+    const user = mockUsers.find(u => u.id === payment.user_id);
+    const booking = mockBookings.find(b => b.id === (typeof payment.booking_id === 'string' ? Number(payment.booking_id) : payment.booking_id));
     
     if (apartment && user) {
-      const dueDate = new Date(payment.createdAt);
+      const dueDate = new Date(payment.created_at);
       dueDate.setDate(dueDate.getDate() + 15);
       
       bill = {
-        id: payment.id,
-        billNumber: payment.id,
+        id: payment.id.toString(),
+        billNumber: payment.id.toString(),
         apartmentName: apartment.name,
         userName: user.name,
         village: apartment.village as string,
-        userType: payment.userType,
-        billDate: payment.createdAt,
+        userType: (payment['user_type'] as 'owner' | 'renter'),
+        billDate: payment.created_at,
         dueDate: format(dueDate, 'yyyy-MM-dd'),
         isPaid: true,
         description: payment.description,
         billType: 'payment',
-        apartmentId: payment.apartmentId,
-        userId: payment.userId,
-        bookingId: payment.bookingId,
-        bookingArrivalDate: booking?.arrivalDate,
-        totalMoneySpentEGP: payment.currency === 'EGP' ? payment.cost : 0,
-        totalMoneySpentGBP: payment.currency === 'GBP' ? payment.cost : 0,
+        apartmentId: payment.apartment_id.toString(),
+        userId: payment.user_id.toString(),
+        bookingId: payment.booking_id?.toString(),
+        bookingArrivalDate: booking?.arrival_date,
+        totalMoneySpentEGP: payment.currency === 'EGP' ? payment.amount : 0,
+        totalMoneySpentGBP: payment.currency === 'GBP' ? payment.amount : 0,
         totalMoneyRequestedEGP: 0,
         totalMoneyRequestedGBP: 0,
-        netMoneyEGP: payment.currency === 'EGP' ? payment.cost : 0,
-        netMoneyGBP: payment.currency === 'GBP' ? payment.cost : 0
+        netMoneyEGP: payment.currency === 'EGP' ? payment.amount : 0,
+        netMoneyGBP: payment.currency === 'GBP' ? payment.amount : 0
       };
     }
   }

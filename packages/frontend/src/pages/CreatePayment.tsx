@@ -5,7 +5,6 @@ import {
   Button,
   CircularProgress,
   Typography,
-  Paper,
   Grid,
   TextField,
   FormControl,
@@ -29,7 +28,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { paymentService } from '../services/paymentService';
-import type { Payment, CreatePaymentRequest, UpdatePaymentRequest, PaymentMethod } from '../services/paymentService';
+import type { PaymentMethod, CreatePaymentRequest, UpdatePaymentRequest } from '../services/paymentService';
 import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
@@ -37,11 +36,11 @@ import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
 
 interface PaymentFormData {
-  apartment_id: number | '';
-  booking_id: number | '';
+  apartment_id: string;
+  booking_id: string;
   amount: number;
   currency: 'EGP' | 'GBP';
-  method_id: number | '';
+  method_id: string;
   user_type: 'owner' | 'renter';
   date: string;
   description: string;
@@ -49,13 +48,12 @@ interface PaymentFormData {
 
 export interface CreatePaymentProps {
   apartmentId?: number;
-  userId?: number;
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
 }
 
-export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel, lockApartment }: CreatePaymentProps) {
+export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockApartment }: CreatePaymentProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -70,7 +68,7 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
   
   // Form data
   const [formData, setFormData] = useState<PaymentFormData>({
-    apartment_id: '',
+    apartment_id: apartmentId?.toString() || '',
     booking_id: '',
     amount: 0,
     currency: 'EGP',
@@ -84,7 +82,6 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [payment, setPayment] = useState<Payment | null>(null);
   
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -117,7 +114,6 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
         // Load payment data if editing
         if (isEdit && id) {
           const paymentData = await paymentService.getPaymentById(parseInt(id));
-          setPayment(paymentData);
           
           // Check if user can edit this payment
           if (!isAdmin && paymentData.created_by !== currentUser?.id) {
@@ -125,11 +121,11 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
           }
           
           setFormData({
-            apartment_id: paymentData.apartment_id,
-            booking_id: paymentData.booking_id || '',
+            apartment_id: paymentData.apartment_id.toString(),
+            booking_id: paymentData.booking_id?.toString() || '',
             amount: paymentData.amount,
             currency: paymentData.currency,
-            method_id: paymentData.method_id,
+            method_id: paymentData.method_id.toString(),
             user_type: paymentData.user_type,
             date: paymentData.date.split('T')[0], // Extract date part
             description: paymentData.description || ''
@@ -141,8 +137,8 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
           const userType = searchParams.get('userType') as 'owner' | 'renter';
           const description = searchParams.get('description');
           
-          if (apartmentId) setFormData(prev => ({ ...prev, apartment_id: parseInt(apartmentId) }));
-          if (bookingId) setFormData(prev => ({ ...prev, booking_id: parseInt(bookingId) }));
+          if (apartmentId) setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+          if (bookingId) setFormData(prev => ({ ...prev, booking_id: bookingId }));
           if (userType) setFormData(prev => ({ ...prev, user_type: userType }));
           if (description) setFormData(prev => ({ ...prev, description }));
         }
@@ -195,9 +191,7 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: ['apartment_id', 'booking_id', 'method_id'].includes(name) 
-        ? (value === '' ? '' : parseInt(value))
-        : value
+      [name]: value
     }));
     
     // Clear booking when changing user type to owner
@@ -224,11 +218,11 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
       setError(null);
       
       const paymentData = {
-        apartment_id: formData.apartment_id as number,
-        booking_id: formData.booking_id || undefined,
+        apartment_id: parseInt(formData.apartment_id),
+        booking_id: formData.booking_id ? parseInt(formData.booking_id) : undefined,
         amount: formData.amount,
         currency: formData.currency,
-        method_id: formData.method_id as number,
+        method_id: parseInt(formData.method_id),
         user_type: formData.user_type,
         date: formData.date,
         description: formData.description || undefined
@@ -236,10 +230,18 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
       
       if (isEdit && id) {
         await paymentService.updatePayment(parseInt(id), paymentData as UpdatePaymentRequest);
-        navigate(`/payments?success=true&message=${encodeURIComponent('Payment updated successfully')}`);
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate(`/payments?success=true&message=${encodeURIComponent('Payment updated successfully')}`);
+        }
       } else {
         await paymentService.createPayment(paymentData as CreatePaymentRequest);
-        navigate(`/payments?success=true&message=${encodeURIComponent('Payment created successfully')}`);
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate(`/payments?success=true&message=${encodeURIComponent('Payment created successfully')}`);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save payment');
@@ -250,17 +252,25 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
   
   // Handle cancel
   const handleCancel = () => {
-    navigate('/payments');
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate('/payments');
+    }
   };
   
   // Handle back
   const handleBack = () => {
-    navigate('/payments');
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate('/payments');
+    }
   };
   
   // Filter bookings by selected apartment
   const availableBookings = (bookings || []).filter(booking => 
-    !formData.apartment_id || booking.apartment_id === formData.apartment_id
+    !formData.apartment_id || booking.apartment_id === parseInt(formData.apartment_id)
   );
 
   if (loading) {
@@ -406,6 +416,7 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
                     value={formData.apartment_id}
                     label="Apartment"
                     onChange={handleSelectChange}
+                    disabled={lockApartment && apartmentId !== undefined}
                   >
                     <MenuItem value="">
                       <em>Select an apartment</em>
@@ -500,7 +511,7 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
                 )}
                 {formData.method_id && (
                   <Typography variant="body2">
-                    <strong>Method:</strong> {paymentMethods.find(m => m.id === formData.method_id)?.name}
+                    <strong>Method:</strong> {paymentMethods.find(m => m.id === parseInt(formData.method_id))?.name}
                   </Typography>
                 )}
                 <Typography variant="body2">
@@ -508,7 +519,7 @@ export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel
                 </Typography>
                 {formData.apartment_id && (
                   <Typography variant="body2">
-                    <strong>Apartment:</strong> {apartments.find(a => a.id === formData.apartment_id)?.name}
+                    <strong>Apartment:</strong> {apartments.find(a => a.id === parseInt(formData.apartment_id))?.name}
                   </Typography>
                 )}
                 {formData.booking_id && (

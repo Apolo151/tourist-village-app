@@ -62,7 +62,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
   // Form data
   const [formData, setFormData] = useState<Omit<CreateServiceRequestRequest, 'requester_id'>>({
     type_id: 0,
-    apartment_id: 0,
+    apartment_id: apartmentId || 0,
     booking_id: undefined,
     date_action: undefined,
     status: 'Created',
@@ -206,7 +206,11 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
       };
 
       await serviceRequestService.createServiceRequest(requestData);
-      navigate('/services?tab=1'); // Navigate to service requests tab
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        navigate('/services?tab=1'); // Navigate to service requests tab
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create service request');
     } finally {
@@ -215,7 +219,11 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
   };
 
   const handleCancel = () => {
-    navigate('/services');
+    if (onCancel) {
+      onCancel();
+    } else {
+      navigate('/services');
+    }
   };
 
   const getSelectedServiceType = () => {
@@ -289,7 +297,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
             <Typography variant="h6" gutterBottom>Service Details</Typography>
             
             <Grid container spacing={3}>
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <FormControl fullWidth required>
                   <InputLabel>Service Type</InputLabel>
                   <Select
@@ -318,7 +326,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
               </Grid>
 
               {selectedServiceType && (
-                <Grid xs={12}>
+                <Grid size={{xs: 12}}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="subtitle1" gutterBottom>
@@ -349,13 +357,14 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
             <Typography variant="h6" gutterBottom>Location & Booking</Typography>
             
             <Grid container spacing={3}>
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <FormControl fullWidth required>
                   <InputLabel>Apartment</InputLabel>
                   <Select
                     value={formData.apartment_id?.toString() || ''}
                     label="Apartment"
                     onChange={(e) => handleSelectChange(e, 'apartment_id')}
+                    disabled={lockApartment && apartmentId !== undefined}
                   >
                     <MenuItem value="">
                       <em>Select an apartment</em>
@@ -370,7 +379,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
               </Grid>
 
               {formData.apartment_id && bookings.length > 0 && (
-                <Grid xs={12}>
+                <Grid size={{xs: 12}}>
                   <FormControl fullWidth>
                     <InputLabel>Related Booking (Optional)</InputLabel>
                     <Select
@@ -392,7 +401,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
               )}
 
               {selectedApartment && (
-                <Grid xs={12}>
+                <Grid size={{xs: 12}}>
                   <Card variant="outlined">
                     <CardContent>
                       <Typography variant="subtitle1" gutterBottom>
@@ -416,16 +425,20 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
             <Typography variant="h6" gutterBottom>Request Details</Typography>
             
             <Grid container spacing={3}>
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <DateTimePicker
                   label="Service Date (When should the service be done?)"
                   value={formData.date_action ? new Date(formData.date_action) : null}
                   onChange={handleDateChange}
-                  renderInput={(params) => <TextField {...params} fullWidth />}
+                  slotProps={{
+                    textField: {
+                      fullWidth: true
+                    }
+                  }}
                 />
               </Grid>
 
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth required>
                   <InputLabel>Who Pays</InputLabel>
                   <Select
@@ -440,7 +453,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
                 </FormControl>
               </Grid>
 
-              <Grid xs={12} sm={6}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -455,7 +468,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
                 </FormControl>
               </Grid>
 
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <FormControl fullWidth>
                   <InputLabel>Assignee (Optional)</InputLabel>
                   <Select
@@ -475,7 +488,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
                 </FormControl>
               </Grid>
 
-              <Grid xs={12}>
+              <Grid size={{xs: 12}}>
                 <TextField
                   label="Notes (Optional)"
                   name="notes"

@@ -128,7 +128,20 @@ export default function Bookings() {
         villageService.getVillages({ limit: 100 })
       ]);
 
-      setApartments(apartmentsResult.data);
+      setApartments(apartmentsResult.data.map(apartment => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { village, owner, ...rest } = apartment;
+        return {
+          ...rest,
+          purchase_date: apartment.purchase_date ?? '',
+          paying_status:
+            apartment.paying_status === 'transfer' ? 'payed_by_transfer' :
+            apartment.paying_status === 'rent' ? 'payed_by_rent' :
+            'non_payer',
+          village: undefined,
+          owner: undefined
+        } as Apartment;
+      }));
       setVillages(villagesResult.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load initial data');

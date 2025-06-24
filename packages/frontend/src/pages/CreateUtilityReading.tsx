@@ -28,6 +28,7 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
+import { format } from 'date-fns';
 
 const WHO_PAYS_OPTIONS = [
   { value: 'owner', label: 'Owner' },
@@ -46,20 +47,31 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
+  const { apartmentId: propApartmentId, onSuccess, onCancel, lockApartment } = props;
   const isEditMode = !!id;
-  
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  
-  // Data
+
+  const [loading, setLoading] = React.useState(false);
+  const [formData, setFormData] = React.useState<{
+    apartment_id: number;
+    date: string;
+    electricity_reading: number;
+    water_reading: number;
+    month_year: string;
+  }>({
+    apartment_id: propApartmentId || 0,
+    date: new Date().toISOString().split('T')[0],
+    electricity_reading: 0,
+    water_reading: 0,
+    month_year: format(new Date(), 'yyyy-MM'),
+  });
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [existingReading, setExistingReading] = useState<UtilityReading | null>(null);
   
   // Form fields
-  const [apartmentId, setApartmentId] = useState<number>(0);
+  const [apartmentId, setApartmentId] = useState<number>(propApartmentId || 0);
   const [bookingId, setBookingId] = useState<number | undefined>(undefined);
   const [waterStartReading, setWaterStartReading] = useState<number | undefined>(undefined);
   const [waterEndReading, setWaterEndReading] = useState<number | undefined>(undefined);
@@ -68,6 +80,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [whoPays, setWhoPays] = useState<'owner' | 'renter' | 'company'>('renter');
+  const [submitting, setSubmitting] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -107,7 +120,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
           setWhoPays(reading.who_pays);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
+        setErrors(err instanceof Error ? { general: err.message } : { general: 'Failed to load data' });
       } finally {
         setLoading(false);
       }
@@ -196,11 +209,11 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const handleSubmit = async () => {
     try {
       setSubmitting(true);
-      setError('');
+      setErrors({});
 
       const validationError = validateForm();
       if (validationError) {
-        setError(validationError);
+        setErrors({ form: validationError });
         return;
       }
 
@@ -218,13 +231,21 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
 
       if (isEditMode && id) {
         await utilityReadingService.updateUtilityReading(parseInt(id), readingData as UpdateUtilityReadingRequest);
-        navigate('/utilities?success=true&message=Utility%20reading%20updated%20successfully');
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate('/utilities?success=true&message=Utility%20reading%20updated%20successfully');
+        }
       } else {
         await utilityReadingService.createUtilityReading(readingData as CreateUtilityReadingRequest);
-        navigate('/utilities?success=true&message=Utility%20reading%20created%20successfully');
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate('/utilities?success=true&message=Utility%20reading%20created%20successfully');
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} utility reading`);
+      setErrors({ form: err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} utility reading` });
     } finally {
       setSubmitting(false);
     }
@@ -267,7 +288,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/utilities')}
+            onClick={() => onCancel ? onCancel() : navigate('/utilities')}
             sx={{ mr: 2 }}
           >
             Back
@@ -277,9 +298,9 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
           </Typography>
         </Box>
 
-        {error && (
+        {errors && (
           <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
+            {errors.form}
           </Alert>
         )}
 
@@ -299,6 +320,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                       value={apartmentId}
                       label="Related Apartment"
                       onChange={(e) => setApartmentId(e.target.value as number)}
+                      disabled={lockApartment && propApartmentId !== undefined}
                     >
                       {(apartments || []).map(apartment => (
                         <MenuItem key={apartment.id} value={apartment.id}>
@@ -434,7 +456,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
                     <Button
                       variant="outlined"
-                      onClick={() => navigate('/utilities')}
+                      onClick={() => onCancel ? onCancel() : navigate('/utilities')}
                       disabled={submitting}
                     >
                       Cancel
@@ -452,7 +474,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
             </Paper>
           </Grid>
           {/* Preview/Summary */}
-          <Grid size= {{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Preview
@@ -537,4 +559,4 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       </Box>
     </LocalizationProvider>
   );
-} 
+}
