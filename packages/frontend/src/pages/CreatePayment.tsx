@@ -48,19 +48,23 @@ interface PaymentFormData {
 
 export interface CreatePaymentProps {
   apartmentId?: number;
+  bookingId?: number;
+  userId?: number;
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
+  lockUser?: boolean;
 }
 
-export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockApartment }: CreatePaymentProps) {
+export default function CreatePayment({ apartmentId, bookingId, userId, onSuccess, onCancel, lockApartment, lockUser }: CreatePaymentProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
   
-  // Determine if this is edit mode
-  const isEdit = Boolean(id && id !== 'new');
+  // Determine if this is edit mode - not edit mode if used as quick action
+  const isQuickAction = !!onSuccess || !!onCancel;
+  const isEdit = Boolean(id && id !== 'new' && !isQuickAction);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,7 +73,7 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
   // Form data
   const [formData, setFormData] = useState<PaymentFormData>({
     apartment_id: apartmentId?.toString() || '',
-    booking_id: '',
+    booking_id: bookingId?.toString() || '',
     amount: 0,
     currency: 'EGP',
     method_id: '',
@@ -111,8 +115,8 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
           setBookings(bookingsData.bookings);
         }
         
-        // Load payment data if editing
-        if (isEdit && id) {
+        // Load payment data if editing (and not quick action)
+        if (isEdit && id && !isQuickAction) {
           const paymentData = await paymentService.getPaymentById(parseInt(id));
           
           // Check if user can edit this payment
@@ -133,14 +137,19 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
         } else {
           // Handle URL parameters for pre-filled data
           const apartmentId = searchParams.get('apartmentId');
-          const bookingId = searchParams.get('bookingId');
+          const urlBookingId = searchParams.get('bookingId');
           const userType = searchParams.get('userType') as 'owner' | 'renter';
           const description = searchParams.get('description');
           
           if (apartmentId) setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
-          if (bookingId) setFormData(prev => ({ ...prev, booking_id: bookingId }));
+          if (urlBookingId) setFormData(prev => ({ ...prev, booking_id: urlBookingId }));
           if (userType) setFormData(prev => ({ ...prev, user_type: userType }));
           if (description) setFormData(prev => ({ ...prev, description }));
+          
+          // Also handle props for quick action mode
+          if (bookingId && (!formData.booking_id || formData.booking_id === '')) {
+            setFormData(prev => ({ ...prev, booking_id: bookingId.toString() }));
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load payment data');
@@ -151,6 +160,16 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
 
     loadData();
   }, [id, isEdit, searchParams, isAdmin, currentUser]);
+  
+  // Set user type based on booking when bookingId is provided and bookings are loaded
+  useEffect(() => {
+    if (bookingId && bookings.length > 0 && formData.booking_id) {
+      const selectedBooking = bookings.find(b => b.id === bookingId);
+      if (selectedBooking) {
+        setFormData(prev => ({ ...prev, user_type: selectedBooking.user_type }));
+      }
+    }
+  }, [bookingId, bookings, formData.booking_id]);
   
   // Validate form
   const validateForm = (): boolean => {
@@ -194,8 +213,8 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
       [name]: value
     }));
     
-    // Clear booking when changing user type to owner
-    if (name === 'user_type' && value === 'owner') {
+    // Clear booking when changing user type to owner, but only if no bookingId was provided via props
+    if (name === 'user_type' && value === 'owner' && !bookingId) {
       setFormData(prev => ({ ...prev, booking_id: '' }));
     }
     
@@ -219,26 +238,27 @@ export default function CreatePayment({ apartmentId, onSuccess, onCancel, lockAp
       
       const paymentData = {
         apartment_id: parseInt(formData.apartment_id),
-        booking_id: formData.booking_id ? parseInt(formData.booking_id) : undefined,
         amount: formData.amount,
         currency: formData.currency,
         method_id: parseInt(formData.method_id),
         user_type: formData.user_type,
         date: formData.date,
-        description: formData.description || undefined
+        description: formData.description || undefined,
+        ...(formData.user_type === 'renter' && formData.booking_id ? { booking_id: parseInt(formData.booking_id) } : {})
       };
       
-      if (isEdit && id) {
+      if (isEdit && id && !isQuickAction) {
         await paymentService.updatePayment(parseInt(id), paymentData as UpdatePaymentRequest);
-        if (onSuccess) {
-          onSuccess();
+        if (typeof onSuccess === 'function') {
+          (onSuccess as () => void)();
         } else {
           navigate(`/payments?success=true&message=${encodeURIComponent('Payment updated successfully')}`);
         }
       } else {
         await paymentService.createPayment(paymentData as CreatePaymentRequest);
-        if (onSuccess) {
-          onSuccess();
+        // Ensure ApartmentDetails refreshes payments after creation
+        if (typeof onSuccess === 'function') {
+          (onSuccess as () => void)();
         } else {
           navigate(`/payments?success=true&message=${encodeURIComponent('Payment created successfully')}`);
         }

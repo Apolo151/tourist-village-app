@@ -34,7 +34,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Grid
+  Grid,
+  Dialog
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -63,6 +64,12 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
+import { billService } from '../services/billService';
+import type { BillDetailItem } from '../services/billService';
+import CreateUtilityReading from './CreateUtilityReading';
+import CreatePayment from './CreatePayment';
+import CreateEmail from './CreateEmail';
+import CreateServiceRequest from './CreateServiceRequest';
 
 interface FormData {
   apartment_id: number;
@@ -137,6 +144,18 @@ const BookingDetails: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [success, setSuccess] = useState(false);
   
+  // Dialog state for quick actions
+  const [dialogState, setDialogState] = useState({
+    utilityReading: false,
+    payment: false,
+    email: false,
+    serviceRequest: false
+  });
+
+  // Bills state
+  const [bills, setBills] = useState<BillDetailItem[]>([]);
+  const [billsLoading, setBillsLoading] = useState(false);
+  
   // Check if user is admin
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
@@ -198,7 +217,14 @@ const BookingDetails: React.FC = () => {
     if (!isNew && apartments.length > 0) {
       loadBookingData();
     }
-  }, [id, isNew, apartments.length]);
+  }, [isNew, id, apartments.length]);
+
+  // Load bills when booking data is loaded
+  useEffect(() => {
+    if (booking && !isNew) {
+      loadBills();
+    }
+  }, [booking]);
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -319,21 +345,81 @@ const BookingDetails: React.FC = () => {
     navigate('/bookings');
   };
 
-  // Quick actions
+  // Dialog open/close handlers
+  const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
+  const closeDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: false }));
+
+  // Helper to render dialog
+  const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => (
+    <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
+      <Component
+        onSuccess={() => {
+          closeDialog(type);
+          refreshRelatedData();
+        }}
+        onCancel={() => closeDialog(type)}
+        {...extraProps}
+      />
+    </Dialog>
+  );
+
+  // Refresh related data after quick actions
+  const refreshRelatedData = async () => {
+    if (!isNew && id) {
+      try {
+        const relatedBookingData = await bookingService.getBookingWithRelatedData(parseInt(id));
+        setRelatedData(relatedBookingData);
+        
+        // Also refresh bills if they exist
+        if (bills.length > 0) {
+          await loadBills();
+        }
+      } catch (err) {
+        console.error('Failed to refresh related data:', err);
+      }
+    }
+  };
+
+  // Load bills based on booking type
+  const loadBills = async () => {
+    if (!booking) return;
+    
+    try {
+      setBillsLoading(true);
+      
+      if (booking.user_type === 'renter') {
+        // For renters: show bills related to this specific booking
+        // We'll need to filter the apartment bills by booking_id
+        const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
+        const bookingBills = apartmentBills.filter(bill => bill.booking_id === booking.id);
+        setBills(bookingBills);
+      } else {
+        // For owners: show all bills related to this owner (not just this booking)
+        const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
+        setBills(apartmentBills);
+      }
+    } catch (err) {
+      console.error('Failed to load bills:', err);
+    } finally {
+      setBillsLoading(false);
+    }
+  };
+
+  // Quick actions - updated to open dialogs instead of navigating
   const handleAddUtilityReading = () => {
-    navigate(`/utilities/new?bookingId=${id}`);
+    openDialog('utilityReading');
   };
 
   const handleAddPayment = () => {
-    navigate(`/payments/new?bookingId=${id}&apartmentId=${booking?.apartment_id}&userId=${booking?.user_id}`);
+    openDialog('payment');
   };
 
   const handleAddServiceRequest = () => {
-    navigate(`/services/requests/create?bookingId=${id}&apartmentId=${booking?.apartment_id}&userId=${booking?.user_id}`);
+    openDialog('serviceRequest');
   };
 
   const handleAddEmail = () => {
-    navigate(`/emails/new?bookingId=${id}&apartmentId=${booking?.apartment_id}`);
+    openDialog('email');
   };
 
   const speedDialActions = [
@@ -683,6 +769,7 @@ const BookingDetails: React.FC = () => {
                     <Tab label="Service Requests" icon={<ServiceIcon />} iconPosition="start" />
                     <Tab label="Emails" icon={<EmailIcon />} iconPosition="start" />
                     <Tab label="Utility Readings" icon={<UtilityIcon />} iconPosition="start" />
+                    <Tab label="Bills" icon={<BillIcon />} iconPosition="start" />
                   </Tabs>
 
                   {/* Related Payments */}
@@ -861,11 +948,108 @@ const BookingDetails: React.FC = () => {
                       <Alert severity="info">No utility readings found for this booking</Alert>
                     )}
                   </TabPanel>
-          </Paper>
+
+                  {/* Related Bills */}
+                  <TabPanel value={activeTab} index={4}>
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="h6">
+                        {booking?.user_type === 'renter' ? 'Booking Bills' : 'Owner Bills'}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        {booking?.user_type === 'renter' 
+                          ? 'Bills related to this specific booking'
+                          : 'All bills for this apartment owner'
+                        }
+                      </Typography>
+                    </Box>
+                    
+                    {billsLoading ? (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                        <CircularProgress />
+                      </Box>
+                    ) : bills.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Type</TableCell>
+                              <TableCell>Description</TableCell>
+                              <TableCell>Amount</TableCell>
+                              <TableCell>Currency</TableCell>
+                              <TableCell>Date</TableCell>
+                              <TableCell>User Type</TableCell>
+                              {booking?.user_type === 'renter' && <TableCell>Booking Date</TableCell>}
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {bills.map((bill) => (
+                              <TableRow key={bill.id}>
+                                <TableCell>
+                                  <Chip 
+                                    label={bill.type.replace('_', ' ')} 
+                                    size="small"
+                                    color={bill.type === 'payment' ? 'success' : 'default'}
+                                  />
+                                </TableCell>
+                                <TableCell>{bill.description}</TableCell>
+                                <TableCell>{bill.amount}</TableCell>
+                                <TableCell>{bill.currency}</TableCell>
+                                <TableCell>{formatDate(bill.date)}</TableCell>
+                                <TableCell>
+                                  <Chip 
+                                    label={bill.user_type === 'owner' ? 'Owner' : 'Renter'} 
+                                    size="small"
+                                    color={bill.user_type === 'owner' ? 'primary' : 'secondary'}
+                                  />
+                                </TableCell>
+                                {booking?.user_type === 'renter' && (
+                                  <TableCell>
+                                    {bill.booking_arrival_date ? formatDate(bill.booking_arrival_date) : 'N/A'}
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Alert severity="info">
+                        {booking?.user_type === 'renter' 
+                          ? 'No bills found for this booking'
+                          : 'No bills found for this apartment owner'
+                        }
+                      </Alert>
+                    )}
+                  </TabPanel>
+                </Paper>
               </>
             )
         )}
       </Box>
+      
+      {/* Dialogs */}
+      {renderDialog('utilityReading', CreateUtilityReading, {
+        bookingId: booking?.id,
+        apartmentId: booking?.apartment_id,
+        lockApartment: true
+      })}
+      {renderDialog('payment', CreatePayment, {
+        bookingId: booking?.id,
+        apartmentId: booking?.apartment_id,
+        userId: booking?.user_id,
+        lockApartment: true,
+        lockUser: true
+      })}
+      {renderDialog('email', CreateEmail, {
+        bookingId: booking?.id,
+        apartmentId: booking?.apartment_id,
+        lockApartment: true
+      })}
+      {renderDialog('serviceRequest', CreateServiceRequest, {
+        bookingId: booking?.id,
+        apartmentId: booking?.apartment_id,
+        lockApartment: true
+      })}
     </Container>
     </LocalizationProvider>
   );

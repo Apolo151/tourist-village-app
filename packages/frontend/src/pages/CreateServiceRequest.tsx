@@ -39,12 +39,13 @@ import type { User } from '../services/userService';
 
 export interface CreateServiceRequestProps {
   apartmentId?: number;
+  bookingId?: number;
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
 }
 
-export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel, lockApartment }: CreateServiceRequestProps) {
+export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess, onCancel, lockApartment }: CreateServiceRequestProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
@@ -63,7 +64,7 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
   const [formData, setFormData] = useState<Omit<CreateServiceRequestRequest, 'requester_id'>>({
     type_id: 0,
     apartment_id: apartmentId || 0,
-    booking_id: undefined,
+    booking_id: bookingId,
     date_action: undefined,
     status: 'Created',
     who_pays: 'owner',
@@ -132,6 +133,19 @@ export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel,
 
     loadBookings();
   }, [formData.apartment_id]);
+
+  // Set who_pays based on booking when bookingId is provided and bookings are loaded
+  useEffect(() => {
+    if (bookingId && bookings.length > 0 && formData.booking_id) {
+      const selectedBooking = bookings.find(b => b.id === bookingId);
+      if (selectedBooking) {
+        setFormData(prev => ({ 
+          ...prev, 
+          who_pays: selectedBooking.user_type === 'owner' ? 'owner' : 'renter' 
+        }));
+      }
+    }
+  }, [bookingId, bookings, formData.booking_id]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;

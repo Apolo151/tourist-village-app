@@ -1,5 +1,6 @@
 import { db } from '../database/connection';
 import { Booking, CreateBookingRequest, UpdateBookingRequest, User, Apartment } from '../types';
+import { UserService } from './userService';
 
 export interface BookingFilters {
   apartment_id?: number;
@@ -39,6 +40,12 @@ export interface BookingStats {
 
 export class BookingService {
   
+  private userService: UserService;
+
+  constructor() {
+    this.userService = new UserService();
+  }
+
   /**
    * Get bookings with filtering, pagination, and sorting
    */
@@ -304,8 +311,13 @@ export class BookingService {
    */
   async createBooking(data: CreateBookingRequest, createdBy: number): Promise<Booking> {
     // Validate required fields
-    if (!data.apartment_id || !data.user_id || !data.arrival_date || !data.leaving_date) {
+    if (!data.apartment_id || !data.arrival_date || !data.leaving_date) {
       throw new Error('Missing required fields');
+    }
+
+    // Validate that either user_id or user_name is provided
+    if (!data.user_id && !data.user_name) {
+      throw new Error('Either user_id or user_name must be provided');
     }
 
     // Validate dates
@@ -326,16 +338,51 @@ export class BookingService {
       throw new Error('Apartment not found');
     }
 
-    // Check if user exists
-    const user = await db('users').where('id', data.user_id).first();
-    if (!user) {
-      throw new Error('User not found');
-    }
+    let userId: number;
+    let userType: 'owner' | 'renter';
 
-    // Determine user_type based on apartment ownership
-    // If the user is the owner of this specific apartment, they are booking as "owner"
-    // Otherwise, they are booking as "renter" regardless of their role
-    const userType: 'owner' | 'renter' = data.user_id === apartment.owner_id ? 'owner' : 'renter';
+    // Handle user creation/lookup
+    if (data.user_id) {
+      // Use existing user
+      const user = await db('users').where('id', data.user_id).first();
+      if (!user) {
+        throw new Error('User not found');
+      }
+      userId = data.user_id;
+      
+      // Determine user_type based on apartment ownership
+      userType = data.user_id === apartment.owner_id ? 'owner' : 'renter';
+    } else if (data.user_name) {
+      // Create booking with non-existing user (renters only)
+      if (data.user_type === 'owner') {
+        throw new Error('Cannot create booking with non-existing user for owner type. Owners must be existing users.');
+      }
+      
+      userType = 'renter';
+      
+      // Check if user with this name already exists
+      const existingUser = await db('users')
+        .where('name', data.user_name.trim())
+        .where('role', 'renter')
+        .first();
+      
+      if (existingUser) {
+        // Use existing user
+        userId = existingUser.id;
+      } else {
+        // Create new user with default values
+        const newUser = await this.userService.createUser({
+          name: data.user_name.trim(),
+          email: await this.generateRenterEmail(data.user_name.trim()),
+          role: 'renter',
+          password: 'renterpassword' // Use default password
+        });
+        
+        userId = newUser.id;
+      }
+    } else {
+      throw new Error('Either user_id or user_name must be provided');
+    }
 
     // If user_type was provided, validate it matches the determined type
     if (data.user_type && data.user_type !== userType) {
@@ -349,7 +396,7 @@ export class BookingService {
     // Create booking with auto-determined user_type
     const [booking] = await db('bookings').insert({
       apartment_id: data.apartment_id,
-      user_id: data.user_id,
+      user_id: userId,
       user_type: userType, // Use apartment-ownership-based user_type
       number_of_people: data.number_of_people || 1,
       arrival_date: arrivalDate,
@@ -732,6 +779,23 @@ export class BookingService {
         `Note: Back-to-back bookings are allowed (a new booking can start on the same day another ends).`
       );
     }
+  }
+
+  private async generateRenterEmail(name: string): Promise<string> {
+    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000);
+    const baseEmail = `${cleanName}${timestamp}${random}@domain.com`;
+    
+    // Check if email already exists and generate a new one if needed
+    const existingUser = await db('users').where('email', baseEmail).first();
+    if (existingUser) {
+      // If email exists, add more randomness
+      const extraRandom = Math.floor(Math.random() * 10000);
+      return `${cleanName}${timestamp}${random}${extraRandom}@domain.com`;
+    }
+    
+    return baseEmail;
   }
 }
 

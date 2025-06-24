@@ -614,13 +614,35 @@ export class ValidationMiddleware {
       errors.push({ field: 'apartment_id', message: 'Apartment ID is required and must be a positive number' });
     }
 
-    if (!data.user_id || typeof data.user_id !== 'number' || data.user_id <= 0) {
-      errors.push({ field: 'user_id', message: 'User ID is required and must be a positive number' });
+    // Validate that either user_id or user_name is provided
+    if (!data.user_id && !data.user_name) {
+      errors.push({ field: 'user', message: 'Either user_id or user_name must be provided' });
+    } else {
+      // If user_id is provided, validate it
+      if (data.user_id !== undefined) {
+        if (typeof data.user_id !== 'number' || data.user_id <= 0) {
+          errors.push({ field: 'user_id', message: 'User ID must be a positive number' });
+        }
+      }
+      
+      // If user_name is provided, validate it
+      if (data.user_name !== undefined) {
+        if (typeof data.user_name !== 'string' || data.user_name.trim().length === 0) {
+          errors.push({ field: 'user_name', message: 'User name must be a non-empty string' });
+        } else if (data.user_name.length > 100) {
+          errors.push({ field: 'user_name', message: 'User name must be less than 100 characters' });
+        }
+      }
     }
 
     // User type is now optional - will be auto-determined from user role
     if (data.user_type && !['owner', 'renter'].includes(data.user_type)) {
       errors.push({ field: 'user_type', message: 'User type must be either owner or renter (optional - will be auto-determined if not provided)' });
+    }
+
+    // Validate that user_name cannot be used for owner type
+    if (data.user_name && data.user_type === 'owner') {
+      errors.push({ field: 'user_type', message: 'Cannot create booking with non-existing user for owner type. Owners must be existing users.' });
     }
 
     if (!data.arrival_date || typeof data.arrival_date !== 'string') {

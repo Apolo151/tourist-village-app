@@ -28,21 +28,24 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
+import { userService } from '../services/userService';
+import type { User } from '../services/userService';
 
 export interface CreateEmailProps {
   apartmentId?: number;
+  bookingId?: number;
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
 }
 
-const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCancel, lockApartment }) => {
+const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuccess, onCancel, lockApartment }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
   
-  // Determine mode based on URL
+  // Only use view/edit mode if id is present (for details page). For quick action, always editable.
   const isEditing = Boolean(id) && location.pathname.includes('/edit');
   const isViewing = Boolean(id) && !location.pathname.includes('/edit');
 
@@ -55,11 +58,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
   // Data
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   // Form data
   const [formData, setFormData] = useState<CreateEmailRequest>({
     apartment_id: apartmentId || undefined as any,
-    booking_id: undefined,
+    booking_id: bookingId || undefined,
     date: new Date().toISOString().split('T')[0],
     from: currentUser?.email || '',
     to: '',
@@ -84,20 +88,25 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
     const loadInitialData = async () => {
       try {
         setLoading(true);
-        
-        // Load apartments and bookings
-        const [apartmentsData, bookingsData] = await Promise.all([
+        // Load apartments, bookings, users
+        const [apartmentsData, bookingsData, usersData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
-          bookingService.getBookings({ limit: 100 })
+          bookingService.getBookings({ limit: 100 }),
+          userService.getUsers({ limit: 100 })
         ]);
-        
         setApartments(apartmentsData.data);
         setBookings(bookingsData.bookings);
-
-        // Load existing email if editing
-        if (isEditing && id) {
-          await emailService.getEmailById(parseInt(id));
-          // Set viewing/editing mode data here if needed
+        setUsers(usersData.data);
+        // Only fetch email details if id is present AND in edit or view mode (not quick action/modal)
+        if (id && !onSuccess && !onCancel) {
+          setLoading(true);
+          const emailData = await emailService.getEmailById(parseInt(id));
+          setFormData({ ...emailData });
+        } else {
+          // Prefill apartment if provided (create/quick action mode)
+          if (apartmentId) {
+            setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+          }
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -105,9 +114,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
         setLoading(false);
       }
     };
-
     loadInitialData();
-  }, [isEditing, isViewing, id]);
+  }, [id, apartmentId]);
 
   // Handle form changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -229,11 +237,20 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
           content: formData.content,
           type: formData.type
         };
-        
         await emailService.updateEmail(parseInt(id), updateData);
       } else {
-        // Create new email
-        await emailService.createEmail(formData);
+        // Create new email (quick action)
+        const createData: CreateEmailRequest = {
+          apartment_id: formData.apartment_id,
+          date: formData.date,
+          from: formData.from,
+          to: formData.to,
+          subject: formData.subject,
+          content: formData.content,
+          type: formData.type,
+          ...(formData.booking_id ? { booking_id: formData.booking_id } : {})
+        };
+        await emailService.createEmail(createData);
       }
       
       setSaveSuccess(true);
@@ -262,6 +279,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
     }
   };
 
+  // In create/quick action mode (no id), fields are always editable. In view mode, lock fields only in details page.
+  const fieldsLocked = isViewing && !onSuccess && !onCancel;
+
+  // Apartment field: lock if lockApartment is true and apartmentId is provided
+  const apartmentFieldLocked = lockApartment && apartmentId !== undefined;
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -281,15 +304,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
           Back
         </Button>
         <Typography variant="h4" sx={{ flex: 1 }}>
-          {isViewing ? 'View Email' : isEditing ? 'Edit Email' : 'Create New Email'}
+          {id ? (isViewing ? 'View Email' : isEditing ? 'Edit Email' : 'Create New Email') : 'Create New Email'}
         </Typography>
-        {isViewing && (
+        {/* Only show edit button in details page, not in popup/modal (i.e., when onSuccess/onCancel are not provided) */}
+        {isViewing && !onSuccess && !onCancel && (
           <Button
-            variant="contained"
             startIcon={<EditIcon />}
             onClick={() => navigate(`/emails/${id}/edit`)}
+            sx={{ ml: 2 }}
           >
-            Edit Email
+            Edit
           </Button>
         )}
       </Box>
@@ -316,28 +340,27 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                   label="Date *"
                   value={selectedDate}
                   onChange={handleDateChange}
-                  disabled={isViewing}
+                  disabled={fieldsLocked}
                   slotProps={{
                     textField: {
                       fullWidth: true,
                       error: !!formErrors.date,
                       helperText: formErrors.date,
-                      required: !isViewing
+                      required: true
                     }
                   }}
                 />
               </Grid>
-
               {/* Email Type */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={!!formErrors.type} required={!isViewing}>
+                <FormControl fullWidth error={!!formErrors.type} required>
                   <InputLabel>Email Type</InputLabel>
                   <Select
                     name="type"
                     value={emailService.getEmailTypeDisplayName(formData.type)}
                     onChange={handleSelectChange}
-                    label={isViewing ? "Email Type" : "Email Type *"}
-                    disabled={isViewing}
+                    label="Email Type *"
+                    disabled={fieldsLocked}
                   >
                     {emailService.getEmailTypeOptions().map(option => (
                       <MenuItem key={option.value} value={option.value}>
@@ -348,17 +371,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                   {formErrors.type && <FormHelperText>{formErrors.type}</FormHelperText>}
                 </FormControl>
               </Grid>
-
               {/* Apartment */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={!!formErrors.apartment_id} required={!isViewing}>
+                <FormControl fullWidth error={!!formErrors.apartment_id} required>
                   <InputLabel>Related Apartment</InputLabel>
                   <Select
                     name="apartment_id"
                     value={formData.apartment_id ? formData.apartment_id.toString() : ''}
                     onChange={handleSelectChange}
-                    label={isViewing ? "Related Apartment" : "Related Apartment *"}
-                    disabled={isViewing || (lockApartment && apartmentId !== undefined)}
+                    label="Related Apartment *"
+                    disabled={apartmentFieldLocked}
                   >
                     <MenuItem value="">Select an apartment</MenuItem>
                     {apartments.map(apartment => (
@@ -370,10 +392,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                   {formErrors.apartment_id && <FormHelperText>{formErrors.apartment_id}</FormHelperText>}
                 </FormControl>
               </Grid>
-
               {/* Booking (Optional) */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={!!formErrors.booking_id} disabled={!formData.apartment_id || isViewing}>
+                <FormControl fullWidth error={!!formErrors.booking_id} disabled={!formData.apartment_id}>
                   <InputLabel>Related Booking (Optional)</InputLabel>
                   <Select
                     name="booking_id"
@@ -397,93 +418,86 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCan
                   {formErrors.booking_id && <FormHelperText>{formErrors.booking_id}</FormHelperText>}
                 </FormControl>
               </Grid>
-
               {/* From */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   name="from"
-                  label={isViewing ? "From" : "From *"}
+                  label="From *"
                   type="email"
                   value={formData.from}
                   onChange={handleInputChange}
                   error={!!formErrors.from}
                   helperText={formErrors.from}
                   fullWidth
-                  required={!isViewing}
-                  disabled={isViewing}
+                  required
+                  disabled={fieldsLocked}
                 />
               </Grid>
-
               {/* To */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <TextField
                   name="to"
-                  label={isViewing ? "To" : "To *"}
+                  label="To *"
                   type="email"
                   value={formData.to}
                   onChange={handleInputChange}
                   error={!!formErrors.to}
                   helperText={formErrors.to}
                   fullWidth
-                  required={!isViewing}
-                  disabled={isViewing}
+                  required
+                  disabled={fieldsLocked}
                 />
               </Grid>
-
               {/* Subject */}
               <Grid size={{ xs: 12 }}>
                 <TextField
                   name="subject"
-                  label={isViewing ? "Subject" : "Subject *"}
+                  label="Subject *"
                   value={formData.subject}
                   onChange={handleInputChange}
                   error={!!formErrors.subject}
                   helperText={formErrors.subject}
                   fullWidth
-                  required={!isViewing}
-                  disabled={isViewing}
+                  required
+                  disabled={fieldsLocked}
                 />
               </Grid>
-
               {/* Content */}
               <Grid size={{ xs: 12 }}>
                 <TextField
                   name="content"
-                  label={isViewing ? "Email Content" : "Email Content *"}
+                  label="Email Content *"
                   value={formData.content}
                   onChange={handleInputChange}
                   error={!!formErrors.content}
                   helperText={formErrors.content}
                   fullWidth
-                  required={!isViewing}
+                  required
                   multiline
                   rows={6}
-                  disabled={isViewing}
+                  disabled={fieldsLocked}
                 />
               </Grid>
-
               {/* Action Buttons */}
-              {!isViewing && (
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      startIcon={<SaveIcon />}
-                      disabled={submitting}
-                    >
-                      {submitting ? 'Saving...' : (isEditing ? 'Update Email' : 'Create Email')}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      onClick={handleBack}
-                      disabled={submitting}
-                    >
-                      Cancel
-                    </Button>
-                  </Box>
-                </Grid>
-              )}
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Saving...' : (id && isEditing ? 'Update Email' : 'Create Email')}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    onClick={handleBack}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                </Box>
+              </Grid>
             </Grid>
           </form>
         </LocalizationProvider>

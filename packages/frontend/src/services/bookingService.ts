@@ -6,7 +6,8 @@ export type { Booking };
 // Backend types (based on backend/src/types/index.ts)
 export interface CreateBookingRequest {
   apartment_id: number;
-  user_id: number;
+  user_id?: number;
+  user_name?: string;
   user_type?: 'owner' | 'renter';
   number_of_people?: number;
   arrival_date: string; // ISO string
@@ -254,4 +255,4 @@ class BookingService {
   }
 }
 
-export const bookingService = new BookingService(); 
+export const bookingService = new BookingService();

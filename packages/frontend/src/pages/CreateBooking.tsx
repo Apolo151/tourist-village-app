@@ -46,6 +46,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   // Form fields
   const [apartmentIdForm, setApartmentIdForm] = useState<number>(apartmentId || 0);
   const [userId, setUserId] = useState<number>(0);
+  const [userName, setUserName] = useState<string>('');
   const [userType, setUserType] = useState<'owner' | 'renter'>('renter');
   const [numberOfPeople, setNumberOfPeople] = useState<number>(1);
   const [arrivalDate, setArrivalDate] = useState<Date | null>(null);
@@ -82,9 +83,25 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     loadInitialData();
   }, []);
 
+  // Reset user fields when user type changes
+  useEffect(() => {
+    if (userType === 'owner') {
+      setUserName('');
+      setUserId(0);
+    } else {
+      setUserId(0);
+    }
+  }, [userType]);
+
   const validateForm = (): string | null => {
     if (!apartmentIdForm || apartmentIdForm === 0) return 'Please select an apartment';
-    if (!userId || userId === 0) return 'Please select a user';
+    
+    if (userType === 'owner') {
+      if (!userId || userId === 0) return 'Please select a user for owner booking';
+    } else {
+      if (!userName.trim()) return 'Please enter the person name for renter booking';
+    }
+    
     if (!arrivalDate) return 'Please select arrival date';
     if (!leavingDate) return 'Please select leaving date';
     if (numberOfPeople < 1) return 'Number of people must be at least 1';
@@ -107,10 +124,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         return;
       }
 
-      const bookingData = {
+      const bookingData: any = {
         apartment_id: apartmentIdForm,
-        user_id: userId,
-        user_type: userType,
         number_of_people: numberOfPeople,
         arrival_date: arrivalDate!.toISOString(),
         leaving_date: leavingDate!.toISOString(),
@@ -118,8 +133,18 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         notes: notes + (flightDetails ? `\n\nFlight Details: ${flightDetails}` : '')
       };
 
+      // Add user data based on type
+      if (userType === 'owner') {
+        bookingData.user_id = userId;
+      } else {
+        bookingData.user_name = userName.trim();
+        bookingData.user_type = 'renter';
+      }
+
       await bookingService.createBooking(bookingData);
+      // Ensure ApartmentDetails refreshes bookings after creation
       if (onSuccess) {
+        // Optionally, you could fetch the latest bookings here if needed
         onSuccess();
       } else {
         navigate('/bookings?success=true&message=Booking%20created%20successfully');
@@ -161,6 +186,19 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           </Alert>
         )}
 
+        {userType === 'renter' && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Renter Booking:</strong> When you enter a person's name that doesn't exist in the system, 
+              a new user account will be automatically created with the following default values:
+              <br />• Email: [cleanname][timestamp][random]@domain.com
+              <br />• Password: renterpassword
+              <br />• Role: Renter
+              <br />• Active: Yes
+            </Typography>
+          </Alert>
+        )}
+
         <Paper sx={{ p: 3 }}>
           <Grid container spacing={3}>
             {/* Apartment Selection */}
@@ -182,24 +220,6 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               </FormControl>
             </Grid>
 
-            {/* User Selection */}
-            <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl fullWidth required>
-                <InputLabel>Person Name</InputLabel>
-                <Select
-                  value={userId}
-                  label="Person Name"
-                  onChange={(e) => setUserId(e.target.value as number)}
-                >
-                  {users.map(user => (
-                    <MenuItem key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
             {/* User Type */}
             <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
@@ -213,6 +233,39 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   <MenuItem value="renter">Renter</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
+
+            {/* User Selection - Conditional based on user type */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              {userType === 'owner' ? (
+                <FormControl fullWidth required>
+                  <InputLabel>Person Name (Owner)</InputLabel>
+                  <Select
+                    value={userId}
+                    label="Person Name (Owner)"
+                    onChange={(e) => setUserId(e.target.value as number)}
+                  >
+                    <MenuItem value={0}>
+                      <em>Select an owner</em>
+                    </MenuItem>
+                    {users.filter(user => user.role === 'owner').map(user => (
+                      <MenuItem key={user.id} value={user.id}>
+                        {user.name} ({user.email})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : (
+                <TextField
+                  fullWidth
+                  required
+                  label="Person Name (Renter)"
+                  value={userName}
+                  onChange={(e) => setUserName(e.target.value)}
+                  placeholder="Enter the person's name"
+                  helperText="Enter the name of the person making the booking. A new user account will be created if they don't exist."
+                />
+              )}
             </Grid>
 
             {/* Number of People */}

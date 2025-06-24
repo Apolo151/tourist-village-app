@@ -283,7 +283,8 @@ declare global {
 
 export interface CreateBookingRequest {
   apartment_id: number;
-  user_id: number;
+  user_id?: number; // Made optional - can be provided for existing users
+  user_name?: string; // New field for creating bookings with non-existing users (renters only)
   user_type?: 'owner' | 'renter'; // Made optional - will be auto-determined from user role
   number_of_people?: number; // Optional - defaults to 1
   arrival_date: string; // ISO string

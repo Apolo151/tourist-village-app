@@ -38,6 +38,7 @@ const WHO_PAYS_OPTIONS = [
 
 export interface CreateUtilityReadingProps {
   apartmentId?: number;
+  bookingId?: number;
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
@@ -47,8 +48,10 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
-  const { apartmentId: propApartmentId, onSuccess, onCancel, lockApartment } = props;
+  const { apartmentId: propApartmentId, onCancel, lockApartment } = props;
+  const onSuccess: (() => void) | undefined = props.onSuccess;
   const isEditMode = !!id;
+  const isQuickAction = !!onSuccess || !!onCancel;
 
   const [loading, setLoading] = React.useState(false);
   const [formData, setFormData] = React.useState<{
@@ -72,7 +75,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   
   // Form fields
   const [apartmentId, setApartmentId] = useState<number>(propApartmentId || 0);
-  const [bookingId, setBookingId] = useState<number | undefined>(undefined);
+  const [bookingId, setBookingId] = useState<number | undefined>(props.bookingId);
   const [waterStartReading, setWaterStartReading] = useState<number | undefined>(undefined);
   const [waterEndReading, setWaterEndReading] = useState<number | undefined>(undefined);
   const [electricityStartReading, setElectricityStartReading] = useState<number | undefined>(undefined);
@@ -103,8 +106,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         setApartments(apartmentsResult.data);
         setBookings(bookingsResult.bookings);
         
-        // If editing, load existing reading
-        if (isEditMode && id) {
+        // If editing, load existing reading (only if not quick action)
+        if (isEditMode && id && !isQuickAction) {
           const reading = await utilityReadingService.getUtilityReadingById(parseInt(id));
           setExistingReading(reading);
           
@@ -127,7 +130,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     };
 
     loadInitialData();
-  }, [isEditMode, id]);
+  }, [isEditMode, id, isQuickAction]);
 
   // Filter bookings when apartment changes
   useEffect(() => {
@@ -152,9 +155,21 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     }
   }, [apartmentId, bookings, isEditMode]);
 
+  // Handle pre-selected booking from props (quick action mode)
+  useEffect(() => {
+    if (props.bookingId && bookings.length > 0 && !isEditMode) {
+      const selectedBooking = bookings.find(b => b.id === props.bookingId);
+      if (selectedBooking) {
+        setStartDate(new Date(selectedBooking.arrival_date));
+        setEndDate(new Date(selectedBooking.leaving_date));
+        setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
+      }
+    }
+  }, [props.bookingId, bookings, isEditMode]);
+
   // When booking changes, update dates and who pays
   useEffect(() => {
-    if (bookingId && !isEditMode) {
+    if (bookingId) {
       const selectedBooking = (bookings || []).find(b => b.id === bookingId);
       if (selectedBooking) {
         setStartDate(new Date(selectedBooking.arrival_date));
@@ -162,7 +177,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
       }
     }
-  }, [bookingId, bookings, isEditMode]);
+  }, [bookingId, bookings]);
 
   const validateForm = (): string | null => {
     if (!apartmentId || apartmentId === 0) return 'Please select an apartment';
@@ -229,23 +244,23 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         who_pays: whoPays
       };
 
-      if (isEditMode && id) {
+      if (isEditMode && id && !isQuickAction) {
         await utilityReadingService.updateUtilityReading(parseInt(id), readingData as UpdateUtilityReadingRequest);
-        if (onSuccess) {
-          onSuccess();
+        if (typeof onSuccess === 'function') {
+          (onSuccess as () => void)();
         } else {
           navigate('/utilities?success=true&message=Utility%20reading%20updated%20successfully');
         }
       } else {
         await utilityReadingService.createUtilityReading(readingData as CreateUtilityReadingRequest);
-        if (onSuccess) {
-          onSuccess();
+        if (typeof onSuccess === 'function') {
+          (onSuccess as () => void)();
         } else {
           navigate('/utilities?success=true&message=Utility%20reading%20created%20successfully');
         }
       }
     } catch (err) {
-      setErrors({ form: err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} utility reading` });
+      setErrors({ form: err instanceof Error ? err.message : `Failed to ${(isEditMode && !isQuickAction) ? 'update' : 'create'} utility reading` });
     } finally {
       setSubmitting(false);
     }
@@ -274,6 +289,9 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       )
     : null;
 
+  // Determine dialog title and button label
+  const isCreationDialog = isQuickAction || !isEditMode;
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -294,11 +312,11 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
             Back
           </Button>
           <Typography variant="h4">
-            {isEditMode ? 'Edit Utility Reading' : 'Create New Utility Reading'}
+            {isCreationDialog ? 'Create New Utility Reading' : 'Edit Utility Reading'}
           </Typography>
         </Box>
 
-        {errors && (
+        {errors.form && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {errors.form}
           </Alert>
@@ -466,7 +484,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                       onClick={handleSubmit}
                       disabled={submitting}
                     >
-                      {submitting ? <CircularProgress size={24} /> : (isEditMode ? 'Update Reading' : 'Create Reading')}
+                      {submitting ? <CircularProgress size={24} /> : (isCreationDialog ? 'Create Reading' : 'Update Reading')}
                     </Button>
                   </Box>
                 </Grid>

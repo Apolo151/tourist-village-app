@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  Box, 
-  Typography, 
-  Paper, 
-  Button, 
+import {
+  Box,
+  Typography,
+  Paper,
+  Button,
   Chip,
   Alert,
   List,
@@ -105,11 +105,40 @@ export default function ApartmentDetails() {
   const [relatedEmails, setRelatedEmails] = useState<Email[]>([]);
 
   // Dialog state for quick actions
-  const [openBookingDialog, setOpenBookingDialog] = useState(false);
-  const [openEmailDialog, setOpenEmailDialog] = useState(false);
-  const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
-  const [openServiceRequestDialog, setOpenServiceRequestDialog] = useState(false);
-  const [openUtilityReadingDialog, setOpenUtilityReadingDialog] = useState(false);
+  const [dialogState, setDialogState] = useState({
+    booking: false,
+    email: false,
+    payment: false,
+    serviceRequest: false,
+    utilityReading: false
+  });
+
+  // Dialog open/close handlers
+  const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
+  const closeDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: false }));
+
+  // Helper to render dialog
+  const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => {
+    let dialogProps: any = {
+      apartmentId: apartment?.id,
+      onSuccess: () => {
+        closeDialog(type);
+        refreshRelatedData();
+      },
+      onCancel: () => closeDialog(type),
+      lockApartment: true,
+      ...extraProps
+    };
+    // For utilityReading quick action, pass bookingId if only one related booking
+    if (type === 'utilityReading' && relatedBookings.length === 1) {
+      dialogProps.bookingId = relatedBookings[0].id;
+    }
+    return (
+      <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
+        <Component {...dialogProps} />
+      </Dialog>
+    );
+  };
 
   // Load apartment data
   useEffect(() => {
@@ -129,8 +158,8 @@ export default function ApartmentDetails() {
         setApartment(apartmentData);
 
         // Load related data in parallel
-        const [bookingsData, paymentsData, ownerData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
-          bookingService.getBookingsByApartment(parseInt(id)).catch(() => []),
+        const [bookingsResult, paymentsData, ownerData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
+          bookingService.getBookings({ apartment_id: parseInt(id), limit: 50, page: 1 }).then(r => r.bookings).catch(() => []),
           paymentService.getPaymentsByApartment(parseInt(id)).catch(() => []),
           apartmentData?.owner_id ? userService.getUserById(apartmentData.owner_id).catch(() => null) : Promise.resolve(null),
           serviceRequestService.getServiceRequests({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
@@ -138,7 +167,17 @@ export default function ApartmentDetails() {
           emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => [])
         ]);
 
-        setRelatedBookings(bookingsData);
+        setRelatedBookings((bookingsResult || [])
+          .map((booking: any) => ({
+            ...booking,
+            arrival_date: typeof booking.arrival_date === 'string' ? booking.arrival_date : booking.arrival_date?.toISOString?.() ?? '',
+            leaving_date: typeof booking.leaving_date === 'string' ? booking.leaving_date : booking.leaving_date?.toISOString?.() ?? '',
+            status: booking.status === 'not_arrived' ? 'has_not_arrived' : booking.status,
+            user: booking.user,
+            apartment: booking.apartment
+          }))
+          .sort((a, b) => new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime())
+        );
         setRelatedPayments(paymentsData);
         setOwner(ownerData);
         setRelatedServiceRequests(serviceRequestsData);
@@ -174,17 +213,11 @@ export default function ApartmentDetails() {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => setTabValue(newValue);
 
   // Quick actions
-  const handleAddBooking = () => navigate(`/bookings/new?apartmentId=${id}`);
-  const handleAddEmail = () => navigate(`/emails/new?apartmentId=${id}`);
-  const handleAddPayment = () => navigate(`/payments/new?apartmentId=${id}&userId=${apartment?.owner_id}`);
-  const handleRequestService = () => navigate(`/services/requests/create?apartmentId=${id}&userId=${apartment?.owner_id}`);
-  const handleViewBills = () => navigate(`/bills/apartment/${id}`);
-
   const quickActions = [
-    { icon: <BookingIcon />, name: 'Add a new Booking', onClick: handleAddBooking },
-    { icon: <EmailIcon />, name: 'Add a new Email', onClick: handleAddEmail },
-    { icon: <PaymentsIcon />, name: 'Add a Payment', onClick: handleAddPayment },
-    { icon: <RequestPageIcon />, name: 'Request a Service', onClick: handleRequestService }
+    { icon: <BookingIcon />, name: 'Add a new Booking', onClick: () => openDialog('booking'), disabled: !apartment },
+    { icon: <EmailIcon />, name: 'Add a new Email', onClick: () => openDialog('email'), disabled: !apartment },
+    { icon: <PaymentsIcon />, name: 'Add a Payment', onClick: () => openDialog('payment'), disabled: !apartment },
+    { icon: <RequestPageIcon />, name: 'Request a Service', onClick: () => openDialog('serviceRequest'), disabled: !apartment }
   ];
   
   // Helper function to convert paying status for display
@@ -220,14 +253,24 @@ export default function ApartmentDetails() {
   // Handler to refresh all related data
   const refreshRelatedData = async () => {
     if (!id) return;
-    const [bookingsData, paymentsData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
-      bookingService.getBookingsByApartment(parseInt(id)).catch(() => []),
+    const [bookingsResult, paymentsData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
+      bookingService.getBookings({ apartment_id: parseInt(id), limit: 50, page: 1 }).then(r => r.bookings).catch(() => []),
       paymentService.getPaymentsByApartment(parseInt(id)).catch(() => []),
       serviceRequestService.getServiceRequests({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
       utilityReadingService.getUtilityReadings({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
       emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => [])
     ]);
-    setRelatedBookings(bookingsData);
+    setRelatedBookings((bookingsResult || [])
+      .map((booking: any) => ({
+        ...booking,
+        arrival_date: typeof booking.arrival_date === 'string' ? booking.arrival_date : booking.arrival_date?.toISOString?.() ?? '',
+        leaving_date: typeof booking.leaving_date === 'string' ? booking.leaving_date : booking.leaving_date?.toISOString?.() ?? '',
+        status: booking.status === 'not_arrived' ? 'has_not_arrived' : booking.status,
+        user: booking.user,
+        apartment: booking.apartment
+      }))
+      .sort((a, b) => new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime())
+    );
     setRelatedPayments(paymentsData);
     setRelatedServiceRequests(serviceRequestsData);
     setRelatedUtilityReadings(utilityReadingsData);
@@ -423,7 +466,7 @@ export default function ApartmentDetails() {
                       <Button
                         variant="outlined"
                         startIcon={<BillsIcon />}
-                        onClick={handleViewBills}
+                        onClick={() => navigate(`/bills/apartment/${id}`)}
                         fullWidth
                       >
                         View all Bills
@@ -515,7 +558,7 @@ export default function ApartmentDetails() {
           <TabPanel value={tabValue} index={2}>
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Related Bookings</Typography>
-                <Button variant="contained" startIcon={<BookingIcon />} onClick={handleAddBooking}>
+                <Button variant="contained" startIcon={<BookingIcon />} onClick={() => openDialog('booking')}>
                 New Booking
               </Button>
             </Box>
@@ -545,8 +588,8 @@ export default function ApartmentDetails() {
                               color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                             />
                           </TableCell>
-                          <TableCell>{new Date(booking.arrival_date).toLocaleDateString()}</TableCell>
-                          <TableCell>{new Date(booking.leaving_date).toLocaleDateString()}</TableCell>
+                          <TableCell>{booking.arrival_date}</TableCell>
+                          <TableCell>{booking.leaving_date}</TableCell>
                           <TableCell>
                             <Chip 
                               label={booking.status} 
@@ -579,7 +622,7 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={3}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Service Requests</Typography>
-                  <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => setOpenServiceRequestDialog(true)}>
+                  <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => openDialog('serviceRequest')}>
                   New Service Request
                 </Button>
               </Box>
@@ -625,7 +668,7 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={4}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Related Emails</Typography>
-                  <Button variant="contained" startIcon={<EmailIcon />} onClick={() => setOpenEmailDialog(true)}>
+                  <Button variant="contained" startIcon={<EmailIcon />} onClick={() => openDialog('email')}>
                   New Email
                 </Button>
               </Box>
@@ -671,7 +714,7 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={5}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Utility Readings</Typography>
-                  <Button variant="contained" startIcon={<WaterDropIcon />} onClick={() => setOpenUtilityReadingDialog(true)}>
+                  <Button variant="contained" startIcon={<WaterDropIcon />} onClick={() => openDialog('utilityReading')}>
                   New Reading
                 </Button>
               </Box>
@@ -720,66 +763,11 @@ export default function ApartmentDetails() {
     </Container>
       {/* Dialogs */}
       <>
-        {/* Booking Dialog */}
-        <Dialog open={openBookingDialog} onClose={() => setOpenBookingDialog(false)} maxWidth="md" fullWidth>
-          <CreateBooking
-            apartmentId={apartment?.id}
-            onSuccess={() => {
-              setOpenBookingDialog(false);
-              refreshRelatedData();
-            }}
-            onCancel={() => setOpenBookingDialog(false)}
-            lockApartment
-          />
-        </Dialog>
-        {/* Email Dialog */}
-        <Dialog open={openEmailDialog} onClose={() => setOpenEmailDialog(false)} maxWidth="md" fullWidth>
-          <CreateEmail
-            apartmentId={apartment?.id}
-            onSuccess={() => {
-              setOpenEmailDialog(false);
-              refreshRelatedData();
-            }}
-            onCancel={() => setOpenEmailDialog(false)}
-            lockApartment
-          />
-        </Dialog>
-        {/* Payment Dialog */}
-        <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="md" fullWidth>
-          <CreatePayment
-            apartmentId={apartment?.id}
-            onSuccess={() => {
-              setOpenPaymentDialog(false);
-              refreshRelatedData();
-            }}
-            onCancel={() => setOpenPaymentDialog(false)}
-            lockApartment
-          />
-        </Dialog>
-        {/* Service Request Dialog */}
-        <Dialog open={openServiceRequestDialog} onClose={() => setOpenServiceRequestDialog(false)} maxWidth="md" fullWidth>
-          <CreateServiceRequest
-            apartmentId={apartment?.id}
-            onSuccess={() => {
-              setOpenServiceRequestDialog(false);
-              refreshRelatedData();
-            }}
-            onCancel={() => setOpenServiceRequestDialog(false)}
-            lockApartment
-          />
-        </Dialog>
-        {/* Utility Reading Dialog */}
-        <Dialog open={openUtilityReadingDialog} onClose={() => setOpenUtilityReadingDialog(false)} maxWidth="md" fullWidth>
-          <CreateUtilityReading
-            apartmentId={apartment?.id}
-            onSuccess={() => {
-              setOpenUtilityReadingDialog(false);
-              refreshRelatedData();
-            }}
-            onCancel={() => setOpenUtilityReadingDialog(false)}
-            lockApartment
-          />
-        </Dialog>
+        {renderDialog('booking', CreateBooking)}
+        {renderDialog('email', CreateEmail)}
+        {renderDialog('payment', CreatePayment)}
+        {renderDialog('serviceRequest', CreateServiceRequest)}
+        {renderDialog('utilityReading', CreateUtilityReading)}
       </>
     </>
   );
