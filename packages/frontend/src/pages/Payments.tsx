@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -18,273 +18,588 @@ import {
   TableHead,
   TableRow,
   Chip,
+  CircularProgress,
+  Pagination,
+  Container,
+  Alert,
+  Snackbar,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Stack
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Search as SearchIcon, Add as AddIcon, Visibility as ViewIcon, Edit as EditIcon } from '@mui/icons-material';
-import { mockPayments, mockApartments, mockUsers, mockBookings } from '../mockData';
+import { 
+  Search as SearchIcon, 
+  Add as AddIcon, 
+  Visibility as ViewIcon, 
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  FilterList as FilterIcon
+} from '@mui/icons-material';
+import { useAuth } from '../context/AuthContext';
+import { paymentService } from '../services/paymentService';
+import type { Payment, PaymentFilters, PaymentMethod } from '../services/paymentService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { bookingService } from '../services/bookingService';
+import type { Booking } from '../services/bookingService';
+import { userService } from '../services/userService';
+import type { User } from '../services/userService';
+import { format, parseISO } from 'date-fns';
 
 export default function Payments() {
+  const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [apartmentFilter, setApartmentFilter] = useState('');
+  const [userFilter, setUserFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
   const [bookingFilter, setBookingFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
-  const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
+  const [currencyFilter, setCurrencyFilter] = useState<'EGP' | 'GBP' | ''>('');
+  const [methodFilter, setMethodFilter] = useState('');
   
-  const navigate = useNavigate();
-
-  // Filter payments based on search and filters
-  const filteredPayments = mockPayments.filter(payment => {
-    const apartment = mockApartments.find(apt => apt.id === payment.apartmentId);
-    const user = mockUsers.find(u => u.id === payment.userId);
-    
-    const matchesSearch = 
-      searchTerm === '' ||
-      apartment?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesApartment = apartmentFilter ? payment.apartmentId === apartmentFilter : true;
-    const matchesUserType = userTypeFilter ? payment.userType === userTypeFilter : true;
-    const matchesBooking = bookingFilter ? payment.bookingId === bookingFilter : true;
-    const matchesUser = userFilter ? payment.userId === userFilter : true;
-    const matchesPaymentType = paymentTypeFilter ? payment.placeOfPayment === paymentTypeFilter : true;
-    
-    return matchesSearch && matchesApartment && matchesUserType && matchesBooking && matchesUser && matchesPaymentType;
+  // Data states
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  
+  // UI states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  
+  // Pagination
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 0
   });
+  
+  // Check if user is admin
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const [apartmentsData, usersData, paymentMethodsData] = await Promise.all([
+          apartmentService.getApartments({ limit: 100 }),
+          userService.getUsers({ limit: 100 }),
+          paymentService.getPaymentMethods({ limit: 100 })
+        ]);
+        
+        setApartments(apartmentsData.data);
+        setUsers(usersData.data);
+        setPaymentMethods(paymentMethodsData.data);
+        
+        // Load bookings if user has access
+        if (isAdmin) {
+          const bookingsData = await bookingService.getBookings({ limit: 100 });
+          setBookings(bookingsData.bookings || []);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load initial data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, [isAdmin]);
+  
+  // Load payments
+  useEffect(() => {
+    const loadPayments = async () => {
+      try {
+        const filters: PaymentFilters = {
+          page: pagination.page,
+          limit: pagination.limit,
+          search: searchTerm || undefined,
+          apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+          user_type: userTypeFilter || undefined,
+          booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+          currency: currencyFilter || undefined,
+          method_id: methodFilter ? parseInt(methodFilter) : undefined,
+          created_by: userFilter ? parseInt(userFilter) : undefined,
+          sort_by: 'date',
+          sort_order: 'desc'
+        };
+        
+        const response = await paymentService.getPayments(filters);
+        setPayments(response.data || []);
+        
+        if (response.pagination) {
+          setPagination({
+            page: response.pagination.page || 1,
+            limit: response.pagination.limit || 20,
+            total: response.pagination.total || 0,
+            total_pages: response.pagination.total_pages || 0
+          });
+        }
+      } catch (err) {
+        console.error('Error loading payments:', err);
+        setPayments([]);
+        setPagination(prev => ({ ...prev, total: 0, total_pages: 0 }));
+      }
+    };
+
+    if (!loading) {
+      loadPayments();
+    }
+  }, [loading, searchTerm, apartmentFilter, userFilter, userTypeFilter, bookingFilter, currencyFilter, methodFilter, pagination.page]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
     setApartmentFilter(event.target.value);
-  };
-  
-  const handleUserTypeFilterChange = (event: SelectChangeEvent) => {
-    setUserTypeFilter(event.target.value as 'owner' | 'renter' | '');
-  };
-  
-  const handleBookingFilterChange = (event: SelectChangeEvent) => {
-    setBookingFilter(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
   
   const handleUserFilterChange = (event: SelectChangeEvent) => {
     setUserFilter(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
   
-  const handlePaymentTypeFilterChange = (event: SelectChangeEvent) => {
-    setPaymentTypeFilter(event.target.value);
+  const handleUserTypeFilterChange = (event: SelectChangeEvent) => {
+    setUserTypeFilter(event.target.value as 'owner' | 'renter' | '');
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
   
-  const handlePaymentClick = (id: string) => {
+  const handleBookingFilterChange = (event: SelectChangeEvent) => {
+    setBookingFilter(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleCurrencyFilterChange = (event: SelectChangeEvent) => {
+    setCurrencyFilter(event.target.value as 'EGP' | 'GBP' | '');
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleMethodFilterChange = (event: SelectChangeEvent) => {
+    setMethodFilter(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
+    setPagination(prev => ({ ...prev, page }));
+  };
+  
+  const handlePaymentClick = (id: number) => {
     navigate(`/payments/${id}`);
   };
+  
+  const handleAddPayment = () => {
+    navigate('/payments/new');
+  };
+  
+  const handleEditPayment = (id: number) => {
+    navigate(`/payments/${id}/edit`);
+  };
+  
+  const handleDeleteClick = (payment: Payment) => {
+    setPaymentToDelete(payment);
+    setDeleteDialogOpen(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (!paymentToDelete) return;
+    
+    try {
+      await paymentService.deletePayment(paymentToDelete.id);
+      setSnackbarMessage('Payment deleted successfully');
+      setOpenSnackbar(true);
+      
+      // Reload payments
+      const filters: PaymentFilters = {
+        page: pagination.page,
+        limit: pagination.limit,
+        search: searchTerm || undefined,
+        apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+        user_type: userTypeFilter || undefined,
+        booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+        currency: currencyFilter || undefined,
+        method_id: methodFilter ? parseInt(methodFilter) : undefined,
+        created_by: userFilter ? parseInt(userFilter) : undefined,
+        sort_by: 'date',
+        sort_order: 'desc'
+      };
+      
+      const response = await paymentService.getPayments(filters);
+      setPayments(response.data || []);
+    } catch (err) {
+      setSnackbarMessage(err instanceof Error ? err.message : 'Failed to delete payment');
+      setOpenSnackbar(true);
+    } finally {
+      setDeleteDialogOpen(false);
+      setPaymentToDelete(null);
+    }
+  };
+  
+  const formatDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), 'MMM dd, yyyy');
+    } catch {
+      return dateString;
+    }
+  };
+  
+
+  
+  // Check for success message from URL
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const message = searchParams.get('message');
+    
+    if (success && message) {
+      setSnackbarMessage(decodeURIComponent(message));
+      setOpenSnackbar(true);
+      
+      // Clear URL parameters
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('success');
+      newSearchParams.delete('message');
+      navigate(`/payments?${newSearchParams.toString()}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg">
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+      </Container>
+    );
+  }
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4">Payments</Typography>
-        <Button
-          component={RouterLink}
-          to="/payments/new"
-          variant="contained"
-          startIcon={<AddIcon />}
-        >
-          Add Payment
-        </Button>
-      </Box>
-      
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-          <TextField
-            label="Search"
-            variant="outlined"
-            size="small"
-            sx={{ flexGrow: 1, minWidth: '200px' }}
-            value={searchTerm}
-            onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-          />
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Apartment</InputLabel>
-            <Select
-              value={apartmentFilter}
-              label="Apartment"
-              onChange={handleApartmentFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Apartments</em>
-              </MenuItem>
-              {mockApartments.map(apt => (
-                <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>User Type</InputLabel>
-            <Select
-              value={userTypeFilter}
-              label="User Type"
-              onChange={handleUserTypeFilterChange}
-            >
-              <MenuItem value="">
-                <em>All User Types</em>
-              </MenuItem>
-              <MenuItem value="owner">Owner</MenuItem>
-              <MenuItem value="renter">Renter</MenuItem>
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>User</InputLabel>
-            <Select
-              value={userFilter}
-              label="User"
-              onChange={handleUserFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Users</em>
-              </MenuItem>
-              {mockUsers.map(user => (
-                <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Booking</InputLabel>
-            <Select
-              value={bookingFilter}
-              label="Booking"
-              onChange={handleBookingFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Bookings</em>
-              </MenuItem>
-              {mockBookings.map(booking => {
-                const apartment = mockApartments.find(apt => apt.id === booking.apartmentId);
-                return (
-                  <MenuItem key={booking.id} value={booking.id}>
-                    {apartment?.name || 'Unknown'} ({new Date(booking.arrivalDate).toLocaleDateString()})
-                  </MenuItem>
-                );
-              })}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 150 }} size="small">
-            <InputLabel>Payment Type</InputLabel>
-            <Select
-              value={paymentTypeFilter}
-              label="Payment Type"
-              onChange={handlePaymentTypeFilterChange}
-            >
-              <MenuItem value="">
-                <em>All Payment Types</em>
-              </MenuItem>
-              <MenuItem value="Cash">Cash</MenuItem>
-              <MenuItem value="Bank transfer">Bank Transfer</MenuItem>
-              <MenuItem value="Credit Card">Credit Card</MenuItem>
-            </Select>
-          </FormControl>
+    <Container maxWidth="lg">
+      <Box sx={{ mb: 4 }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Payments</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddPayment}
+          >
+            Add Payment
+          </Button>
         </Box>
-      </Paper>
-      
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>Date</TableCell>
-              <TableCell>Description</TableCell>
-              <TableCell>Amount</TableCell>
-              <TableCell>Payment Type</TableCell>
-              <TableCell>User Type</TableCell>
-              <TableCell>User</TableCell>
-              <TableCell>Apartment</TableCell>
-              <TableCell>Booking</TableCell>
-              <TableCell>Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredPayments.length > 0 ? (
-              filteredPayments.map(payment => {
-                const apartment = mockApartments.find(apt => apt.id === payment.apartmentId);
-                const user = mockUsers.find(u => u.id === payment.userId);
-                const booking = payment.bookingId ? 
-                  mockBookings.find(b => b.id === payment.bookingId) : null;
-                
-                return (
+        
+        {/* Filters */}
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+            <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <FilterIcon /> Filters:
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+            <TextField
+              label="Search"
+              variant="outlined"
+              size="small"
+              sx={{ flexGrow: 1, minWidth: '200px' }}
+              value={searchTerm}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+            />
+            
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>Apartment</InputLabel>
+              <Select
+                value={apartmentFilter}
+                label="Apartment"
+                onChange={handleApartmentFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All Apartments</em>
+                </MenuItem>
+                {(apartments || []).map(apt => (
+                  <MenuItem key={apt.id} value={apt.id.toString()}>{apt.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>User</InputLabel>
+              <Select
+                value={userFilter}
+                label="User"
+                onChange={handleUserFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All Users</em>
+                </MenuItem>
+                {(users || []).map(user => (
+                  <MenuItem key={user.id} value={user.id.toString()}>{user.name} ({user.role})</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 120 }} size="small">
+              <InputLabel>User Type</InputLabel>
+              <Select
+                value={userTypeFilter}
+                label="User Type"
+                onChange={handleUserTypeFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                <MenuItem value="owner">Owner</MenuItem>
+                <MenuItem value="renter">Renter</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 120 }} size="small">
+              <InputLabel>Currency</InputLabel>
+              <Select
+                value={currencyFilter}
+                label="Currency"
+                onChange={handleCurrencyFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                <MenuItem value="EGP">EGP</MenuItem>
+                <MenuItem value="GBP">GBP</MenuItem>
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>Payment Method</InputLabel>
+              <Select
+                value={methodFilter}
+                label="Payment Method"
+                onChange={handleMethodFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All Methods</em>
+                </MenuItem>
+                {(paymentMethods || []).map(method => (
+                  <MenuItem key={method.id} value={method.id.toString()}>{method.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            {isAdmin && (
+              <FormControl sx={{ minWidth: 200 }} size="small">
+                <InputLabel>Booking</InputLabel>
+                <Select
+                  value={bookingFilter}
+                  label="Booking"
+                  onChange={handleBookingFilterChange}
+                >
+                  <MenuItem value="">
+                    <em>All Bookings</em>
+                  </MenuItem>
+                  {(bookings || []).map(booking => (
+                    <MenuItem key={booking.id} value={booking.id.toString()}>
+                      {booking.apartment?.name || 'Unknown'} - {formatDate(booking.arrival_date)}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
+          </Box>
+        </Paper>
+        
+        {/* Payments Table */}
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>Description</TableCell>
+                <TableCell>Amount</TableCell>
+                <TableCell>Method</TableCell>
+                <TableCell>User Type</TableCell>
+                <TableCell>Apartment</TableCell>
+                <TableCell>Booking</TableCell>
+                <TableCell>Created By</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {payments && payments.length > 0 ? (
+                payments.map(payment => (
                   <TableRow 
                     key={payment.id} 
                     hover 
+                    onClick={() => handlePaymentClick(payment.id)}
+                    sx={{ cursor: 'pointer' }}
                   >
-                    <TableCell>{payment.id.substring(0, 8)}</TableCell>
-                    <TableCell>{new Date(payment.createdAt).toLocaleDateString()}</TableCell>
-                    <TableCell>{payment.description}</TableCell>
-                    <TableCell>
-                      <Box sx={{ fontWeight: 'bold', color: payment.cost < 0 ? 'error.main' : 'success.main' }}>
-                        {payment.cost.toLocaleString()} {payment.currency}
-                      </Box>
-                    </TableCell>
-                    <TableCell>{payment.placeOfPayment}</TableCell>
+                    <TableCell>{payment.id}</TableCell>
+                    <TableCell>{formatDate(payment.date)}</TableCell>
+                    <TableCell>{payment.description || 'No description'}</TableCell>
                     <TableCell>
                       <Chip
-                        label={payment.userType === 'owner' ? 'Owner' : 'Renter'}
-                        color={payment.userType === 'owner' ? 'primary' : 'secondary'}
+                        label={paymentService.formatAmount(payment.amount, payment.currency)}
+                        color={paymentService.getCurrencyColor(payment.currency)}
                         size="small"
                       />
                     </TableCell>
-                    <TableCell>{user?.name || 'Unknown'}</TableCell>
-                    <TableCell>{apartment?.name || 'Unknown'}</TableCell>
+                    <TableCell>{payment.payment_method?.name || 'Unknown'}</TableCell>
                     <TableCell>
-                      {booking ? 
-                        `${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}` 
+                      <Chip
+                        label={payment.user_type === 'owner' ? 'Owner' : 'Renter'}
+                        color={paymentService.getUserTypeColor(payment.user_type)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{payment.apartment?.name || 'Unknown'}</TableCell>
+                    <TableCell>
+                      {payment.booking ? 
+                        `${formatDate(payment.booking.arrival_date)} - ${formatDate(payment.booking.leaving_date)}` 
                         : '-'}
                     </TableCell>
+                    <TableCell>{payment.created_by_user?.name || 'Unknown'}</TableCell>
                     <TableCell>
-                      <Box sx={{ display: 'flex', gap: 1 }}>
-                        <Button 
-                          size="small" 
-                          variant="outlined"
-                          startIcon={<ViewIcon />}
-                          onClick={() => handlePaymentClick(payment.id)}
-                        >
-                          View
-                        </Button>
-                        <Button 
-                          size="small" 
-                          variant="contained"
-                          startIcon={<EditIcon />}
-                          onClick={() => navigate(`/payments/${payment.id}/edit`)}
-                        >
-                          Edit
-                        </Button>
-                      </Box>
+                      <Stack direction="row" spacing={1}>
+                        <Tooltip title="View Details">
+                          <IconButton 
+                            size="small" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePaymentClick(payment.id);
+                            }}
+                          >
+                            <ViewIcon />
+                          </IconButton>
+                        </Tooltip>
+                        {(isAdmin || payment.created_by === currentUser?.id) && (
+                          <>
+                            <Tooltip title="Edit Payment">
+                              <IconButton 
+                                size="small" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditPayment(payment.id);
+                                }}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete Payment">
+                              <IconButton 
+                                size="small" 
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(payment);
+                                }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </>
+                        )}
+                      </Stack>
                     </TableCell>
                   </TableRow>
-                );
-              })
-            ) : (
-              <TableRow>
-                <TableCell colSpan={10} align="center">
-                  No payments found matching your criteria.
-                </TableCell>
-              </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={10} align="center">
+                    No payments found matching your criteria.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        
+        {/* Pagination */}
+        {pagination.total_pages > 1 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination
+              count={pagination.total_pages}
+              page={pagination.page}
+              onChange={handlePageChange}
+              color="primary"
+            />
+          </Box>
+        )}
+        
+        {/* Results summary */}
+        <Box sx={{ mt: 2, textAlign: 'center', color: 'text.secondary' }}>
+          <Typography variant="body2">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
+            {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+            {pagination.total} payments
+          </Typography>
+        </Box>
+        
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>Delete Payment</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to delete this payment? This action cannot be undone.
+            </Typography>
+            {paymentToDelete && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <Typography variant="body2">
+                  <strong>Payment:</strong> {paymentService.formatAmount(paymentToDelete.amount, paymentToDelete.currency)}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Date:</strong> {formatDate(paymentToDelete.date)}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Description:</strong> {paymentToDelete.description || 'No description'}
+                </Typography>
+              </Box>
             )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* Snackbar for messages */}
+        <Snackbar
+          open={openSnackbar}
+          autoHideDuration={6000}
+          onClose={() => setOpenSnackbar(false)}
+          message={snackbarMessage}
+        />
+      </Box>
+    </Container>
   );
 } 

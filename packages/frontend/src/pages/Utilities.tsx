@@ -1,396 +1,516 @@
 import React, { useState, useEffect } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Container,
-  Typography,
   Box,
-  Paper,
   Button,
+  CircularProgress,
+  Typography,
+  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
-  MenuItem,
   FormControl,
   InputLabel,
   Select,
+  MenuItem,
   Chip,
+  Alert,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Tooltip,
+  Pagination,
+  Grid,
+  Card,
+  CardContent,
+  Divider
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import { mockUtilities, mockApartments, mockBookings, mockSettings } from '../mockData';
-import type { Utility, Apartment, Booking } from '../types';
-import { format } from 'date-fns';
+import {
+  Add as AddIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  Visibility as ViewIcon
+} from '@mui/icons-material';
+import { useAuth } from '../context/AuthContext';
+import { utilityReadingService } from '../services/utilityReadingService';
+import type { UtilityReading, UtilityReadingFilters } from '../services/utilityReadingService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { bookingService } from '../services/bookingService';
+import type { Booking } from '../services/bookingService';
 
-const Utilities: React.FC = () => {
+const UTILITY_TYPES = [
+  { value: 'water', label: 'Water' },
+  { value: 'electricity', label: 'Electricity' }
+];
+
+const WHO_PAYS_OPTIONS = [
+  { value: 'owner', label: 'Owner' },
+  { value: 'renter', label: 'Renter' },
+  { value: 'company', label: 'Company' }
+];
+
+export default function Utilities() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { currentUser } = useAuth();
+  
+  // State
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  
+  // Data
+  const [utilityReadings, setUtilityReadings] = useState<UtilityReading[]>([]);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [filteredUtilities, setFilteredUtilities] = useState<Utility[]>([]);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 1
+  });
   
   // Filters
-  const [apartmentFilter, setApartmentFilter] = useState<string>('');
-  const [bookingFilter, setBookingFilter] = useState<string>('');
-  const [utilityTypeFilter, setUtilityTypeFilter] = useState<string>('');
-  const [completionFilter, setCompletionFilter] = useState<string>('');
-
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    // Load the data
-    setApartments(mockApartments);
-    setBookings(mockBookings);
-    setFilteredUtilities(mockUtilities);
-  }, []);
-
-  useEffect(() => {
-    // Apply filters
-    let filtered = [...mockUtilities];
-    
-    if (apartmentFilter) {
-      filtered = filtered.filter(utility => utility.apartmentId === apartmentFilter);
-    }
-    
-    if (bookingFilter) {
-      filtered = filtered.filter(utility => utility.bookingId === bookingFilter);
-    }
-    
-    if (utilityTypeFilter) {
-      filtered = filtered.filter(utility => utility.utilityType === utilityTypeFilter);
-    }
-    
-    if (completionFilter) {
-      if (completionFilter === 'complete') {
-        filtered = filtered.filter(utility => utility.endReading !== undefined);
-      } else if (completionFilter === 'incomplete') {
-        filtered = filtered.filter(utility => utility.endReading === undefined);
-      }
-    }
-    
-    setFilteredUtilities(filtered);
-  }, [apartmentFilter, bookingFilter, utilityTypeFilter, completionFilter]);
-
-  const handleApartmentFilterChange = (event: SelectChangeEvent) => {
-    setApartmentFilter(event.target.value);
-  };
-
-  const handleBookingFilterChange = (event: SelectChangeEvent) => {
-    setBookingFilter(event.target.value);
-  };
-
-  const handleUtilityTypeFilterChange = (event: SelectChangeEvent) => {
-    setUtilityTypeFilter(event.target.value);
-  };
+  const [filters, setFilters] = useState<UtilityReadingFilters>({
+    page: 1,
+    limit: 20,
+    sort_by: 'created_at',
+    sort_order: 'desc'
+  });
   
-  const handleCompletionFilterChange = (event: SelectChangeEvent) => {
-    setCompletionFilter(event.target.value);
+  // Delete confirmation dialog
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [readingToDelete, setReadingToDelete] = useState<UtilityReading | null>(null);
+
+  // Check if user is admin
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
+      navigate('/unauthorized');
+    }
+  }, [currentUser, navigate]);
+
+  // Handle success message from URL params
+  useEffect(() => {
+    const successMessage = searchParams.get('message');
+    if (successMessage) {
+      setSuccess(decodeURIComponent(successMessage));
+      // Clear the URL params
+      navigate('/utilities', { replace: true });
+    }
+  }, [searchParams, navigate]);
+
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        const [utilityResult, apartmentsResult, bookingsResult] = await Promise.all([
+          utilityReadingService.getUtilityReadings(filters),
+          apartmentService.getApartments({ limit: 100 }),
+          bookingService.getBookings({ limit: 100 })
+        ]);
+        
+        setUtilityReadings(utilityResult.data);
+        setPagination(utilityResult.pagination);
+        setApartments(apartmentsResult.data);
+        setBookings(bookingsResult.bookings);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [filters]);
+
+  const handleFilterChange = (key: keyof UtilityReadingFilters, value: any) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined,
+      page: 1 // Reset to first page when filtering
+    }));
   };
 
   const clearFilters = () => {
-    setApartmentFilter('');
-    setBookingFilter('');
-    setUtilityTypeFilter('');
-    setCompletionFilter('');
+    setFilters({
+      page: 1,
+      limit: 20,
+      sort_by: 'created_at',
+      sort_order: 'desc'
+    });
   };
 
-  // Group utilities by booking and utility type
-  const groupedUtilities: Record<string, Record<string, Utility[]>> = {};
+  const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
+    setFilters(prev => ({ ...prev, page: value }));
+  };
 
-  filteredUtilities.forEach(utility => {
-    if (!groupedUtilities[utility.bookingId]) {
-      groupedUtilities[utility.bookingId] = {};
-    }
-    
-    if (!groupedUtilities[utility.bookingId][utility.utilityType]) {
-      groupedUtilities[utility.bookingId][utility.utilityType] = [];
-    }
-    
-    // Add the utility to the appropriate group
-    groupedUtilities[utility.bookingId][utility.utilityType].push(utility);
-  });
+  const handleDeleteClick = (reading: UtilityReading) => {
+    setReadingToDelete(reading);
+    setDeleteDialogOpen(true);
+  };
 
-  // Calculate bill for a utility
-  const calculateBill = (utility: Utility) => {
-    if (utility.endReading === undefined) return null;
-    
-    const consumption = utility.endReading - utility.startReading;
-    
-    if (consumption <= 0) return null;
-    
-    let unitPrice = 0;
-    if (utility.utilityType === 'water') {
-      unitPrice = mockSettings.waterPrice;
-    } else if (utility.utilityType === 'electricity') {
-      unitPrice = mockSettings.electricityPrice;
+  const handleDeleteConfirm = async () => {
+    if (!readingToDelete) return;
+
+    try {
+      setDeleting(readingToDelete.id);
+      await utilityReadingService.deleteUtilityReading(readingToDelete.id);
+      setSuccess('Utility reading deleted successfully');
+      setUtilityReadings(prev => prev.filter(reading => reading.id !== readingToDelete.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete utility reading');
+    } finally {
+      setDeleting(null);
+      setDeleteDialogOpen(false);
+      setReadingToDelete(null);
     }
-    
+  };
+
+  const getUtilityTypesDisplay = (reading: UtilityReading): string[] => {
+    const types: string[] = [];
+    if (reading.water_start_reading !== undefined || reading.water_end_reading !== undefined) {
+      types.push('Water');
+    }
+    if (reading.electricity_start_reading !== undefined || reading.electricity_end_reading !== undefined) {
+      types.push('Electricity');
+    }
+    return types;
+  };
+
+  const calculateBill = (reading: UtilityReading, utilityType: 'water' | 'electricity') => {
+    const village = reading.apartment?.village;
+    if (!village) return null;
+
+    let startReading: number | undefined;
+    let endReading: number | undefined;
+    let unitPrice: number;
+
+    if (utilityType === 'water') {
+      startReading = reading.water_start_reading;
+      endReading = reading.water_end_reading;
+      unitPrice = village.water_price;
+    } else {
+      startReading = reading.electricity_start_reading;
+      endReading = reading.electricity_end_reading;
+      unitPrice = village.electricity_price;
+    }
+
+    if (startReading === undefined || endReading === undefined || endReading <= startReading) {
+      return null;
+    }
+
+    const consumption = endReading - startReading;
     return {
       consumption,
-      cost: consumption * unitPrice,
-      currency: 'EGP'
+      cost: consumption * unitPrice
     };
   };
-  
-  // Get apartment name by ID
-  const getApartmentName = (apartmentId: string) => {
-    const apartment = apartments.find(apt => apt.id === apartmentId);
-    return apartment ? apartment.name : 'Unknown';
-  };
-  
-  // Get booking dates by ID
-  const getBookingDates = (bookingId: string) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (!booking) return 'Unknown';
-    
-    return `${format(new Date(booking.arrivalDate), 'dd MMM yyyy')} - ${format(new Date(booking.leavingDate), 'dd MMM yyyy')}`;
-  };
 
-  const handleEndReadingClick = (utility: Utility) => {
-    navigate(utility.endReading 
-      ? `/utilities/${utility.id}` 
-      : `/utilities/${utility.id}-end`);
-  };
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" component="h1">
-            Utilities
-          </Typography>
-          <Button 
-            component={RouterLink} 
-            to="/utilities/new" 
-            variant="contained" 
-            color="primary" 
-            startIcon={<AddIcon />}
-          >
-            Add New Reading
-          </Button>
-        </Box>
+    <Box sx={{ width: '100%' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4">
+          Utility Readings
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => navigate('/utilities/new')}
+        >
+          Add New Reading
+        </Button>
+      </Box>
 
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <FormControl sx={{ minWidth: 200 }} size="small">
-              <InputLabel id="apartment-filter-label">Apartment</InputLabel>
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
+      {success && (
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      )}
+
+      {/* Filters */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Filters</Typography>
+        <Grid container spacing={2} alignItems="center">
+          <Grid xs={12} sm={6} md={3}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Apartment</InputLabel>
               <Select
-                labelId="apartment-filter-label"
-                id="apartment-filter"
-                value={apartmentFilter}
+                value={filters.apartment_id || ''}
                 label="Apartment"
-                onChange={handleApartmentFilterChange}
-                size="small"
+                onChange={(e) => handleFilterChange('apartment_id', e.target.value ? parseInt(e.target.value as string) : undefined)}
               >
-                <MenuItem value="">
-                  <em>All Apartments</em>
-                </MenuItem>
-                {apartments.map((apartment) => (
+                <MenuItem value="">All Apartments</MenuItem>
+                {apartments.map(apartment => (
                   <MenuItem key={apartment.id} value={apartment.id}>
-                    {apartment.name}
+                    {apartment.name} ({apartment.village?.name})
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-            
-            <FormControl sx={{ minWidth: 200 }} size="small">
-              <InputLabel id="booking-filter-label">Booking</InputLabel>
+          </Grid>
+
+          <Grid xs={12} sm={6} md={3}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Booking</InputLabel>
               <Select
-                labelId="booking-filter-label"
-                id="booking-filter"
-                value={bookingFilter}
+                value={filters.booking_id || ''}
                 label="Booking"
-                onChange={handleBookingFilterChange}
-                size="small"
+                onChange={(e) => handleFilterChange('booking_id', e.target.value ? parseInt(e.target.value as string) : undefined)}
               >
-                <MenuItem value="">
-                  <em>All Bookings</em>
-                </MenuItem>
-                {bookings.map((booking) => (
+                <MenuItem value="">All Bookings</MenuItem>
+                {(bookings || []).map(booking => (
                   <MenuItem key={booking.id} value={booking.id}>
-                    {getApartmentName(booking.apartmentId)} ({format(new Date(booking.arrivalDate), 'dd MMM yyyy')})
+                    {booking.apartment?.name} - {booking.user?.name} ({utilityReadingService.formatDate(booking.arrival_date)})
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-            
-            <FormControl sx={{ minWidth: 200 }} size="small">
-              <InputLabel id="utility-type-filter-label">Utility Type</InputLabel>
+          </Grid>
+
+          <Grid xs={12} sm={6} md={3}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Who Pays</InputLabel>
               <Select
-                labelId="utility-type-filter-label"
-                id="utility-type-filter"
-                value={utilityTypeFilter}
-                label="Utility Type"
-                onChange={handleUtilityTypeFilterChange}
-                size="small"
+                value={filters.who_pays || ''}
+                label="Who Pays"
+                onChange={(e) => handleFilterChange('who_pays', e.target.value)}
               >
-                <MenuItem value="">
-                  <em>All Types</em>
-                </MenuItem>
-                <MenuItem value="water">Water</MenuItem>
-                <MenuItem value="electricity">Electricity</MenuItem>
+                <MenuItem value="">All</MenuItem>
+                {WHO_PAYS_OPTIONS.map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
-            
-            <FormControl sx={{ minWidth: 200 }} size="small">
-              <InputLabel id="completion-filter-label">Status</InputLabel>
-              <Select
-                labelId="completion-filter-label"
-                id="completion-filter"
-                value={completionFilter}
-                label="Status"
-                onChange={handleCompletionFilterChange}
-                size="small"
-              >
-                <MenuItem value="">
-                  <em>All Statuses</em>
-                </MenuItem>
-                <MenuItem value="complete">Complete (Start & End)</MenuItem>
-                <MenuItem value="incomplete">Incomplete (Start Only)</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <Button variant="outlined" onClick={clearFilters} size="small">
+          </Grid>
+
+          <Grid xs={12} sm={6} md={3}>
+            <Button
+              variant="outlined"
+              onClick={clearFilters}
+              fullWidth
+            >
               Clear Filters
             </Button>
-          </Box>
-        </Paper>
+          </Grid>
+        </Grid>
+      </Paper>
 
-        {/* Utilities List */}
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-            Utilities List
-          </Typography>
+      {/* Utility Types Info */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>Utility Types</Typography>
+        <Box sx={{ display: 'flex', gap: 2 }}>
+          {UTILITY_TYPES.map(type => (
+            <Chip
+              key={type.value}
+              label={type.label}
+              color="primary"
+              variant="outlined"
+            />
+          ))}
+        </Box>
+      </Paper>
 
-          {Object.keys(groupedUtilities).length > 0 ? (
-            Object.keys(groupedUtilities).map(bookingId => (
-              <Box key={bookingId} sx={{ mb: 4 }}>
-                <Typography variant="subtitle1" sx={{ mb: 1, fontWeight: 'bold' }}>
-                  Booking: {getBookingDates(bookingId)}
-                </Typography>
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  Apartment: {getApartmentName(bookings.find(b => b.id === bookingId)?.apartmentId || '')}
-                </Typography>
+      {/* Utility Readings Table */}
+      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+        <TableContainer>
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell>Apartment</TableCell>
+                <TableCell>Booking</TableCell>
+                <TableCell>Utility Types</TableCell>
+                <TableCell>Period</TableCell>
+                <TableCell>Who Pays</TableCell>
+                <TableCell>Bill Summary</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {utilityReadings.map((reading) => {
+                const utilityTypes = getUtilityTypesDisplay(reading);
+                const waterBill = calculateBill(reading, 'water');
+                const electricityBill = calculateBill(reading, 'electricity');
                 
-                {Object.keys(groupedUtilities[bookingId]).map(utilityType => {
-                  const utilities = groupedUtilities[bookingId][utilityType];
-                  
-                  return (
-                    <Box key={utilityType} sx={{ mb: 3 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                        <Typography variant="subtitle2" sx={{ textTransform: 'capitalize' }}>
-                          {utilityType}
+                return (
+                  <TableRow key={reading.id} hover>
+                    <TableCell>
+                      <Typography variant="body2" fontWeight="medium">
+                        {reading.apartment?.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {reading.apartment?.village?.name}
+                      </Typography>
+                    </TableCell>
+                    
+                    <TableCell>
+                      {reading.booking ? (
+                        <>
+                          <Typography variant="body2">
+                            {reading.booking.user?.name}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {utilityReadingService.formatDate(reading.booking.arrival_date)} - {utilityReadingService.formatDate(reading.booking.leaving_date)}
+                          </Typography>
+                        </>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          No booking
                         </Typography>
-                        
-                        {utilities.map(utility => {
-                          const bill = calculateBill(utility);
-                          if (bill) {
-                            return (
-                              <Chip 
-                                key={utility.id}
-                                label={`Consumption: ${bill.consumption} units (${bill.cost.toFixed(2)} ${bill.currency})`}
-                                color="primary"
-                                size="small"
-                                sx={{ ml: 2 }}
-                              />
-                            );
-                          }
-                          return null;
-                        })}
+                      )}
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                        {utilityTypes.map(type => (
+                          <Chip key={type} label={type} size="small" />
+                        ))}
                       </Box>
-                      
-                      <TableContainer component={Paper} variant="outlined">
-                        <Table size="small">
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Utility</TableCell>
-                              <TableCell>Start Reading</TableCell>
-                              <TableCell>End Reading</TableCell>
-                              <TableCell>Start Date</TableCell>
-                              <TableCell>End Date</TableCell>
-                              <TableCell>Notes</TableCell>
-                              <TableCell>Actions</TableCell>
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {utilities.map(utility => (
-                              <TableRow key={utility.id}>
-                                <TableCell sx={{ textTransform: 'capitalize' }}>
-                                  {utility.utilityType}
-                                </TableCell>
-                                <TableCell>{utility.startReading}</TableCell>
-                                <TableCell 
-                                  sx={{ 
-                                    backgroundColor: 'rgba(0, 0, 0, 0.04)', 
-                                    cursor: 'pointer',
-                                    '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.08)' },
-                                    borderRadius: '4px',
-                                    position: 'relative'
-                                  }}
-                                  onClick={() => handleEndReadingClick(utility)}
-                                >
-                                  {utility.endReading || '-'}
-                                  {!utility.endReading && (
-                                    <Box 
-                                      component="span" 
-                                      sx={{ 
-                                        fontSize: '10px',
-                                        color: 'text.secondary',
-                                        display: 'block',
-                                        mt: 0.5 
-                                      }}
-                                    >
-                                      Click to update end reading
-                                    </Box>
-                                  )}
-                                </TableCell>
-                                <TableCell>{format(new Date(utility.startDate), 'dd MMM yyyy')}</TableCell>
-                                <TableCell>
-                                  {utility.endDate ? format(new Date(utility.endDate), 'dd MMM yyyy') : '-'}
-                                </TableCell>
-                                <TableCell>
-                                  {utility.startNotes || utility.endNotes ? (
-                                    <Typography variant="body2" component="span">
-                                      {utility.startNotes && <span>Start: {utility.startNotes}</span>}
-                                      {utility.startNotes && utility.endNotes && <br />}
-                                      {utility.endNotes && <span>End: {utility.endNotes}</span>}
-                                    </Typography>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  <Button
-                                    component={RouterLink}
-                                    to={utility.endReading 
-                                      ? `/utilities/${utility.id}`
-                                      : `/utilities/${utility.id}-end`}
-                                    size="small"
-                                    variant="outlined"
-                                    color={utility.endReading ? "primary" : "success"}
-                                    startIcon={utility.endReading ? null : <AddIcon />}
-                                  >
-                                    {utility.endReading ? 'View' : 'Add End Reading'}
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
-                    </Box>
-                  );
-                })}
-              </Box>
-            ))
-          ) : (
-            <Typography variant="body1">No utilities found. Try clearing filters or add a new reading.</Typography>
-          )}
-        </Paper>
-      </Box>
-    </Container>
-  );
-};
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Typography variant="body2">
+                        {utilityReadingService.formatDate(reading.start_date)}
+                      </Typography>
+                      <Typography variant="body2">
+                        to {utilityReadingService.formatDate(reading.end_date)}
+                      </Typography>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Chip
+                        label={reading.who_pays}
+                        color={utilityReadingService.getWhoPaysBadgeColor(reading.who_pays)}
+                        size="small"
+                      />
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Box sx={{ minWidth: 120 }}>
+                        {waterBill && (
+                          <Typography variant="caption" display="block">
+                            💧 {waterBill.consumption} units = {waterBill.cost.toFixed(2)} EGP
+                          </Typography>
+                        )}
+                        {electricityBill && (
+                          <Typography variant="caption" display="block">
+                            ⚡ {electricityBill.consumption} units = {electricityBill.cost.toFixed(2)} EGP
+                          </Typography>
+                        )}
+                        {!waterBill && !electricityBill && (
+                          <Typography variant="caption" color="text.secondary">
+                            Incomplete readings
+                          </Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip title="View Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/utilities/${reading.id}`)}
+                          >
+                            <ViewIcon />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => navigate(`/utilities/${reading.id}/edit`)}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteClick(reading)}
+                            disabled={deleting === reading.id}
+                          >
+                            {deleting === reading.id ? (
+                              <CircularProgress size={16} />
+                            ) : (
+                              <DeleteIcon />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
 
-export default Utilities; 
+        {utilityReadings.length === 0 && (
+          <Box sx={{ p: 4, textAlign: 'center' }}>
+            <Typography variant="body1" color="text.secondary">
+              No utility readings found. Try adjusting your filters or add a new reading.
+            </Typography>
+          </Box>
+        )}
+
+        {pagination.total_pages > 1 && (
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
+            <Pagination
+              count={pagination.total_pages}
+              page={pagination.page}
+              onChange={handlePageChange}
+              color="primary"
+            />
+          </Box>
+        )}
+      </Paper>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Utility Reading</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete this utility reading for {readingToDelete?.apartment?.name}?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            This action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+} 

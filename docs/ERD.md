@@ -31,6 +31,7 @@ erDiagram
         int    apartment_id FK
         int    user_id      FK "→ USERS.id"
         enum   user_type     "owner | renter"
+        int    number_of_people
         datetime arrival
         datetime leaving
         string status        "not_arrived | in_village | left"

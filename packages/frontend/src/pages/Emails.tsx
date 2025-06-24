@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -20,770 +20,453 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  Container,
-  Divider,
-  Card,
   Alert,
-  Grid,
   CircularProgress,
-  FormHelperText
+  Pagination,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  DialogContentText
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
   Search as SearchIcon, 
   Add as AddIcon,
   Email as EmailIcon,
-  Visibility as VisibilityIcon,
-  ArrowBack as ArrowBackIcon,
-  Save as SaveIcon,
   Edit as EditIcon,
-  Cancel as CancelIcon
+  Delete as DeleteIcon,
+  Visibility as ViewIcon
 } from '@mui/icons-material';
-import { mockEmails, mockApartments, mockUsers, mockBookings } from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { Email } from '../types';
+import { emailService } from '../services/emailService';
+import type { Email, UIEmailType, BackendEmailType } from '../services/emailService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { format, parseISO } from 'date-fns';
 
-// Email Form Component for adding or editing emails
-function EmailForm({ email, isEdit, onSave, onCancel }: { 
-  email?: Email, 
-  isEdit: boolean,
-  onSave: (data: Partial<Email>) => void,
-  onCancel: () => void
-}) {
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const apartmentIdFromUrl = searchParams.get('apartmentId');
-  
-  const { currentUser } = useAuth();
-  const [formData, setFormData] = useState<Partial<Email>>(
-    email || {
-      date: new Date().toISOString().split('T')[0],
-      from: currentUser?.email || '',
-      to: '',
-      subject: '',
-      content: '',
-      apartmentId: apartmentIdFromUrl || '',
-      bookingId: '',
-      emailType: 'Inquiry',
-      createdById: currentUser?.id || ''
-    }
-  );
-  
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // Get related bookings for the selected apartment
-  const relatedBookings = formData.apartmentId 
-    ? mockBookings.filter(booking => booking.apartmentId === formData.apartmentId)
-    : [];
-  
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
-  
-  const handleSelectChange = (e: SelectChangeEvent) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // If apartment changes, reset the booking
-    if (name === 'apartmentId') {
-      setFormData(prev => ({ ...prev, bookingId: '' }));
-    }
-    
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
-  };
-  
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.from) newErrors.from = 'Sender is required';
-    if (!formData.to) newErrors.to = 'Recipient is required';
-    if (!formData.subject) newErrors.subject = 'Subject is required';
-    if (!formData.content) newErrors.content = 'Content is required';
-    if (!formData.apartmentId) newErrors.apartmentId = 'Related apartment is required';
-    if (!formData.date) newErrors.date = 'Date is required';
-    if (!formData.emailType) newErrors.emailType = 'Email type is required';
-    
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (formData.from && !emailRegex.test(formData.from)) {
-      newErrors.from = 'Invalid email format';
-    }
-    if (formData.to && !emailRegex.test(formData.to)) {
-      newErrors.to = 'Invalid email format';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-  
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (validate()) {
-      onSave(formData);
-    }
-  };
-  
-  // Look up creator information if available
-  const creator = formData.createdById ? mockUsers.find(user => user.id === formData.createdById) : null;
-  
-  return (
-    <Box component="form" onSubmit={handleSubmit} noValidate>
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" gutterBottom>Email Information</Typography>
-        <Divider sx={{ mb: 3 }} />
-        
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              required
-              fullWidth
-              type="date"
-              label="Date"
-              name="date"
-              value={formData.date || ''}
-              onChange={handleChange}
-              error={!!errors.date}
-              helperText={errors.date}
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-          
-          <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth required error={!!errors.emailType}>
-              <InputLabel>Email Type</InputLabel>
-              <Select
-                name="emailType"
-                value={formData.emailType || ''}
-                label="Email Type"
-                onChange={handleSelectChange}
-              >
-                <MenuItem value="Complaint">Complaint</MenuItem>
-                <MenuItem value="Booking Request">Booking Request</MenuItem>
-                <MenuItem value="Service Request">Service Request</MenuItem>
-                <MenuItem value="Inquiry">Inquiry</MenuItem>
-              </Select>
-              {errors.emailType && <FormHelperText>{errors.emailType}</FormHelperText>}
-            </FormControl>
-          </Grid>
-          
-          <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth required error={!!errors.apartmentId}>
-              <InputLabel>Related Apartment</InputLabel>
-              <Select
-                name="apartmentId"
-                value={formData.apartmentId || ''}
-                label="Related Apartment"
-                onChange={handleSelectChange}
-              >
-                {mockApartments.map(apt => (
-                  <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-                ))}
-              </Select>
-              {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
-            </FormControl>
-          </Grid>
-          
-          <Grid size={{ xs: 12, md: 6 }}>
-            <FormControl fullWidth disabled={!formData.apartmentId || relatedBookings.length === 0}>
-              <InputLabel>Related Booking (Optional)</InputLabel>
-              <Select
-                name="bookingId"
-                value={formData.bookingId || ''}
-                label="Related Booking (Optional)"
-                onChange={handleSelectChange}
-              >
-                <MenuItem value="">
-                  <em>None</em>
-                </MenuItem>
-                {relatedBookings.map(booking => (
-                  <MenuItem key={booking.id} value={booking.id}>
-                    {`${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}`}
-                  </MenuItem>
-                ))}
-              </Select>
-              <FormHelperText>
-                {!formData.apartmentId 
-                  ? 'Select an apartment first' 
-                  : relatedBookings.length === 0 
-                    ? 'No bookings found for this apartment' 
-                    : 'Optional: Select a related booking'}
-              </FormHelperText>
-            </FormControl>
-          </Grid>
-          
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              required
-              fullWidth
-              label="From (Sender)"
-              name="from"
-              value={formData.from || ''}
-              onChange={handleChange}
-              error={!!errors.from}
-              helperText={errors.from}
-            />
-          </Grid>
-          
-          <Grid size={{ xs: 12, md: 6 }}>
-            <TextField
-              required
-              fullWidth
-              label="To (Recipient)"
-              name="to"
-              value={formData.to || ''}
-              onChange={handleChange}
-              error={!!errors.to}
-              helperText={errors.to}
-            />
-          </Grid>
-          
-          <Grid size={12}>
-            <TextField
-              required
-              fullWidth
-              label="Subject"
-              name="subject"
-              value={formData.subject || ''}
-              onChange={handleChange}
-              error={!!errors.subject}
-              helperText={errors.subject}
-            />
-          </Grid>
-          
-          {formData.createdById && (
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="Created By"
-                value={creator ? `${creator.name} (${creator.email})` : formData.createdById}
-                InputProps={{
-                  readOnly: true,
-                }}
-                variant="filled"
-                helperText="User who created this email"
-              />
-            </Grid>
-          )}
-          
-          <Grid size={12}>
-            <TextField
-              required
-              fullWidth
-              multiline
-              rows={8}
-              label="Content"
-              name="content"
-              value={formData.content || ''}
-              onChange={handleChange}
-              error={!!errors.content}
-              helperText={errors.content}
-              placeholder="Write your email content here..."
-            />
-          </Grid>
-        </Grid>
-      </Paper>
-      
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-        <Button
-          variant="outlined"
-          startIcon={<CancelIcon />}
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          variant="contained"
-          startIcon={<SaveIcon />}
-        >
-          {isEdit ? 'Save Changes' : 'Send Email'}
-        </Button>
-      </Box>
-    </Box>
-  );
-}
-
-// Email Detail Component
-function EmailDetail({ email, onEdit, onBack }: { 
-  email: Email, 
-  onEdit: () => void,
-  onBack: () => void
-}) {
-  const fromUser = mockUsers.find(user => user.email === email.from);
-  const toUser = mockUsers.find(user => user.email === email.to);
-  const apartment = mockApartments.find(apt => apt.id === email.apartmentId);
-  const booking = email.bookingId ? mockBookings.find(b => b.id === email.bookingId) : null;
-  const { currentUser } = useAuth();
-  
-  // Find creator if available
-  const creator = email.createdById ? mockUsers.find(user => user.id === email.createdById) : null;
-  
-  return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <Button
-            variant="text"
-            color="primary"
-            startIcon={<ArrowBackIcon />}
-            onClick={onBack}
-          >
-            Back
-          </Button>
-          <Typography variant="h4">Email Details</Typography>
-        </Box>
-        
-        {currentUser?.role === 'admin' && (
-          <Button
-            variant="contained"
-            startIcon={<EditIcon />}
-            onClick={onEdit}
-          >
-            Edit
-          </Button>
-        )}
-      </Box>
-      
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ mb: 3 }}>
-          <Grid container spacing={2}>
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Typography variant="subtitle2" color="text.secondary">Date</Typography>
-              <Typography variant="body1">{new Date(email.date).toLocaleDateString()}</Typography>
-            </Grid>
-            
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Typography variant="subtitle2" color="text.secondary">Email Type</Typography>
-              <Typography variant="body1">
-                <Chip 
-                  label={email.emailType} 
-                  size="small"
-                  color={
-                    email.emailType === 'Complaint' ? 'error' :
-                    email.emailType === 'Booking Request' ? 'primary' :
-                    email.emailType === 'Service Request' ? 'warning' : 'info'
-                  }
-                />
-              </Typography>
-            </Grid>
-            
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Typography variant="subtitle2" color="text.secondary">Related Apartment</Typography>
-              <Typography variant="body1">
-                <Chip 
-                  label={apartment?.name || 'Unknown'} 
-                  size="small"
-                  color="primary"
-                  variant="outlined"
-                />
-              </Typography>
-            </Grid>
-            
-            {booking && (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
-                <Typography variant="body1">
-                  <Chip 
-                    label={`${new Date(booking.arrivalDate).toLocaleDateString()} - ${new Date(booking.leavingDate).toLocaleDateString()}`} 
-                    size="small"
-                    color="secondary"
-                    variant="outlined"
-                  />
-                </Typography>
-              </Grid>
-            )}
-            
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Typography variant="subtitle2" color="text.secondary">From</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
-                <Box>
-                  <Typography variant="body1">{fromUser?.name || 'Unknown'}</Typography>
-                  <Typography variant="caption" color="text.secondary">{email.from}</Typography>
-                </Box>
-              </Box>
-            </Grid>
-            
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <Typography variant="subtitle2" color="text.secondary">To</Typography>
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
-                <Box>
-                  <Typography variant="body1">{toUser?.name || 'Unknown'}</Typography>
-                  <Typography variant="caption" color="text.secondary">{email.to}</Typography>
-                </Box>
-              </Box>
-            </Grid>
-            
-            {email.createdById && (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-                <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                  <Box>
-                    <Typography variant="body1">{creator?.name || 'Unknown'}</Typography>
-                    <Typography variant="caption" color="text.secondary">{creator?.email || email.createdById}</Typography>
-                  </Box>
-                </Box>
-              </Grid>
-            )}
-          </Grid>
-        </Box>
-        
-        <Divider sx={{ my: 3 }} />
-        
-        <Typography variant="h6" gutterBottom>Content</Typography>
-        <Card variant="outlined" sx={{ p: 2, backgroundColor: '#f9f9f9' }}>
-          <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
-            {email.content}
-          </Typography>
-        </Card>
-      </Paper>
-    </Box>
-  );
-}
-
-// Main Emails Component
 export default function Emails() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [apartmentFilter, setApartmentFilter] = useState('');
-  const [emailTypeFilter, setEmailTypeFilter] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const location = useLocation();
   const { currentUser } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   
-  // Redirect non-admin users
+  // Check admin access
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'super_admin') {
       navigate('/unauthorized');
     }
-  }, [currentUser, navigate]);
+  }, [currentUser?.role, navigate]);
+
+  // State
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
-  // Show loading while checking permissions
-  if (!currentUser) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-          <CircularProgress />
-        </Box>
-      </Container>
-    );
-  }
+  // Filters and search
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [apartmentFilter, setApartmentFilter] = useState(searchParams.get('apartment') || '');
+  const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
   
-  // Determine if we're in create mode
-  const isCreating = location.pathname === '/emails/new';
-  
-  // Get email if in detail or edit mode
-  const email = id ? mockEmails.find(email => email.id === id) : undefined;
-  
-  // Filter emails based on search and filters for list view
-  const filteredEmails = mockEmails.filter(email => {
-    const matchesSearch = 
-      email.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      email.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      email.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      email.content.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesApartment = apartmentFilter ? email.apartmentId === apartmentFilter : true;
-    const matchesEmailType = emailTypeFilter ? email.emailType === emailTypeFilter : true;
-    
-    return matchesSearch && matchesApartment && matchesEmailType;
+  // Pagination
+  const [pagination, setPagination] = useState({
+    page: parseInt(searchParams.get('page') || '1'),
+    limit: 20,
+    total: 0,
+    total_pages: 0
   });
   
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
-  };
-  
-  const handleApartmentFilterChange = (event: SelectChangeEvent) => {
-    setApartmentFilter(event.target.value);
-  };
-  
-  const handleEmailTypeFilterChange = (event: SelectChangeEvent) => {
-    setEmailTypeFilter(event.target.value);
-  };
-  
-  const handleEmailClick = (emailId: string) => {
-    navigate(`/emails/${emailId}`);
-  };
-  
-  const handleAddEmail = () => {
-    navigate('/emails/new');
-  };
-  
-  const handleBack = () => {
-    navigate(-1);
-  };
-  
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
-  
-  const handleSaveEmail = (data: Partial<Email>) => {
-    console.log('Saving email:', data);
+  // Delete confirmation dialog
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    email: Email | null;
+  }>({
+    open: false,
+    email: null
+  });
+  const [deleting, setDeleting] = useState(false);
+
+  // Load apartments for filtering
+  useEffect(() => {
+    const loadApartments = async () => {
+      try {
+        const apartmentsData = await apartmentService.getApartments({ limit: 100 });
+        setApartments(apartmentsData.data);
+      } catch (err) {
+        console.error('Failed to load apartments:', err);
+      }
+    };
+
+    loadApartments();
+  }, []);
+
+  // Load emails
+  useEffect(() => {
+    const loadEmails = async () => {
+      try {
+        setLoading(true);
+        const filters = {
+          page: pagination.page,
+          limit: pagination.limit,
+          search: searchTerm || undefined,
+          apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+          type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
+          sort_by: 'date',
+          sort_order: 'desc' as const
+        };
+        
+        const response = await emailService.getEmails(filters);
+        setEmails(response.data);
+        setPagination(response.pagination);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load emails');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEmails();
+  }, [pagination.page, searchTerm, apartmentFilter, typeFilter]);
+
+  // Update URL params when filters change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('search', searchTerm);
+    if (apartmentFilter) params.set('apartment', apartmentFilter);
+    if (typeFilter) params.set('type', typeFilter);
+    if (pagination.page > 1) params.set('page', pagination.page.toString());
     
-    // In a real app, this would send the data to an API
-    // For now, just navigate back
-    if (isEditing) {
-      setIsEditing(false);
-      navigate(`/emails/${id}`);
-    } else {
-      navigate('/emails');
-    }
-  };
-  
-  const handleCancelEdit = () => {
-    if (isEditing) {
-      setIsEditing(false);
-      navigate(`/emails/${id}`);
-    } else {
-      navigate('/emails');
-    }
-  };
-  
-  // Helper function to get user's name from email
-  const getUserNameFromEmail = (email: string): string => {
-    const user = mockUsers.find(user => user.email === email);
-    return user ? user.name : email;
-  };
-  
-  // Helper function to truncate text
-  const truncateText = (text: string, maxLength: number): string => {
-    if (text.length <= maxLength) return text;
-    return text.slice(0, maxLength) + '...';
+    setSearchParams(params);
+  }, [searchTerm, apartmentFilter, typeFilter, pagination.page, setSearchParams]);
+
+  // Handle filter changes
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
   };
 
-  // Render the appropriate view based on the current mode
-  // 1. Email Form (Create/Edit)
-  if (isCreating || isEditing) {
+  const handleApartmentFilterChange = (e: SelectChangeEvent) => {
+    setApartmentFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleTypeFilterChange = (e: SelectChangeEvent) => {
+    setTypeFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
+    setPagination(prev => ({ ...prev, page }));
+  };
+
+  // Handle actions
+  const handleCreateEmail = () => {
+    navigate('/emails/new');
+  };
+
+  const handleEditEmail = (email: Email) => {
+    navigate(`/emails/${email.id}/edit`);
+  };
+
+  const handleViewEmail = (email: Email) => {
+    navigate(`/emails/${email.id}`);
+  };
+
+  const handleDeleteClick = (email: Email) => {
+    setDeleteDialog({
+      open: true,
+      email
+    });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.email) return;
+
+    try {
+      setDeleting(true);
+      await emailService.deleteEmail(deleteDialog.email.id);
+      
+      // Refresh the emails list
+      const filters = {
+        page: pagination.page,
+        limit: pagination.limit,
+        search: searchTerm || undefined,
+        apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+        type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
+        sort_by: 'date',
+        sort_order: 'desc' as const
+      };
+      
+      const response = await emailService.getEmails(filters);
+      setEmails(response.data);
+      setPagination(response.pagination);
+      
+      setDeleteDialog({ open: false, email: null });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete email');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialog({ open: false, email: null });
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), 'MMM dd, yyyy');
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Get apartment name
+  const getApartmentName = (apartmentId: number) => {
+    const apartment = apartments.find(apt => apt.id === apartmentId);
+    return apartment ? `${apartment.name} - ${apartment.village?.name}` : `Apartment ${apartmentId}`;
+  };
+
+  if (loading && emails.length === 0) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3 }}>
-          <Typography variant="h4" sx={{ mb: 3 }}>
-            {isEditing ? 'Edit Email' : 'Create New Email'}
-          </Typography>
-          
-          <EmailForm 
-            email={isEditing ? email : undefined}
-            isEdit={isEditing}
-            onSave={handleSaveEmail}
-            onCancel={handleCancelEdit}
-          />
-        </Box>
-      </Container>
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
+      </Box>
     );
   }
-  
-  // 2. Email Detail View
-  if (id && email) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3 }}>
-          <EmailDetail 
-            email={email}
-            onEdit={handleEdit}
-            onBack={handleBack}
-          />
-        </Box>
-      </Container>
-    );
-  }
-  
-  // 3. Email Not Found
-  if (id && !email) {
-    return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3 }}>
-          <Alert severity="error" sx={{ mb: 3 }}>Email not found</Alert>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={handleBack}
-          >
-            Back to Emails
-          </Button>
-        </Box>
-      </Container>
-    );
-  }
-  
-  // 4. Email List View (default)
+
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 3 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Emails</Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddEmail}
-          >
-            Add a new Email
-          </Button>
+    <Box sx={{ width: '100%' }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+        <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EmailIcon />
+          Emails
+        </Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreateEmail}
+        >
+          Add New Email
+        </Button>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Filters */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Filters
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+          <TextField
+            label="Search emails"
+            value={searchTerm}
+            onChange={handleSearchChange}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 300 }}
+          />
+          
+          <FormControl sx={{ minWidth: 200 }}>
+            <InputLabel>Apartment</InputLabel>
+            <Select
+              value={apartmentFilter}
+              onChange={handleApartmentFilterChange}
+              label="Apartment"
+            >
+              <MenuItem value="">All Apartments</MenuItem>
+              {apartments.map(apartment => (
+                <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                  {apartment.name} - {apartment.village?.name}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
+          <FormControl sx={{ minWidth: 180 }}>
+            <InputLabel>Email Type</InputLabel>
+            <Select
+              value={typeFilter}
+              onChange={handleTypeFilterChange}
+              label="Email Type"
+            >
+              <MenuItem value="">All Types</MenuItem>
+              {emailService.getEmailTypeOptions().map(option => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
-        
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-            <TextField
-              label="Search"
-              variant="outlined"
-              size="small"
-              sx={{ flexGrow: 1, minWidth: '200px' }}
-              value={searchTerm}
-              onChange={handleSearchChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              placeholder="Search by subject, sender, receiver or content"
-            />
-            
-            <FormControl sx={{ minWidth: 150 }} size="small">
-              <InputLabel>Apartment</InputLabel>
-              <Select
-                value={apartmentFilter}
-                label="Apartment"
-                onChange={handleApartmentFilterChange}
-              >
-                <MenuItem value="">
-                  <em>All Apartments</em>
-                </MenuItem>
-                {mockApartments.map(apt => (
-                  <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl sx={{ minWidth: 150 }} size="small">
-              <InputLabel>Email Type</InputLabel>
-              <Select
-                value={emailTypeFilter}
-                label="Email Type"
-                onChange={handleEmailTypeFilterChange}
-              >
-                <MenuItem value="">
-                  <em>All Types</em>
-                </MenuItem>
-                <MenuItem value="Complaint">Complaint</MenuItem>
-                <MenuItem value="Booking Request">Booking Request</MenuItem>
-                <MenuItem value="Service Request">Service Request</MenuItem>
-                <MenuItem value="Inquiry">Inquiry</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
-        </Paper>
-        
-        <TableContainer component={Paper}>
+      </Paper>
+
+      {/* Emails Table */}
+      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+        <TableContainer>
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell width="10%">Date</TableCell>
-                <TableCell width="18%">From</TableCell>
-                <TableCell width="18%">To</TableCell>
-                <TableCell width="18%">Subject</TableCell>
-                <TableCell width="12%">Type</TableCell>
-                <TableCell width="14%">Apartment</TableCell>
-                <TableCell width="10%">Actions</TableCell>
+                <TableCell>Date</TableCell>
+                <TableCell>From</TableCell>
+                <TableCell>To</TableCell>
+                <TableCell>Subject</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Apartment</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {filteredEmails.length > 0 ? (
-                filteredEmails.map(email => {
-                  const apartment = mockApartments.find(apt => apt.id === email.apartmentId);
-                  const fromName = getUserNameFromEmail(email.from);
-                  const toName = getUserNameFromEmail(email.to);
-                  
-                  return (
-                    <TableRow 
-                      key={email.id} 
-                      hover 
-                      onClick={() => handleEmailClick(email.id)}
-                      sx={{ cursor: 'pointer' }}
-                    >
-                      <TableCell>{new Date(email.date).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                          <EmailIcon fontSize="small" sx={{ mr: 1, opacity: 0.7 }} />
-                          <Box>
-                            <Typography variant="body2">{fromName}</Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {truncateText(email.from, 20)}
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2">{toName}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {truncateText(email.to, 20)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{truncateText(email.subject, 30)}</TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={email.emailType} 
-                          size="small"
-                          color={
-                            email.emailType === 'Complaint' ? 'error' :
-                            email.emailType === 'Booking Request' ? 'primary' :
-                            email.emailType === 'Service Request' ? 'warning' : 'info'
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip 
-                          label={apartment?.name || 'Unknown'} 
-                          size="small"
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="View Email">
-                          <IconButton 
-                            size="small" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEmailClick(email.id);
-                            }}
-                          >
-                            <VisibilityIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
+              {emails.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
-                    No emails found matching your criteria.
+                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                    {loading ? (
+                      <CircularProgress size={24} />
+                    ) : (
+                      <Typography color="textSecondary">
+                        No emails found
+                      </Typography>
+                    )}
                   </TableCell>
                 </TableRow>
+              ) : (
+                emails.map((email) => (
+                  <TableRow key={email.id} hover>
+                    <TableCell>
+                      {formatDate(email.date)}
+                    </TableCell>
+                    <TableCell>
+                      {email.from}
+                    </TableCell>
+                    <TableCell>
+                      {email.to}
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {email.subject}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={emailService.getEmailTypeDisplayName(email.type)}
+                        color={emailService.getEmailTypeColor(email.type)}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {email.apartment?.name || getApartmentName(email.apartment_id)}
+                      </Typography>
+                      {email.apartment?.village && (
+                        <Typography variant="caption" color="textSecondary">
+                          {email.apartment.village.name}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', gap: 0.5 }}>
+                        <Tooltip title="View Details">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewEmail(email)}
+                          >
+                            <ViewIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleEditEmail(email)}
+                          >
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete">
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDeleteClick(email)}
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
         </TableContainer>
-      </Box>
-    </Container>
+
+        {/* Pagination */}
+        {pagination.total_pages > 1 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+            <Pagination
+              count={pagination.total_pages}
+              page={pagination.page}
+              onChange={handlePageChange}
+              color="primary"
+            />
+          </Box>
+        )}
+      </Paper>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={handleDeleteCancel}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Delete Email</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this email? This action cannot be undone.
+          </DialogContentText>
+          {deleteDialog.email && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2">
+                <strong>From:</strong> {deleteDialog.email.from}
+              </Typography>
+              <Typography variant="body2">
+                <strong>To:</strong> {deleteDialog.email.to}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Subject:</strong> {deleteDialog.email.subject}
+              </Typography>
+              <Typography variant="body2">
+                <strong>Date:</strong> {formatDate(deleteDialog.email.date)}
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 } 

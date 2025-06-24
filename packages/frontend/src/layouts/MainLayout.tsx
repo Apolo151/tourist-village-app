@@ -71,7 +71,7 @@ export default function MainLayout() {
       }}>
         {menuItems.map((item) => (
           // Only show admin-only items to admin users
-          (!item.adminOnly || currentUser?.role === 'admin') && (
+          (!item.adminOnly || (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')) && (
             <ListItem key={item.text} disablePadding sx={{ mb: 0.5, mx: 1 }}>
               <ListItemButton 
                 component={Link} 

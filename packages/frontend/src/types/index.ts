@@ -1,75 +1,611 @@
 // User Types
 export interface User {
-  id: string;
+  id: number;
   name: string;
   email: string;
-  role: 'admin' | 'owner' | 'renter';
-  phone?: string;
-  permissions?: {
-    villageAccess: string[]; // IDs of villages the user can access
-    canView: boolean;
-    canAdd: boolean;
-    canEdit: boolean;
+  phone_number?: string;
+  role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  last_login?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+// Village Types  
+export interface Village {
+  id: number;
+  name: string;
+  electricity_price: number;
+  water_price: number;
+  phases: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+// Payment Method Types
+export interface PaymentMethod {
+  id: number;
+  name: string;
+  description?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  creator?: {
+    id: number;
+    name: string;
   };
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
 // Apartment Types
 export interface Apartment {
-  id: string;
+  id: number;
   name: string;
-  ownerId: string;
-  ownerName?: string;
-  village: 'Sharm' | 'Luxor' | 'International Resort';
-  phase: string;
-  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
-  payingStatus?: 'Payed By Transfer' | 'Payed By Rent' | 'Non-Payer';
-  purchaseDate: string;
-  description?: string;
-  images?: string[];
-  amenities?: string[];
-  city?: string;
-  address?: string;
-  size?: number;
-  bedrooms?: number;
-  bathrooms?: number;
+  village_id: number;
+  owner_id: number;
+  phase: number;
+  purchase_date: string;
+  paying_status: 'payed_by_transfer' | 'payed_by_rent' | 'non_payer';
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  village?: Village;
+  owner?: User;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
 // Booking Types
 export interface Booking {
-  id: string;
-  apartmentId: string;
-  userId: string;
-  arrivalDate: string;
-  leavingDate: string;
-  state: 'notArrived' | 'inVillage' | 'left';
-  createdAt: string;
+  id: number;
+  apartment_id: number;
+  user_id: number;
+  user_type: 'owner' | 'renter';
+  number_of_people: number;
+  arrival_date: string;
+  leaving_date: string;
+  status: 'has_not_arrived' | 'in_village' | 'left';
   notes?: string;
-  flightDetails?: string;
-  personName: string;
-  peopleCount: number;
+  flight_details?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  apartment?: Apartment;
+  user?: User;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
 // Service Types
 export interface ServiceType {
-  id: string;
+  id: number;
   name: string;
   cost: number;
   currency: 'EGP' | 'GBP';
-  description: string;
-  assigneeId?: string;
+  description?: string;
+  default_assignee_id?: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  default_assignee?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
 export interface ServiceRequest {
-  id: string;
-  serviceTypeId: string;
-  apartmentId: string;
-  requestDate: string;
-  serviceDate: string;
+  id: number;
+  type_id: number;
+  apartment_id: number;
+  booking_id?: number;
+  requester_id: number;
+  date_action?: string; // ISO string - when the service will be done
+  date_created: string; // ISO string - when the request was created
+  status: 'Created' | 'In Progress' | 'Done';
+  who_pays: 'owner' | 'renter' | 'company';
   notes?: string;
-  status: 'pending' | 'completed' | 'cancelled';
-  userId: string;
-  bookingId?: string;
-  assigneeId?: string;
+  assignee_id?: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  type?: ServiceType;
+  apartment?: {
+    id: number;
+    name: string;
+    village?: {
+      id: number;
+      name: string;
+    };
+  };
+  booking?: {
+    id: number;
+    arrival_date: string;
+    leaving_date: string;
+    user?: {
+      id: number;
+      name: string;
+    };
+  };
+  requester?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  assignee?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
 // Utility Types
@@ -89,88 +625,650 @@ export interface Utility {
   updatedAt?: string;
 }
 
-// Bill Types
-export interface BillItem {
-  description: string;
-  amount: number;
-  currency: 'EGP' | 'GBP';
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
 }
 
-export interface Bill {
-  id: string;
-  billNumber: string;
-  apartmentId: string;
-  userId: string;
-  userType: 'owner' | 'renter';
-  billDate: string;
-  dueDate: string;
-  isPaid: boolean;
-  paidDate?: string;
-  totalAmountEGP: number;
-  totalAmountGBP: number;
-  description: string;
-  items: BillItem[];
-  createdById: string;
-  createdAt: string;
-  paymentId?: string;
-  bookingId?: string;
-  serviceRequestId?: string;
-  utilityId?: string[];
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
 }
 
-// Payment Types
-export interface Payment {
-  id: string;
-  cost: number;
-  currency: string;
-  description: string;
-  placeOfPayment: string;
-  userType: 'owner' | 'renter';
-  userId: string;
-  apartmentId: string;
-  bookingId?: string;
-  createdById: string;
-  createdAt: string;
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
 }
 
-// Email Types
-export interface Email {
-  id: string;
-  date: string;
-  from: string;
-  to: string;
-  subject: string;
-  content: string;
-  apartmentId: string;
-  bookingId?: string;
-  emailType: 'Complaint' | 'Booking Request' | 'Service Request' | 'Inquiry';
-  createdById: string;
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
 }
 
-// Settings Types
-export interface Settings {
-  electricityPrice: number;
-  gasPrice: number;
-  waterPrice: number;
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: 'owner' | 'renter' | 'company';
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
 }
 
-export interface Village {
-  id: string;
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+// Form Types for creating/updating entities
+export interface CreateUserRequest {
   name: string;
-  address: string;
-  city: string;
-  country: string;
-  electricityPrice: number;
-  gasPrice: number;
-  waterPrice: number;
-  numberOfPhases: number;
-  contactEmail: string;
-  contactPhone: string;
-  description: string;
+  email: string;
+  password: string;
+  phone_number?: string;
+  role: 'super_admin' | 'admin' | 'owner' | 'renter';
 }
 
-export interface PaymentMethod {
-  id: string;
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  phone_number?: string;
+  role?: 'super_admin' | 'admin' | 'owner' | 'renter';
+  is_active?: boolean;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface CreateVillageRequest {
+  name: string;
+  electricity_price: number;
+  water_price: number;
+  phases: number;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface UpdateVillageRequest {
+  name?: string;
+  electricity_price?: number;
+  water_price?: number;
+  phases?: number;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface CreatePaymentMethodRequest {
   name: string;
   description?: string;
-} 
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+export interface UpdatePaymentMethodRequest {
+  name?: string;
+  description?: string;
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: "owner" | "renter" | "company";
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: "owner" | "renter" | "company";
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: "owner" | "renter" | "company";
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: "owner" | "renter" | "company";
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: "asc" | "desc";
+}
+
+// Utility Reading Types (Backend format)
+export interface UtilityReading {
+  id: number;
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string;
+  end_date: string;
+  who_pays: 'owner' | 'renter' | 'company';
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: Apartment;
+  booking?: Booking;
+  created_by_user?: User;
+}
+
+export interface CreateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date: string; // ISO date string
+  end_date: string; // ISO date string
+  who_pays: 'owner' | 'renter' | 'company';
+}
+
+export interface UpdateUtilityReadingRequest {
+  booking_id?: number;
+  apartment_id?: number;
+  water_start_reading?: number;
+  water_end_reading?: number;
+  electricity_start_reading?: number;
+  electricity_end_reading?: number;
+  start_date?: string; // ISO date string
+  end_date?: string; // ISO date string
+  who_pays?: 'owner' | 'renter' | 'company';
+}
+
+export interface UtilityReadingFilters {
+  apartment_id?: number;
+  booking_id?: number;
+  village_id?: number;
+  who_pays?: 'owner' | 'renter' | 'company';
+  start_date_from?: string;
+  start_date_to?: string;
+  end_date_from?: string;
+  end_date_to?: string;
+  has_water_readings?: boolean;
+  has_electricity_readings?: boolean;
+  created_by?: number;
+  search?: string;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}

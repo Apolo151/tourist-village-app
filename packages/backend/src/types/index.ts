@@ -61,6 +61,7 @@ export interface Booking {
   apartment_id: number;
   user_id: number;
   user_type: 'owner' | 'renter';
+  number_of_people: number;
   arrival_date: Date;
   leaving_date: Date;
   status: 'not_arrived' | 'in_village' | 'left';
@@ -80,12 +81,21 @@ export interface ServiceRequest {
   requester_id: number;
   date_action?: Date;
   date_created: Date;
-  status: string;
+  status: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
   notes?: string;
   assignee_id?: number;
+  created_by: number;
   created_at: Date;
   updated_at: Date;
+  
+  // Joined fields for API responses
+  type?: ServiceType;
+  apartment?: Apartment;
+  booking?: Booking;
+  requester?: PublicUser;
+  assignee?: PublicUser;
+  created_by_user?: PublicUser;
 }
 
 export interface ServiceType {
@@ -95,8 +105,13 @@ export interface ServiceType {
   currency: 'EGP' | 'GBP';
   description?: string;
   default_assignee_id?: number;
+  created_by: number;
   created_at: Date;
   updated_at: Date;
+  
+  // Joined fields for API responses
+  default_assignee?: PublicUser;
+  created_by_user?: PublicUser;
 }
 
 export interface Payment {
@@ -270,6 +285,7 @@ export interface CreateBookingRequest {
   apartment_id: number;
   user_id: number;
   user_type?: 'owner' | 'renter'; // Made optional - will be auto-determined from user role
+  number_of_people?: number; // Optional - defaults to 1
   arrival_date: string; // ISO string
   leaving_date: string; // ISO string
   status?: 'not_arrived' | 'in_village' | 'left';
@@ -280,6 +296,7 @@ export interface UpdateBookingRequest {
   apartment_id?: number;
   user_id?: number;
   user_type?: 'owner' | 'renter';
+  number_of_people?: number;
   arrival_date?: string; // ISO string
   leaving_date?: string; // ISO string
   status?: 'not_arrived' | 'in_village' | 'left';
@@ -320,11 +337,11 @@ export interface CreateServiceRequestRequest {
   apartment_id: number;
   booking_id?: number;
   requester_id: number;
-  date_action?: string; // ISO string
-  status?: string;
+  date_action?: string; // ISO string - when the service will be done
+  status?: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
   notes?: string;
-  assignee_id?: number;
+  assignee_id?: number; // Optional - will default to service type assignee
 }
 
 export interface UpdateServiceRequestRequest {
@@ -333,7 +350,7 @@ export interface UpdateServiceRequestRequest {
   booking_id?: number;
   requester_id?: number;
   date_action?: string; // ISO string
-  status?: string;
+  status?: 'Created' | 'In Progress' | 'Done';
   who_pays?: 'owner' | 'renter' | 'company';
   notes?: string;
   assignee_id?: number;
@@ -345,7 +362,7 @@ export interface ServiceRequestFilters {
   booking_id?: number;
   requester_id?: number;
   assignee_id?: number;
-  status?: string;
+  status?: 'Created' | 'In Progress' | 'Done';
   who_pays?: 'owner' | 'renter' | 'company';
   date_action_start?: string;
   date_action_end?: string;

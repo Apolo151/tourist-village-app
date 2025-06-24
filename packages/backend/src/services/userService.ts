@@ -569,9 +569,8 @@ export class UserService {
    * Validate phone number format
    */
   private isValidPhoneNumber(phone: string): boolean {
-    // Basic phone number validation - adjust regex as needed for your requirements
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    return phoneRegex.test(phone.replace(/[\s\-\(\)]/g, ''));
+    // Basic phone number validation - check all chars are numbers
+    return /^\d+$/.test(phone);
   }
 
   /**

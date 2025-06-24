@@ -23,14 +23,16 @@ import {
   MenuItem,
   Alert,
   Snackbar,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
   Card,
   CardContent,
   CardActions,
   Chip,
   Grid,
+  CircularProgress,
+  Container,
+  Tooltip,
+  Switch,
+  FormControlLabel
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import {
@@ -42,12 +44,21 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon,
   Save as SaveIcon,
-  Lock as LockIcon
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+
+  ElectricBolt as ElectricIcon,
+
+  Water as WaterIcon
 } from '@mui/icons-material';
-import { mockSettings, mockPaymentMethods, mockUsers, mockVillages } from '../mockData';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import type { User, Village } from '../types';
+import { userService } from '../services/userService';
+import { paymentMethodService } from '../services/paymentMethodService';
+import { villageService } from '../services/villageService';
+import type { User } from '../services/userService';
+import type { PaymentMethod } from '../services/paymentMethodService';
+import type { Village } from '../services/villageService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -66,7 +77,7 @@ function TabPanel(props: TabPanelProps) {
       aria-labelledby={`settings-tab-${index}`}
       {...other}
     >
-      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+      {value === index && <Box>{children}</Box>}
     </div>
   );
 }
@@ -75,164 +86,293 @@ export default function Settings() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
-  const [editingSettings, setEditingSettings] = useState(false);
-  const [settingsData, setSettingsData] = useState({ ...mockSettings });
-  const [paymentMethods, setPaymentMethods] = useState([...mockPaymentMethods]);
-  const [openAddPaymentDialog, setOpenAddPaymentDialog] = useState(false);
-  const [newPaymentMethod, setNewPaymentMethod] = useState({ name: '', description: '' });
-  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>('');
   const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [users, setUsers] = useState([...mockUsers]);
-  const [villages, setVillages] = useState([...mockVillages]);
-  
-  // For the user dialog
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+
+  // Data states
+  const [users, setUsers] = useState<User[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+
+  // Dialog states
   const [openUserDialog, setOpenUserDialog] = useState(false);
+  const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
+  const [openVillageDialog, setOpenVillageDialog] = useState(false);
+
+  // Editing states
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingPayment, setEditingPayment] = useState<PaymentMethod | null>(null);
+  const [editingVillage, setEditingVillage] = useState<Village | null>(null);
+
+  // Form states
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
-    phone: '',
-    role: 'renter',
-    permissions: {
-      villageAccess: [] as string[],
-      canView: true,
-      canAdd: false,
-      canEdit: false
-    }
+    password: '',
+    phone_number: '',
+    role: 'renter' as 'super_admin' | 'admin' | 'owner' | 'renter',
+    is_active: true
   });
-  
-  // For village dialog
-  const [openVillageDialog, setOpenVillageDialog] = useState(false);
-  const [editingVillage, setEditingVillage] = useState<Village | null>(null);
-  const [newVillage, setNewVillage] = useState({
+
+  const [newPaymentMethod, setNewPaymentMethod] = useState({
     name: '',
-    address: '',
-    city: '',
-    country: 'Egypt',
-    electricityPrice: 1.5,
-    gasPrice: 1.2,
-    waterPrice: 0.75,
-    numberOfPhases: 1,
-    contactEmail: '',
-    contactPhone: '',
     description: ''
   });
-  
+
+  const [newVillage, setNewVillage] = useState({
+    name: '',
+    electricity_price: 1.5,
+    water_price: 0.75,
+    phases: 1
+  });
+
   // Admin check
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin') {
+    if (currentUser && !['admin', 'super_admin'].includes(currentUser.role)) {
       navigate('/unauthorized');
     }
   }, [currentUser, navigate]);
-  
+
+  // Load data when tab changes
+  useEffect(() => {
+    loadTabData();
+  }, [tabValue]);
+
+  const loadTabData = async () => {
+    setLoading(true);
+    setError('');
+
+    try {
+      switch (tabValue) {
+        case 1: // Users tab
+          await loadUsers();
+          break;
+        case 2: // Payment Methods tab
+          await loadPaymentMethods();
+          break;
+        case 3: // Villages tab
+          await loadVillages();
+          break;
+        default:
+          break;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUsers = async () => {
+    const result = await userService.getUsers({ limit: 100 });
+    setUsers(result.data);
+  };
+
+  const loadPaymentMethods = async () => {
+    const result = await paymentMethodService.getPaymentMethods({ limit: 100 });
+    setPaymentMethods(result.data);
+  };
+
+  const loadVillages = async () => {
+    const result = await villageService.getVillages({ limit: 100 });
+    setVillages(result.data);
+  };
+
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
-  
-  const handleSettingsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setSettingsData(prev => ({
-      ...prev,
-      [name]: parseFloat(value)
-    }));
-  };
-  
-  const handleSaveSettings = () => {
-    // In a real app, this would save to an API
-    setEditingSettings(false);
-    setSnackbarMessage('Settings saved successfully');
-    setOpenSnackbar(true);
-  };
-  
-  const handlePaymentMethodChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
-    field: 'name' | 'description'
-  ) => {
-    setNewPaymentMethod(prev => ({
-      ...prev,
-      [field]: e.target.value
-    }));
-  };
-  
-  const handleAddPaymentMethod = () => {
-    if (!newPaymentMethod.name) {
-      setSnackbarMessage('Name is required');
-      setOpenSnackbar(true);
-      return;
-    }
-    
-    // In a real app, this would save to an API
-    const newMethod = {
-      id: `method${paymentMethods.length + 1}`,
-      ...newPaymentMethod
-    };
-    
-    setPaymentMethods(prev => [...prev, newMethod]);
-    setNewPaymentMethod({ name: '', description: '' });
-    setOpenAddPaymentDialog(false);
-    setSnackbarMessage('Payment method added successfully');
-    setOpenSnackbar(true);
-  };
-  
-  const handleDeletePaymentMethod = (id: string) => {
-    // In a real app, this would delete from an API
-    setPaymentMethods(prev => prev.filter(method => method.id !== id));
-    setSnackbarMessage('Payment method deleted successfully');
-    setOpenSnackbar(true);
-  };
-  
-  const handleEditPaymentMethod = (id: string) => {
-    const method = paymentMethods.find(m => m.id === id);
-    if (method) {
-      setNewPaymentMethod({ name: method.name, description: method.description || '' });
-      setOpenAddPaymentDialog(true);
-    }
-  };
-  
+
   // User management handlers
   const handleOpenAddUserDialog = () => {
     setEditingUser(null);
     setNewUser({
       name: '',
       email: '',
-      phone: '',
+      password: '',
+      phone_number: '',
       role: 'renter',
-      permissions: {
-        villageAccess: [],
-        canView: true,
-        canAdd: false,
-        canEdit: false
-      }
+      is_active: true
     });
     setOpenUserDialog(true);
   };
-  
-  const handleEditUser = (userId: string) => {
-    const user = users.find(u => u.id === userId);
-    if (user) {
-      setEditingUser(user);
-      setNewUser({
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '',
-        role: user.role,
-        permissions: user.permissions || {
-          villageAccess: [],
-          canView: true,
-          canAdd: false,
-          canEdit: false
-        }
-      });
-      setOpenUserDialog(true);
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setNewUser({
+      name: user.name,
+      email: user.email,
+      password: '', // Don't pre-fill password
+      phone_number: user.phone_number || '',
+      role: user.role,
+      is_active: user.is_active
+    });
+    setOpenUserDialog(true);
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
+      try {
+        await userService.deleteUser(userId);
+        setSnackbarMessage('User deleted successfully');
+        setOpenSnackbar(true);
+        loadUsers();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete user');
+      }
     }
   };
-  
-  const handleDeleteUser = (userId: string) => {
-    setUsers(prev => prev.filter(user => user.id !== userId));
-    setSnackbarMessage('User deleted successfully');
-    setOpenSnackbar(true);
+
+  const handleSaveUser = async () => {
+    try {
+      if (!newUser.name || !newUser.email) {
+        setError('Name and email are required');
+        return;
+      }
+
+      if (editingUser) {
+        // Update existing user (without password if empty)
+        const updateData: any = {
+          name: newUser.name,
+          email: newUser.email,
+          phone_number: newUser.phone_number || undefined,
+          role: newUser.role,
+          is_active: newUser.is_active
+        };
+        
+        await userService.updateUser(editingUser.id, updateData);
+        setSnackbarMessage('User updated successfully');
+      } else {
+        // Create new user
+        if (!newUser.password) {
+          setError('Password is required for new users');
+          return;
+        }
+        
+        await userService.createUser(newUser);
+        setSnackbarMessage('User created successfully');
+      }
+
+      setOpenUserDialog(false);
+      setOpenSnackbar(true);
+      loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save user');
+    }
   };
-  
+
+  // Payment method handlers
+  const handleOpenAddPaymentDialog = () => {
+    setEditingPayment(null);
+    setNewPaymentMethod({ name: '', description: '' });
+    setOpenPaymentDialog(true);
+  };
+
+  const handleEditPaymentMethod = (payment: PaymentMethod) => {
+    setEditingPayment(payment);
+    setNewPaymentMethod({
+      name: payment.name,
+      description: payment.description || ''
+    });
+    setOpenPaymentDialog(true);
+  };
+
+  const handleDeletePaymentMethod = async (paymentId: number) => {
+    if (window.confirm('Are you sure you want to delete this payment method?')) {
+      try {
+        await paymentMethodService.deletePaymentMethod(paymentId);
+        setSnackbarMessage('Payment method deleted successfully');
+        setOpenSnackbar(true);
+        loadPaymentMethods();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete payment method');
+      }
+    }
+  };
+
+  const handleSavePaymentMethod = async () => {
+    try {
+      if (!newPaymentMethod.name) {
+        setError('Payment method name is required');
+        return;
+      }
+
+      if (editingPayment) {
+        await paymentMethodService.updatePaymentMethod(editingPayment.id, newPaymentMethod);
+        setSnackbarMessage('Payment method updated successfully');
+      } else {
+        await paymentMethodService.createPaymentMethod(newPaymentMethod);
+        setSnackbarMessage('Payment method created successfully');
+      }
+
+      setOpenPaymentDialog(false);
+      setOpenSnackbar(true);
+      loadPaymentMethods();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save payment method');
+    }
+  };
+
+  // Village handlers
+  const handleOpenAddVillageDialog = () => {
+    setEditingVillage(null);
+    setNewVillage({
+      name: '',
+      electricity_price: 1.5,
+      water_price: 0.75,
+      phases: 1
+    });
+    setOpenVillageDialog(true);
+  };
+
+  const handleEditVillage = (village: Village) => {
+    setEditingVillage(village);
+    setNewVillage({
+      name: village.name,
+      electricity_price: village.electricity_price,
+      water_price: village.water_price,
+      phases: village.phases
+    });
+    setOpenVillageDialog(true);
+  };
+
+  const handleDeleteVillage = async (villageId: number) => {
+    if (window.confirm('Are you sure you want to delete this village?')) {
+      try {
+        await villageService.deleteVillage(villageId);
+        setSnackbarMessage('Village deleted successfully');
+        setOpenSnackbar(true);
+        loadVillages();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete village');
+      }
+    }
+  };
+
+  const handleSaveVillage = async () => {
+    try {
+      if (!newVillage.name) {
+        setError('Village name is required');
+        return;
+      }
+
+      if (editingVillage) {
+        await villageService.updateVillage(editingVillage.id, newVillage);
+        setSnackbarMessage('Village updated successfully');
+      } else {
+        await villageService.createVillage(newVillage);
+        setSnackbarMessage('Village created successfully');
+      }
+
+      setOpenVillageDialog(false);
+      setOpenSnackbar(true);
+      loadVillages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save village');
+    }
+  };
+
   const handleUserChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewUser(prev => ({
@@ -240,745 +380,367 @@ export default function Settings() {
       [name]: value
     }));
   };
-  
+
   const handleUserRoleChange = (event: SelectChangeEvent) => {
     setNewUser(prev => ({
       ...prev,
-      role: event.target.value as 'admin' | 'owner' | 'renter'
+      role: event.target.value as 'super_admin' | 'admin' | 'owner' | 'renter'
     }));
   };
-  
-  const handleVillageAccessChange = (villageId: string) => {
-    setNewUser(prev => {
-      const isSelected = prev.permissions.villageAccess.includes(villageId);
-      const updatedAccess = isSelected
-        ? prev.permissions.villageAccess.filter(id => id !== villageId)
-        : [...prev.permissions.villageAccess, villageId];
-        
-      return {
-        ...prev,
-        permissions: {
-          ...prev.permissions,
-          villageAccess: updatedAccess
-        }
-      };
-    });
-  };
-  
-  const handlePermissionChange = (permission: 'canView' | 'canAdd' | 'canEdit') => {
-    setNewUser(prev => ({
+
+  const handlePaymentMethodChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: string) => {
+    setNewPaymentMethod(prev => ({
       ...prev,
-      permissions: {
-        ...prev.permissions,
-        [permission]: !prev.permissions[permission]
-      }
+      [field]: e.target.value
     }));
   };
-  
-  const handleSaveUser = () => {
-    if (!newUser.name || !newUser.email) {
-      setSnackbarMessage('Name and email are required');
-      setOpenSnackbar(true);
-      return;
-    }
-    
-    if (editingUser) {
-      // Update existing user
-      setUsers(prev => prev.map(user => 
-        user.id === editingUser.id 
-          ? { ...user, 
-              name: newUser.name, 
-              email: newUser.email, 
-              phone: newUser.phone,
-              role: newUser.role as 'admin' | 'owner' | 'renter',
-              permissions: newUser.permissions
-            } 
-          : user
-      ));
-      setSnackbarMessage('User updated successfully');
-    } else {
-      // Create new user
-      const newUserObj: User = {
-        id: `user${users.length + 1}`,
-        name: newUser.name,
-        email: newUser.email,
-        phone: newUser.phone,
-        role: newUser.role as 'admin' | 'owner' | 'renter',
-        permissions: newUser.permissions
-      };
-      setUsers(prev => [...prev, newUserObj]);
-      setSnackbarMessage('User added successfully');
-    }
-    
-    setOpenUserDialog(false);
-    setOpenSnackbar(true);
-  };
-  
-  // Village management handlers
-  const handleOpenAddVillageDialog = () => {
-    setEditingVillage(null);
-    setNewVillage({
-      name: '',
-      address: '',
-      city: '',
-      country: 'Egypt',
-      electricityPrice: 1.5,
-      gasPrice: 1.2,
-      waterPrice: 0.75,
-      numberOfPhases: 1,
-      contactEmail: '',
-      contactPhone: '',
-      description: ''
-    });
-    setOpenVillageDialog(true);
-  };
-  
-  const handleEditVillage = (villageId: string) => {
-    const village = villages.find(v => v.id === villageId);
-    if (village) {
-      setEditingVillage(village);
-      setNewVillage({
-        name: village.name,
-        address: village.address,
-        city: village.city,
-        country: village.country,
-        electricityPrice: village.electricityPrice,
-        gasPrice: village.gasPrice,
-        waterPrice: village.waterPrice,
-        numberOfPhases: village.numberOfPhases,
-        contactEmail: village.contactEmail,
-        contactPhone: village.contactPhone,
-        description: village.description
-      });
-      setOpenVillageDialog(true);
-    }
-  };
-  
-  const handleDeleteVillage = (villageId: string) => {
-    setVillages(prev => prev.filter(village => village.id !== villageId));
-    setSnackbarMessage('Village deleted successfully');
-    setOpenSnackbar(true);
-  };
-  
+
   const handleVillageChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewVillage(prev => ({
       ...prev,
-      [name]: name === 'electricityPrice' || name === 'gasPrice' || name === 'waterPrice' || name === 'numberOfPhases'
-        ? parseFloat(value)
-        : value
+      [name]: name === 'phases' ? parseInt(value) || 1 : 
+               (name === 'electricity_price' || name === 'water_price') ? parseFloat(value) || 0 : value
     }));
-  };
-  
-  const handleSaveVillage = () => {
-    if (!newVillage.name || !newVillage.address || !newVillage.city) {
-      setSnackbarMessage('Village name, address and city are required');
-      setOpenSnackbar(true);
-      return;
-    }
-    
-    if (editingVillage) {
-      // Update existing village
-      setVillages(prev => prev.map(village => 
-        village.id === editingVillage.id 
-          ? { 
-              ...village,
-              name: newVillage.name,
-              address: newVillage.address,
-              city: newVillage.city,
-              country: newVillage.country,
-              electricityPrice: newVillage.electricityPrice,
-              gasPrice: newVillage.gasPrice,
-              waterPrice: newVillage.waterPrice,
-              numberOfPhases: newVillage.numberOfPhases,
-              contactEmail: newVillage.contactEmail,
-              contactPhone: newVillage.contactPhone,
-              description: newVillage.description
-            } 
-          : village
-      ));
-      setSnackbarMessage('Village updated successfully');
-    } else {
-      // Create new village
-      const newVillageObj: Village = {
-        id: `village${villages.length + 1}`,
-        name: newVillage.name,
-        address: newVillage.address,
-        city: newVillage.city,
-        country: newVillage.country,
-        electricityPrice: newVillage.electricityPrice,
-        gasPrice: newVillage.gasPrice,
-        waterPrice: newVillage.waterPrice,
-        numberOfPhases: newVillage.numberOfPhases,
-        contactEmail: newVillage.contactEmail,
-        contactPhone: newVillage.contactPhone,
-        description: newVillage.description
-      };
-      setVillages(prev => [...prev, newVillageObj]);
-      setSnackbarMessage('Village added successfully');
-    }
-    
-    setOpenVillageDialog(false);
-    setOpenSnackbar(true);
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>Settings</Typography>
-      
-      <Paper sx={{ width: '100%' }}>
-        <Tabs
-          value={tabValue}
-          onChange={handleTabChange}
-          variant="scrollable"
-          scrollButtons="auto"
-          aria-label="settings tabs"
-        >
-          <Tab icon={<SettingsIcon />} iconPosition="start" label="General" />
-          <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
-          <Tab icon={<PaymentIcon />} iconPosition="start" label="Payment Methods" />
-          <Tab icon={<HomeIcon />} iconPosition="start" label="Village Details" />
-        </Tabs>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>Settings</Typography>
         
-        {/* General Settings Tab */}
-        <TabPanel value={tabValue} index={0}>
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">General Settings</Typography>
-              <Button
-                variant={editingSettings ? "outlined" : "contained"}
-                onClick={() => setEditingSettings(!editingSettings)}
-              >
-                {editingSettings ? "Cancel" : "Edit Settings"}
-              </Button>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>
+        )}
+        
+        <Paper sx={{ width: '100%' }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="scrollable"
+            scrollButtons="auto"
+            aria-label="settings tabs"
+          >
+            <Tab icon={<SettingsIcon />} iconPosition="start" label="General" />
+            <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
+            <Tab icon={<PaymentIcon />} iconPosition="start" label="Payment Methods" />
+            <Tab icon={<HomeIcon />} iconPosition="start" label="Village Details" />
+          </Tabs>
+          
+          {/* General Settings Tab */}
+          <TabPanel value={tabValue} index={0}>
+            <Box sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>General Settings</Typography>
+              <Divider sx={{ mb: 3 }} />
+              
+              <Alert severity="info">
+                General settings configuration will be implemented in future updates.
+              </Alert>
             </Box>
-            
-            <Divider sx={{ mb: 3 }} />
-            
-            <Box component="form" sx={{ 
-              display: 'grid', 
-              gap: 3,
-              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' },
-              maxWidth: 800
-            }}>
-              <TextField
-                label="Default Electricity Price (EGP per unit)"
-                type="number"
-                name="electricityPrice"
-                value={settingsData.electricityPrice}
-                onChange={handleSettingsChange}
-                disabled={!editingSettings}
-                fullWidth
-                InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-              />
-              <TextField
-                label="Default Water Price (EGP per unit)"
-                type="number"
-                name="waterPrice"
-                value={settingsData.waterPrice}
-                onChange={handleSettingsChange}
-                disabled={!editingSettings}
-                fullWidth
-                InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-              />
-              <TextField
-                label="Default Gas Price (EGP per unit)"
-                type="number"
-                name="gasPrice"
-                value={settingsData.gasPrice}
-                onChange={handleSettingsChange}
-                disabled={!editingSettings}
-                fullWidth
-                InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-              />
-            </Box>
-            
-            {editingSettings && (
-              <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-                <Button variant="contained" onClick={handleSaveSettings}>
-                  Save Settings
+          </TabPanel>
+          
+          {/* Users Management Tab */}
+          <TabPanel value={tabValue} index={1}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Manage Users</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenAddUserDialog}
+                >
+                  Add User
                 </Button>
               </Box>
-            )}
-          </Box>
-        </TabPanel>
-        
-        {/* Users Tab */}
-        <TabPanel value={tabValue} index={1}>
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Manage Users</Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleOpenAddUserDialog}
-              >
-                Add User
-              </Button>
-            </Box>
-            
-            <Divider sx={{ mb: 3 }} />
-            
-            <List>
-              {users.map(user => (
-                <ListItem key={user.id} divider>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Typography variant="subtitle1">{user.name}</Typography>
-                        <Chip 
-                          size="small"
-                          label={user.role.charAt(0).toUpperCase() + user.role.slice(1)} 
-                          color={user.role === 'admin' ? 'error' : user.role === 'owner' ? 'primary' : 'default'}
-                          sx={{ ml: 1 }}
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <>
-                        <Typography component="span" variant="body2">
-                          {user.email} {user.phone && `| ${user.phone}`}
-                        </Typography>
-                        <br />
-                        {user.permissions && (
-                          <Typography component="span" variant="body2" color="text.secondary">
-                            Access: {user.permissions.villageAccess.length > 0 
-                              ? villages
-                                  .filter(v => user.permissions?.villageAccess.includes(v.id))
-                                  .map(v => v.name)
-                                  .join(', ')
-                              : 'No village access'
-                            }
-                            <br />
-                            Permissions: {[
-                              user.permissions.canView ? 'View' : null,
-                              user.permissions.canAdd ? 'Add' : null,
-                              user.permissions.canEdit ? 'Edit' : null,
-                            ].filter(Boolean).join(', ') || 'None'}
-                          </Typography>
-                        )}
-                      </>
-                    }
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton edge="end" aria-label="edit" onClick={() => handleEditUser(user.id)}>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton edge="end" aria-label="delete" onClick={() => handleDeleteUser(user.id)}>
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </TabPanel>
-        
-        {/* Payment Methods Tab */}
-        <TabPanel value={tabValue} index={2}>
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Payment Methods</Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => setOpenAddPaymentDialog(true)}
-              >
-                Add Method
-              </Button>
-            </Box>
-            
-            <Divider sx={{ mb: 3 }} />
-            
-            <List>
-              {paymentMethods.map(method => (
-                <ListItem key={method.id} divider>
-                  <ListItemText
-                    primary={method.name}
-                    secondary={method.description || 'No description'}
-                  />
-                  <ListItemSecondaryAction>
-                    <IconButton 
-                      edge="end" 
-                      aria-label="edit"
-                      onClick={() => handleEditPaymentMethod(method.id)}
-                      sx={{ mr: 1 }}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton 
-                      edge="end" 
-                      aria-label="delete"
-                      onClick={() => handleDeletePaymentMethod(method.id)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </TabPanel>
-        
-        {/* Village Details Tab */}
-        <TabPanel value={tabValue} index={3}>
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">Village Details</Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleOpenAddVillageDialog}
-              >
-                Add Village
-              </Button>
-            </Box>
-            
-            <Divider sx={{ mb: 3 }} />
-            
-            <Grid container spacing={3}>
-              {villages.map(village => (
-                <Grid key={village.id} size={{ xs: 12, md: 6, lg: 4 }}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                        <Typography variant="h6" gutterBottom>{village.name}</Typography>
-                        <Chip label={`${village.numberOfPhases} Phases`} color="primary" size="small" />
-                      </Box>
-                      
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Address:</strong> {village.address}, {village.city}, {village.country}
-                      </Typography>
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Contact:</strong> {village.contactEmail} | {village.contactPhone}
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Electricity:</strong> {village.electricityPrice} EGP/unit
-                      </Typography>
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Gas:</strong> {village.gasPrice} EGP/unit
-                      </Typography>
-                      <Typography variant="body2" gutterBottom>
-                        <strong>Water:</strong> {village.waterPrice} EGP/unit
-                      </Typography>
-                      <Divider sx={{ my: 1 }} />
-                      
-                      <Typography variant="body2" color="text.secondary">
-                        {village.description}
-                      </Typography>
-                    </CardContent>
-                    <CardActions>
-                      <Button 
-                        size="small" 
-                        startIcon={<EditIcon />} 
-                        onClick={() => handleEditVillage(village.id)}
-                      >
-                        Edit
-                      </Button>
-                      <Button 
-                        size="small" 
-                        color="error" 
-                        startIcon={<DeleteIcon />} 
-                        onClick={() => handleDeleteVillage(village.id)}
-                      >
-                        Delete
-                      </Button>
-                    </CardActions>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Box>
-        </TabPanel>
-      </Paper>
-      
-      {/* Add/Edit User Dialog */}
-      <Dialog open={openUserDialog} onClose={() => setOpenUserDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{editingUser ? 'Edit User' : 'Add New User'}</DialogTitle>
-        <DialogContent dividers>
-          <Box component="form" sx={{ pt: 1 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Name"
-                  name="name"
-                  value={newUser.name}
-                  onChange={handleUserChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Email"
-                  name="email"
-                  type="email"
-                  value={newUser.email}
-                  onChange={handleUserChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Phone"
-                  name="phone"
-                  value={newUser.phone}
-                  onChange={handleUserChange}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth>
-                  <InputLabel>Role</InputLabel>
-                  <Select
-                    value={newUser.role}
-                    label="Role"
-                    onChange={handleUserRoleChange}
-                  >
-                    <MenuItem value="admin">Admin</MenuItem>
-                    <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
               
-              <Grid size={{ xs: 12 }}>
-                <Divider>
-                  <Chip icon={<LockIcon />} label="Permissions" />
-                </Divider>
-              </Grid>
+              <Divider sx={{ mb: 3 }} />
               
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="subtitle1" gutterBottom>Village Access</Typography>
-                <FormGroup row>
-                  {villages.map(village => (
-                    <FormControlLabel
-                      key={village.id}
-                      control={
-                        <Checkbox 
-                          checked={newUser.permissions.villageAccess.includes(village.id)} 
-                          onChange={() => handleVillageAccessChange(village.id)}
-                        />
-                      }
-                      label={village.name}
-                    />
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <List>
+                  {users.map(user => (
+                    <ListItem key={user.id} divider>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="subtitle1">{user.name}</Typography>
+                            <Chip 
+                              label={user.role} 
+                              size="small" 
+                              color={
+                                user.role === 'super_admin' ? 'error' :
+                                user.role === 'admin' ? 'primary' :
+                                user.role === 'owner' ? 'secondary' : 'default'
+                              }
+                            />
+                            {!user.is_active && (
+                              <Chip label="Inactive" size="small" color="error" variant="outlined" />
+                            )}
+                          </Box>
+                        }
+                        secondary={
+                          <Box>
+                            <Typography component="span" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <EmailIcon fontSize="small" />
+                              {user.email}
+                            </Typography>
+                            {user.phone_number && (
+                              <Typography component="span" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <PhoneIcon fontSize="small" />
+                                {user.phone_number}
+                              </Typography>
+                            )}
+                            <Typography variant="caption" color="text.secondary">
+                              Created: {new Date(user.created_at).toLocaleDateString()}
+                              {user.last_login && ` | Last login: ${new Date(user.last_login).toLocaleDateString()}`}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <Tooltip title="Edit User">
+                          <IconButton edge="end" onClick={() => handleEditUser(user)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete User">
+                          <IconButton edge="end" onClick={() => handleDeleteUser(user.id)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </ListItemSecondaryAction>
+                    </ListItem>
                   ))}
-                </FormGroup>
-              </Grid>
+                </List>
+              )}
+            </Box>
+          </TabPanel>
+          
+          {/* Payment Methods Tab */}
+          <TabPanel value={tabValue} index={2}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Payment Methods</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenAddPaymentDialog}
+                >
+                  Add Payment Method
+                </Button>
+              </Box>
               
-              <Grid size={{ xs: 12 }}>
-                <Typography variant="subtitle1" gutterBottom>User Privileges</Typography>
-                <FormGroup row>
-                  <FormControlLabel
-                    control={
-                      <Checkbox 
-                        checked={newUser.permissions.canView} 
-                        onChange={() => handlePermissionChange('canView')}
+              <Divider sx={{ mb: 3 }} />
+              
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <List>
+                  {paymentMethods.map(method => (
+                    <ListItem key={method.id} divider>
+                      <ListItemText
+                        primary={method.name}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              {method.description || 'No description provided'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Created by: {method.creator?.name || 'Unknown'} | 
+                              {' '}Created: {new Date(method.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
                       />
-                    }
-                    label="Can View"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox 
-                        checked={newUser.permissions.canAdd} 
-                        onChange={() => handlePermissionChange('canAdd')}
-                      />
-                    }
-                    label="Can Add"
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox 
-                        checked={newUser.permissions.canEdit} 
-                        onChange={() => handlePermissionChange('canEdit')}
-                      />
-                    }
-                    label="Can Edit"
-                  />
-                </FormGroup>
-              </Grid>
-            </Grid>
+                      <ListItemSecondaryAction>
+                        <Tooltip title="Edit Payment Method">
+                          <IconButton edge="end" onClick={() => handleEditPaymentMethod(method)}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Payment Method">
+                          <IconButton edge="end" onClick={() => handleDeletePaymentMethod(method.id)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </TabPanel>
+          
+          {/* Villages Tab */}
+          <TabPanel value={tabValue} index={3}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Village Details</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenAddVillageDialog}
+                >
+                  Add Village
+                </Button>
+              </Box>
+              
+              <Divider sx={{ mb: 3 }} />
+              
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <Grid container spacing={3}>
+                  {villages.map(village => (
+                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={village.id}>
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+                            <Typography variant="h6" gutterBottom>{village.name}</Typography>
+                            <Chip label={`${village.phases} Phases`} color="primary" size="small" />
+                          </Box>
+                          
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <ElectricIcon fontSize="small" color="warning" />
+                              <Typography variant="body2">
+                                Electricity: {village.electricity_price} EGP/unit
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <WaterIcon fontSize="small" color="info" />
+                              <Typography variant="body2">
+                                Water: {village.water_price} EGP/unit
+                              </Typography>
+                            </Box>
+                          </Box>
+                          
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
+                            Created: {new Date(village.created_at).toLocaleDateString()}
+                          </Typography>
+                        </CardContent>
+                        <CardActions>
+                          <Button 
+                            size="small" 
+                            startIcon={<EditIcon />} 
+                            onClick={() => handleEditVillage(village)}
+                          >
+                            Edit
+                          </Button>
+                          <Button 
+                            size="small" 
+                            color="error" 
+                            startIcon={<DeleteIcon />} 
+                            onClick={() => handleDeleteVillage(village.id)}
+                          >
+                            Delete
+                          </Button>
+                        </CardActions>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              )}
+            </Box>
+          </TabPanel>
+        </Paper>
+      </Box>
+
+      {/* User Dialog */}
+      <Dialog open={openUserDialog} onClose={() => setOpenUserDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingUser ? 'Edit User' : 'Add New User'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Name"
+              name="name"
+              value={newUser.name}
+              onChange={handleUserChange}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Email"
+              name="email"
+              type="email"
+              value={newUser.email}
+              onChange={handleUserChange}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Phone Number"
+              name="phone_number"
+              value={newUser.phone_number}
+              onChange={handleUserChange}
+              fullWidth
+            />
+            {!editingUser && (
+              <TextField
+                label="Password"
+                name="password"
+                type="password"
+                value={newUser.password}
+                onChange={handleUserChange}
+                fullWidth
+                required
+              />
+            )}
+            <FormControl fullWidth>
+              <InputLabel>Role</InputLabel>
+              <Select
+                value={newUser.role}
+                label="Role"
+                onChange={handleUserRoleChange}
+              >
+                <MenuItem value="renter">Renter</MenuItem>
+                <MenuItem value="owner">Owner</MenuItem>
+                <MenuItem value="admin">Admin</MenuItem>
+                {currentUser?.role === 'super_admin' && (
+                  <MenuItem value="super_admin">Super Admin</MenuItem>
+                )}
+              </Select>
+            </FormControl>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newUser.is_active}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, is_active: e.target.checked }))}
+                />
+              }
+              label="Active"
+            />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenUserDialog(false)}>Cancel</Button>
-          <Button 
-            variant="contained" 
-            startIcon={<SaveIcon />}
-            onClick={handleSaveUser}
-          >
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveUser}>
             {editingUser ? 'Update User' : 'Add User'}
           </Button>
         </DialogActions>
       </Dialog>
-      
-      {/* Add/Edit Village Dialog */}
-      <Dialog open={openVillageDialog} onClose={() => setOpenVillageDialog(false)} maxWidth="md" fullWidth>
-        <DialogTitle>{editingVillage ? 'Edit Village' : 'Add New Village'}</DialogTitle>
-        <DialogContent dividers>
-          <Box component="form" sx={{ pt: 1 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Village Name"
-                  name="name"
-                  value={newVillage.name}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Number of Phases"
-                  name="numberOfPhases"
-                  type="number"
-                  value={newVillage.numberOfPhases}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                  InputProps={{ inputProps: { min: 1 } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Address"
-                  name="address"
-                  value={newVillage.address}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="City"
-                  name="city"
-                  value={newVillage.city}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Country"
-                  name="country"
-                  value={newVillage.country}
-                  onChange={handleVillageChange}
-                  fullWidth
-                />
-              </Grid>
-              
-              <Grid size={{ xs: 12 }}>
-                <Divider>
-                  <Chip icon={<PaymentIcon />} label="Utility Prices" />
-                </Divider>
-              </Grid>
-              
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  label="Electricity Price (EGP/unit)"
-                  name="electricityPrice"
-                  type="number"
-                  value={newVillage.electricityPrice}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                  InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  label="Gas Price (EGP/unit)"
-                  name="gasPrice"
-                  type="number"
-                  value={newVillage.gasPrice}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                  InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 4 }}>
-                <TextField
-                  label="Water Price (EGP/unit)"
-                  name="waterPrice"
-                  type="number"
-                  value={newVillage.waterPrice}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  required
-                  InputProps={{ inputProps: { min: 0, step: 0.01 } }}
-                />
-              </Grid>
-              
-              <Grid size={{ xs: 12 }}>
-                <Divider>
-                  <Chip icon={<HomeIcon />} label="Contact Information" />
-                </Divider>
-              </Grid>
-              
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Contact Email"
-                  name="contactEmail"
-                  type="email"
-                  value={newVillage.contactEmail}
-                  onChange={handleVillageChange}
-                  fullWidth
-                />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  label="Contact Phone"
-                  name="contactPhone"
-                  value={newVillage.contactPhone}
-                  onChange={handleVillageChange}
-                  fullWidth
-                />
-              </Grid>
-              
-              <Grid size={{ xs: 12 }}>
-                <TextField
-                  label="Description"
-                  name="description"
-                  value={newVillage.description}
-                  onChange={handleVillageChange}
-                  fullWidth
-                  multiline
-                  rows={3}
-                />
-              </Grid>
-            </Grid>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenVillageDialog(false)}>Cancel</Button>
-          <Button 
-            variant="contained" 
-            startIcon={<SaveIcon />}
-            onClick={handleSaveVillage}
-          >
-            {editingVillage ? 'Update Village' : 'Add Village'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-      
-      {/* Add/Edit Payment Method Dialog */}
-      <Dialog open={openAddPaymentDialog} onClose={() => setOpenAddPaymentDialog(false)}>
-        <DialogTitle>{newPaymentMethod.name ? 'Edit Payment Method' : 'Add Payment Method'}</DialogTitle>
+
+      {/* Payment Method Dialog */}
+      <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingPayment ? 'Edit Payment Method' : 'Add Payment Method'}
+        </DialogTitle>
         <DialogContent>
-          <Box sx={{ pt: 1, width: 400, maxWidth: '100%' }}>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
               label="Name"
               value={newPaymentMethod.name}
               onChange={(e) => handlePaymentMethodChange(e, 'name')}
               fullWidth
-              margin="normal"
               required
             />
             <TextField
@@ -986,34 +748,81 @@ export default function Settings() {
               value={newPaymentMethod.description}
               onChange={(e) => handlePaymentMethodChange(e, 'description')}
               fullWidth
-              margin="normal"
               multiline
               rows={3}
             />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAddPaymentDialog(false)}>Cancel</Button>
-          <Button 
-            onClick={handleAddPaymentMethod} 
-            variant="contained"
-            disabled={!newPaymentMethod.name}
-          >
-            {newPaymentMethod.name ? 'Update' : 'Add'}
+          <Button onClick={() => setOpenPaymentDialog(false)}>Cancel</Button>
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSavePaymentMethod}>
+            {editingPayment ? 'Update Method' : 'Add Method'}
           </Button>
         </DialogActions>
       </Dialog>
-      
+
+      {/* Village Dialog */}
+      <Dialog open={openVillageDialog} onClose={() => setOpenVillageDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingVillage ? 'Edit Village' : 'Add Village'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Village Name"
+              name="name"
+              value={newVillage.name}
+              onChange={handleVillageChange}
+              fullWidth
+              required
+            />
+            <TextField
+              label="Electricity Price (EGP/unit)"
+              name="electricity_price"
+              type="number"
+              value={newVillage.electricity_price}
+              onChange={handleVillageChange}
+              fullWidth
+              required
+              InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+            />
+            <TextField
+              label="Water Price (EGP/unit)"
+              name="water_price"
+              type="number"
+              value={newVillage.water_price}
+              onChange={handleVillageChange}
+              fullWidth
+              required
+              InputProps={{ inputProps: { min: 0, step: 0.01 } }}
+            />
+            <TextField
+              label="Number of Phases"
+              name="phases"
+              type="number"
+              value={newVillage.phases}
+              onChange={handleVillageChange}
+              fullWidth
+              required
+              InputProps={{ inputProps: { min: 1, max: 20 } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenVillageDialog(false)}>Cancel</Button>
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveVillage}>
+            {editingVillage ? 'Update Village' : 'Add Village'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Snackbar for notifications */}
       <Snackbar
         open={openSnackbar}
-        autoHideDuration={5000}
+        autoHideDuration={6000}
         onClose={() => setOpenSnackbar(false)}
-      >
-        <Alert onClose={() => setOpenSnackbar(false)} severity="success" sx={{ width: '100%' }}>
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </Box>
+        message={snackbarMessage}
+      />
+    </Container>
   );
-} 
+}

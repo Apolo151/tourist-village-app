@@ -458,7 +458,8 @@ export class ApartmentService {
       arrival_date: new Date(booking.arrival_date),
       leaving_date: new Date(booking.leaving_date),
       status: booking.status,
-      notes: booking.notes || undefined,
+      number_of_people: booking.number_of_people || 1,
+      notes: booking.notes,
       created_by: booking.created_by,
       created_at: new Date(booking.created_at),
       updated_at: new Date(booking.updated_at),
@@ -469,7 +470,6 @@ export class ApartmentService {
         phone_number: booking.user_phone || undefined,
         role: booking.user_role,
         is_active: Boolean(booking.user_is_active),
-        last_login: booking.user_last_login ? new Date(booking.user_last_login) : undefined,
         created_at: new Date(booking.user_created_at),
         updated_at: new Date(booking.user_updated_at)
       } : undefined
@@ -645,7 +645,8 @@ export class ApartmentService {
       arrival_date: new Date(booking.arrival_date),
       leaving_date: new Date(booking.leaving_date),
       status: booking.status,
-      notes: booking.notes || undefined,
+      number_of_people: booking.number_of_people || 1,
+      notes: booking.notes,
       created_by: booking.created_by,
       created_at: new Date(booking.created_at),
       updated_at: new Date(booking.updated_at),
@@ -656,7 +657,6 @@ export class ApartmentService {
         phone_number: booking.user_phone || undefined,
         role: booking.user_role,
         is_active: Boolean(booking.user_is_active),
-        last_login: booking.user_last_login ? new Date(booking.user_last_login) : undefined,
         created_at: new Date(booking.user_created_at),
         updated_at: new Date(booking.user_updated_at)
       } : undefined

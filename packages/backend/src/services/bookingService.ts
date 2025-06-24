@@ -156,6 +156,7 @@ export class BookingService {
       apartment_id: row.apartment_id,
       user_id: row.user_id,
       user_type: row.user_type,
+      number_of_people: row.number_of_people,
       arrival_date: new Date(row.arrival_date),
       leaving_date: new Date(row.leaving_date),
       status: row.status,
@@ -255,6 +256,7 @@ export class BookingService {
       apartment_id: result.apartment_id,
       user_id: result.user_id,
       user_type: result.user_type,
+      number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
       status: result.status,
@@ -349,6 +351,7 @@ export class BookingService {
       apartment_id: data.apartment_id,
       user_id: data.user_id,
       user_type: userType, // Use apartment-ownership-based user_type
+      number_of_people: data.number_of_people || 1,
       arrival_date: arrivalDate,
       leaving_date: leavingDate,
       status: data.status || 'not_arrived',
@@ -431,6 +434,7 @@ export class BookingService {
     if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
     if (data.user_id !== undefined) updateData.user_id = data.user_id;
     if (data.user_type !== undefined) updateData.user_type = data.user_type;
+    if (data.number_of_people !== undefined) updateData.number_of_people = data.number_of_people;
     if (data.arrival_date !== undefined) updateData.arrival_date = arrivalDate;
     if (data.leaving_date !== undefined) updateData.leaving_date = leavingDate;
     if (data.status !== undefined) updateData.status = data.status;
@@ -590,6 +594,7 @@ export class BookingService {
       apartment_id: result.apartment_id,
       user_id: result.user_id,
       user_type: result.user_type,
+      number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
       status: result.status,

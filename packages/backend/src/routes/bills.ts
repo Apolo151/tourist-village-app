@@ -531,4 +531,100 @@ router.get(
   }
 );
 
+/**
+ * GET /api/bills/previous-years
+ * Get financial totals for years before the specified year
+ */
+router.get(
+  '/previous-years',
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { before_year } = req.query;
+
+      if (!before_year) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing parameter',
+          message: 'before_year parameter is required'
+        });
+      }
+
+      const year = parseInt(before_year as string);
+      if (isNaN(year)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid parameter',
+          message: 'before_year must be a valid number'
+        });
+      }
+
+      // Build base query for previous years totals
+      let paymentsQuery = db('payments as p')
+        .leftJoin('apartments as a', 'p.apartment_id', 'a.id')
+        .select(
+          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
+        )
+        .whereRaw("EXTRACT(YEAR FROM p.date) < ?", [year]);
+
+      let serviceRequestsQuery = db('service_requests as sr')
+        .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+        .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
+        .select(
+          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+        )
+        .whereRaw("EXTRACT(YEAR FROM sr.date_created) < ?", [year]);
+
+      // Apply role-based filtering
+      if (user.role === 'owner') {
+        paymentsQuery = paymentsQuery.where('a.owner_id', user.id);
+        serviceRequestsQuery = serviceRequestsQuery.where('a.owner_id', user.id);
+      } else if (user.role === 'renter') {
+        paymentsQuery = paymentsQuery.where('p.created_by', user.id);
+        serviceRequestsQuery = serviceRequestsQuery.where('sr.requester_id', user.id);
+      }
+
+      const [paymentsResult, serviceRequestsResult] = await Promise.all([
+        paymentsQuery.first(),
+        serviceRequestsQuery.first()
+      ]);
+
+      const paymentsEGP = parseFloat(paymentsResult?.total_egp || '0');
+      const paymentsGBP = parseFloat(paymentsResult?.total_gbp || '0');
+      const requestsEGP = parseFloat(serviceRequestsResult?.total_egp || '0');
+      const requestsGBP = parseFloat(serviceRequestsResult?.total_gbp || '0');
+
+      const totals = {
+        total_money_spent: {
+          EGP: paymentsEGP,
+          GBP: paymentsGBP
+        },
+        total_money_requested: {
+          EGP: requestsEGP,
+          GBP: requestsGBP
+        },
+        net_money: {
+          EGP: requestsEGP - paymentsEGP,
+          GBP: requestsGBP - paymentsGBP
+        }
+      };
+
+      res.json({
+        success: true,
+        data: totals
+      });
+    } catch (error: any) {
+      console.error('Error fetching previous years totals:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to fetch previous years totals'
+      });
+    }
+  }
+);
+
 export default router; 

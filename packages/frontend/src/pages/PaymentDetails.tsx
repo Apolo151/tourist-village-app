@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -13,133 +13,154 @@ import {
   CircularProgress,
   Card,
   CardContent,
-  Breadcrumbs,
-  Link,
   Stack,
   Divider,
   Alert,
   Chip,
   Container,
-  FormHelperText
+  FormHelperText,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Tooltip,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
-  Home as HomeIcon, 
-  NavigateNext as NavigateNextIcon,
-  Save as SaveIcon,
   ArrowBack as ArrowBackIcon,
-  Payments as PaymentsIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  Save as SaveIcon,
+  Cancel as CancelIcon,
+  Delete as DeleteIcon,
+  Payment as PaymentIcon
 } from '@mui/icons-material';
-import { mockPayments, mockApartments, mockUsers, mockBookings, mockPaymentMethods } from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { Payment } from '../types';
+import { paymentService } from '../services/paymentService';
+import type { Payment, CreatePaymentRequest, UpdatePaymentRequest, PaymentMethod } from '../services/paymentService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { bookingService } from '../services/bookingService';
+import type { Booking } from '../services/bookingService';
+import { format, parseISO } from 'date-fns';
 
-// Interface for the form data
 interface PaymentFormData {
-  cost: number;
-  currency: string;
+  apartment_id: number | '';
+  booking_id: number | '';
+  amount: number;
+  currency: 'EGP' | 'GBP';
+  method_id: number | '';
+  user_type: 'owner' | 'renter';
+  date: string;
   description: string;
-  placeOfPayment: string;
-  userType: 'owner' | 'renter';
-  userId: string;
-  apartmentId: string;
-  bookingId?: string;
 }
 
 export default function PaymentDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   
   // Determine the mode based on the current path
-  const isNew = location.pathname === '/payments/new';
-  const isEditing = location.pathname.includes('/edit');
+  const isNew = id === 'new';
+  const isEditing = !isNew && searchParams.get('edit') === 'true';
+  
+  const [payment, setPayment] = useState<Payment | null>(null);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] = useState<PaymentFormData>({
-    cost: 0,
-    currency: 'EGP',
-    description: '',
-    placeOfPayment: mockPaymentMethods[0]?.name || '',
-    userType: 'owner',
-    userId: '',
-    apartmentId: '',
-  });
-  const [originalPayment, setOriginalPayment] = useState<Payment | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
-  // Load payment data
+  const [formData, setFormData] = useState<PaymentFormData>({
+    apartment_id: '',
+    booking_id: '',
+    amount: 0,
+    currency: 'EGP',
+    method_id: '',
+    user_type: 'owner',
+    date: new Date().toISOString().split('T')[0],
+    description: ''
+  });
+  
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Check permissions
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const canEdit = isAdmin || (payment && payment.created_by === currentUser?.id);
+  const canDelete = isAdmin || (payment && payment.created_by === currentUser?.id);
+  
+  // Load initial data
   useEffect(() => {
-    if (isNew) {
-      // Get URL parameters
-      const params = new URLSearchParams(window.location.search);
-      const bookingId = params.get('bookingId');
-      const apartmentId = params.get('apartmentId');
-      const userId = params.get('userId');
-      const userType = params.get('userType') as 'owner' | 'renter';
-      const description = params.get('description');
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      // Get the user if we have a user ID
-      const user = userId ? mockUsers.find(u => u.id === userId) : null;
+        // Load apartments and payment methods for all users
+        const [apartmentsData, paymentMethodsData] = await Promise.all([
+          apartmentService.getApartments({ limit: 100 }),
+          paymentService.getPaymentMethods({ limit: 100 })
+        ]);
+        
+        setApartments(apartmentsData.data);
+        setPaymentMethods(paymentMethodsData.data);
+        
+        // Load bookings for admins or if editing/creating
+        if (isAdmin || isNew || isEditing) {
+          const bookingsData = await bookingService.getBookings({ limit: 100 });
+          setBookings(bookingsData.bookings);
+        }
+        
+        // Load payment data if not creating new
+        if (!isNew && id) {
+          const paymentData = await paymentService.getPaymentById(parseInt(id));
+          setPayment(paymentData);
+          setFormData({
+            apartment_id: paymentData.apartment_id,
+            booking_id: paymentData.booking_id || '',
+            amount: paymentData.amount,
+            currency: paymentData.currency,
+            method_id: paymentData.method_id,
+            user_type: paymentData.user_type,
+            date: paymentData.date.split('T')[0], // Extract date part
+            description: paymentData.description || ''
+          });
+        } else {
+          // Handle URL parameters for pre-filled data
+          const apartmentId = searchParams.get('apartmentId');
+          const bookingId = searchParams.get('bookingId');
+          const userType = searchParams.get('userType') as 'owner' | 'renter';
+          const description = searchParams.get('description');
+          
+          if (apartmentId) setFormData(prev => ({ ...prev, apartment_id: parseInt(apartmentId) }));
+          if (bookingId) setFormData(prev => ({ ...prev, booking_id: parseInt(bookingId) }));
+          if (userType) setFormData(prev => ({ ...prev, user_type: userType }));
+          if (description) setFormData(prev => ({ ...prev, description }));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load payment data');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-      // Set initial form data
-      setFormData(prev => ({
-        ...prev,
-        bookingId: bookingId || undefined,
-        apartmentId: apartmentId || '',
-        userId: userId || '',
-        userType: userType || (user?.role as 'owner' | 'renter') || 'renter',
-        description: description || '',
-        placeOfPayment: mockPaymentMethods[0]?.name || '',
-      }));
-      
-      setLoading(false);
-      return;
-    }
-    
-    if (!id) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    
-    // In a real app, this would be an API call
-    const payment = mockPayments.find(p => p.id === id);
-    
-    if (!payment) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    
-    setOriginalPayment(payment);
-    setFormData({
-      cost: payment.cost,
-      currency: payment.currency as string,
-      description: payment.description,
-      placeOfPayment: payment.placeOfPayment,
-      userType: payment.userType,
-      userId: payment.userId,
-      apartmentId: payment.apartmentId,
-      bookingId: payment.bookingId,
-    });
-    
-    setLoading(false);
-  }, [id, isNew]);
+    loadData();
+  }, [id, isNew, isEditing, searchParams, isAdmin]);
   
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
     
-    if (!formData.apartmentId) newErrors.apartmentId = 'Apartment is required';
-    if (!formData.userId) newErrors.userId = 'User is required';
-    if (!formData.description) newErrors.description = 'Description is required';
-    if (!formData.cost) newErrors.cost = 'Amount is required';
-    if (!formData.placeOfPayment) newErrors.placeOfPayment = 'Payment type is required';
-    if (formData.userType === 'renter' && !formData.bookingId) {
-      newErrors.bookingId = 'Booking is required for renters';
+    if (!formData.apartment_id) newErrors.apartment_id = 'Apartment is required';
+    if (!formData.amount || formData.amount <= 0) newErrors.amount = 'Amount must be greater than 0';
+    if (!formData.method_id) newErrors.method_id = 'Payment method is required';
+    if (!formData.date) newErrors.date = 'Date is required';
+    if (formData.user_type === 'renter' && !formData.booking_id) {
+      newErrors.booking_id = 'Booking is required for renter payments';
     }
     
     setErrors(newErrors);
@@ -150,7 +171,7 @@ export default function PaymentDetails() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'cost' ? parseFloat(value) : value
+      [name]: name === 'amount' ? parseFloat(value) || 0 : value
     }));
     
     // Clear error for this field
@@ -167,8 +188,15 @@ export default function PaymentDetails() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: ['apartment_id', 'booking_id', 'method_id'].includes(name) 
+        ? (value === '' ? '' : parseInt(value))
+        : value
     }));
+    
+    // Clear booking when changing user type to owner
+    if (name === 'user_type' && value === 'owner') {
+      setFormData(prev => ({ ...prev, booking_id: '' }));
+    }
     
     // Clear error for this field
     if (errors[name]) {
@@ -180,443 +208,406 @@ export default function PaymentDetails() {
     }
   };
   
-  const handleSubmit = () => {
-    if (!validateForm()) {
-      return;
-    }
-
-    const updatedPayment = {
-      ...formData,
-      ...(isNew ? {
-        id: `payment${Date.now()}`,
-        createdById: currentUser?.id || 'user1',
-        createdAt: new Date().toISOString(),
-      } : {
-        id: id,
-      })
-    };
+  const handleSave = async () => {
+    if (!validateForm()) return;
     
-    // In a real app, you would make an API call here
-    if (isNew) {
-      // Add to mock data
-      mockPayments.push(updatedPayment as Payment);
-      // Navigate to the created payment's details page
-      navigate(`/payments/${updatedPayment.id}`);
-    } else {
-      // Update in mock data
-      const index = mockPayments.findIndex(p => p.id === id);
-      if (index !== -1) {
-        mockPayments[index] = updatedPayment as Payment;
+    try {
+      setSaving(true);
+      setError(null);
+      
+      const paymentData = {
+        apartment_id: formData.apartment_id as number,
+        booking_id: formData.booking_id || undefined,
+        amount: formData.amount,
+        currency: formData.currency,
+        method_id: formData.method_id as number,
+        user_type: formData.user_type,
+        date: formData.date,
+        description: formData.description || undefined
+      };
+      
+      if (isNew) {
+        const newPayment = await paymentService.createPayment(paymentData as CreatePaymentRequest);
+        navigate(`/payments/${newPayment.id}?success=true&message=${encodeURIComponent('Payment created successfully')}`);
+      } else if (id) {
+        const updatedPayment = await paymentService.updatePayment(parseInt(id), paymentData as UpdatePaymentRequest);
+        setPayment(updatedPayment);
+        navigate(`/payments/${id}?success=true&message=${encodeURIComponent('Payment updated successfully')}`);
       }
-      // Navigate back to payments list for edits
-      navigate('/payments');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save payment');
+    } finally {
+      setSaving(false);
     }
+  };
+  
+  const handleDelete = async () => {
+    if (!id || isNew) return;
+    
+    try {
+      await paymentService.deletePayment(parseInt(id));
+      navigate('/payments?success=true&message=' + encodeURIComponent('Payment deleted successfully'));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete payment');
+    } finally {
+      setDeleteDialogOpen(false);
+    }
+  };
+  
+  const handleEdit = () => {
+    navigate(`/payments/${id}?edit=true`);
   };
   
   const handleCancel = () => {
-    navigate(id && !isNew ? `/payments/${id}` : '/payments');
+    if (isNew) {
+      navigate('/payments');
+    } else {
+      navigate(`/payments/${id}`);
+    }
   };
   
   const handleBack = () => {
-    navigate(-1);
+    navigate('/payments');
   };
   
+  const formatDate = (dateString: string) => {
+    return format(parseISO(dateString), 'MMM dd, yyyy');
+  };
+  
+  const formatDateTime = (dateString: string) => {
+    return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
+  };
+  
+  // Filter bookings by selected apartment
+  const availableBookings = (bookings || []).filter(booking => 
+    !formData.apartment_id || booking.apartment_id === formData.apartment_id
+  );
+
   if (loading) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
           <CircularProgress />
         </Box>
       </Container>
     );
   }
-  
-  if (notFound) {
+
+  if (error && !isNew) {
     return (
-      <Container maxWidth="lg">
-        <Box>
-          <Alert severity="error" sx={{ mt: 2 }}>
-            Payment not found
-          </Alert>
-          <Button 
-            component={RouterLink}
-            to="/payments"
-            variant="contained" 
-            startIcon={<ArrowBackIcon />}
-            sx={{ mt: 2 }}
-          >
-            Back to Payments
-          </Button>
-        </Box>
+      <Container maxWidth="md">
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack} sx={{ mt: 2 }}>
+          Back to Payments
+        </Button>
       </Container>
     );
   }
-  
-  const apartment = mockApartments.find(apt => apt.id === formData.apartmentId);
-  const user = mockUsers.find(u => u.id === formData.userId);
-  const booking = formData.bookingId ? mockBookings.find(b => b.id === formData.bookingId) : undefined;
-  const creator = originalPayment?.createdById ? mockUsers.find(u => u.id === originalPayment.createdById) : undefined;
 
   return (
-    <Container maxWidth="lg">
-      <Box>
-        <Breadcrumbs 
-          separator={<NavigateNextIcon fontSize="small" />} 
-          aria-label="breadcrumb"
-          sx={{ mb: 3 }}
-        >
-          <Link 
-            component={RouterLink}
-            to="/"
-            underline="hover" 
-            color="inherit" 
-            sx={{ display: 'flex', alignItems: 'center' }}
-          >
-            <HomeIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Dashboard
-          </Link>
-          <Link 
-            component={RouterLink}
-            to="/payments"
-            underline="hover" 
-            color="inherit" 
-            sx={{ display: 'flex', alignItems: 'center' }}
-          >
-            <PaymentsIcon sx={{ mr: 0.5 }} fontSize="inherit" />
-            Payments
-          </Link>
-          <Typography color="text.primary">
-            {isNew ? 'New Payment' : isEditing ? 'Edit Payment' : 'Payment Details'}
-          </Typography>
-        </Breadcrumbs>
-        
+    <Container maxWidth="md">
+      <Box sx={{ mb: 4 }}>
+        {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button
-              variant="text"
-              color="primary"
-              startIcon={<ArrowBackIcon />}
-              onClick={handleBack}
-            >
+            <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
             <Typography variant="h4">
-              {isNew ? 'New Payment' : isEditing ? `Edit Payment` : 'Payment Details'}
+              {isNew ? 'New Payment' : isEditing ? 'Edit Payment' : 'Payment Details'}
             </Typography>
           </Box>
           
-          {!isNew && !isEditing && (
-            <Button
-              component={RouterLink}
-              to={`/payments/${id}/edit`}
-              variant="contained"
-              startIcon={<EditIcon />}
-            >
-              Edit
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {!isNew && !isEditing && canEdit && (
+              <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
+                Edit
+              </Button>
+            )}
+            {(isNew || isEditing) && (
+              <>
+                <Button 
+                  variant="contained" 
+                  startIcon={<SaveIcon />} 
+                  onClick={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
+                  Cancel
+                </Button>
+              </>
+            )}
+            {!isNew && !isEditing && canDelete && (
+              <Tooltip title="Delete Payment">
+                <IconButton color="error" onClick={() => setDeleteDialogOpen(true)}>
+                  <DeleteIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
         </Box>
-        
-        {!isNew && !isEditing && originalPayment && (
-          <Card sx={{ mb: 4 }}>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Payment Information */}
+        {!isNew && !isEditing && payment && (
+          <Card sx={{ mb: 3 }}>
             <CardContent>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
+              <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <PaymentIcon /> Payment Information
+              </Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Grid container spacing={2}>
+                <Grid xs={12} sm={6}>
                   <Typography variant="subtitle2" color="text.secondary">Payment ID</Typography>
-                  <Typography variant="body1">{originalPayment.id}</Typography>
-                </Box>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <Typography variant="subtitle2" color="text.secondary">Date</Typography>
-                  <Typography variant="body1">{new Date(originalPayment.createdAt).toLocaleString()}</Typography>
-                </Box>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
-                  <Typography variant="body1">{creator?.name || 'Unknown'}</Typography>
-                </Box>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                  <Chip label="Completed" color="success" size="small" />
-                </Box>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
+                  <Typography variant="body1">{payment.id}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
                   <Typography variant="subtitle2" color="text.secondary">Amount</Typography>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold', color: originalPayment.cost < 0 ? 'error.main' : 'success.main' }}>
-                    {originalPayment.cost.toLocaleString()} {originalPayment.currency}
-                  </Typography>
-                </Box>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
+                  <Chip
+                    label={paymentService.formatAmount(payment.amount, payment.currency)}
+                    color={paymentService.getCurrencyColor(payment.currency)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
                   <Typography variant="subtitle2" color="text.secondary">Payment Method</Typography>
-                  <Typography variant="body1">{originalPayment.placeOfPayment}</Typography>
-                </Box>
-              </Box>
+                  <Typography variant="body1">{payment.payment_method?.name || 'Unknown'}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">User Type</Typography>
+                  <Chip
+                    label={payment.user_type === 'owner' ? 'Owner' : 'Renter'}
+                    color={paymentService.getUserTypeColor(payment.user_type)}
+                    size="small"
+                  />
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Date</Typography>
+                  <Typography variant="body1">{formatDate(payment.date)}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
+                  <Typography variant="body1">{payment.created_by_user?.name || 'Unknown'}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
+                  <Typography variant="body1">{payment.apartment?.name || 'Unknown'}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Booking</Typography>
+                  <Typography variant="body1">
+                    {payment.booking ? 
+                      `${formatDate(payment.booking.arrival_date)} - ${formatDate(payment.booking.leaving_date)}` 
+                      : 'No booking'}
+                  </Typography>
+                </Grid>
+                {payment.description && (
+                  <Grid xs={12}>
+                    <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+                    <Typography variant="body1">{payment.description}</Typography>
+                  </Grid>
+                )}
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Created At</Typography>
+                  <Typography variant="body1">{formatDateTime(payment.created_at)}</Typography>
+                </Grid>
+                <Grid xs={12} sm={6}>
+                  <Typography variant="subtitle2" color="text.secondary">Last Updated</Typography>
+                  <Typography variant="body1">{formatDateTime(payment.updated_at)}</Typography>
+                </Grid>
+              </Grid>
             </CardContent>
           </Card>
         )}
-        
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Box component="form">
+
+        {/* Form */}
+        {(isNew || isEditing) && (
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Payment Details</Typography>
+            <Divider sx={{ mb: 3 }} />
+            
             <Stack spacing={3}>
-              <Typography variant="h6">{isEditing || isNew ? 'Payment Information' : 'Details'}</Typography>
-              
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.apartmentId}>
+              <Grid container spacing={2}>
+                <Grid xs={12} sm={6}>
+                  <FormControl fullWidth error={!!errors.apartment_id}>
                     <InputLabel>Apartment *</InputLabel>
                     <Select
-                      name="apartmentId"
-                      value={formData.apartmentId}
+                      name="apartment_id"
+                      value={formData.apartment_id.toString()}
                       label="Apartment *"
                       onChange={handleSelectChange}
-                      required
                     >
-                      {mockApartments.map(apt => (
-                        <MenuItem key={apt.id} value={apt.id}>{apt.name} ({apt.village})</MenuItem>
+                      <MenuItem value="">
+                        <em>Select Apartment</em>
+                      </MenuItem>
+                      {(apartments || []).map(apt => (
+                        <MenuItem key={apt.id} value={apt.id.toString()}>
+                          {apt.name} {apt.village && `(${apt.village.name})`}
+                        </MenuItem>
                       ))}
                     </Select>
-                    {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
+                    {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
                   </FormControl>
-                </Box>
+                </Grid>
                 
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.userType}>
+                <Grid xs={12} sm={6}>
+                  <FormControl fullWidth error={!!errors.user_type}>
                     <InputLabel>User Type *</InputLabel>
                     <Select
-                      name="userType"
-                      value={formData.userType}
+                      name="user_type"
+                      value={formData.user_type}
                       label="User Type *"
                       onChange={handleSelectChange}
-                      required
                     >
                       <MenuItem value="owner">Owner</MenuItem>
                       <MenuItem value="renter">Renter</MenuItem>
                     </Select>
-                    {errors.userType && <FormHelperText>{errors.userType}</FormHelperText>}
+                    {errors.user_type && <FormHelperText>{errors.user_type}</FormHelperText>}
                   </FormControl>
-                </Box>
+                </Grid>
                 
-                <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.userId}>
-                    <InputLabel>User *</InputLabel>
-                    <Select
-                      name="userId"
-                      value={formData.userId}
-                      label="User *"
-                      onChange={handleSelectChange}
-                      required
-                    >
-                      {mockUsers
-                        .filter(user => 
-                          (formData.userType === 'owner' && user.role === 'owner') ||
-                          (formData.userType === 'renter' && user.role === 'renter')
-                        )
-                        .map(user => (
-                          <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-                        ))
-                      }
-                    </Select>
-                    {errors.userId && <FormHelperText>{errors.userId}</FormHelperText>}
-                  </FormControl>
-                </Box>
-                
-                {formData.userType === 'renter' && formData.apartmentId && (
-                  <Box sx={{ width: { xs: '100%', md: '48%' } }}>
-                    <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.bookingId}>
-                      <InputLabel>Related Booking {formData.userType === 'renter' ? '*' : ''}</InputLabel>
-                      <Select
-                        name="bookingId"
-                        value={formData.bookingId || ''}
-                        label={`Related Booking ${formData.userType === 'renter' ? '*' : ''}`}
-                        onChange={handleSelectChange}
-                        required={formData.userType === 'renter'}
-                      >
-                        {mockBookings
-                          .filter(booking => 
-                            booking.apartmentId === formData.apartmentId && 
-                            booking.userId === formData.userId
-                          )
-                          .map(booking => (
-                            <MenuItem key={booking.id} value={booking.id}>
-                              {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
-                            </MenuItem>
-                          ))
-                        }
-                      </Select>
-                      {errors.bookingId && <FormHelperText>{errors.bookingId}</FormHelperText>}
-                    </FormControl>
-                  </Box>
-                )}
-              </Box>
-              
-              <Divider />
-              
-              <Typography variant="h6">Payment Details</Typography>
-              
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ width: '100%' }}>
+                <Grid xs={12} sm={6}>
                   <TextField
-                    name="description"
-                    label="Description *"
-                    fullWidth
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    required
-                    disabled={!isEditing && !isNew}
-                    error={!!errors.description}
-                    helperText={errors.description}
-                  />
-                </Box>
-                
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <TextField
-                    name="cost"
+                    name="amount"
                     label="Amount *"
                     type="number"
-                    fullWidth
-                    value={formData.cost || ''}
+                    value={formData.amount}
                     onChange={handleInputChange}
+                    fullWidth
+                    error={!!errors.amount}
+                    helperText={errors.amount}
                     inputProps={{ min: 0, step: 0.01 }}
-                    required
-                    disabled={!isEditing && !isNew}
-                    error={!!errors.cost}
-                    helperText={errors.cost}
                   />
-                </Box>
+                </Grid>
                 
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.currency}>
+                <Grid xs={12} sm={6}>
+                  <FormControl fullWidth error={!!errors.currency}>
                     <InputLabel>Currency *</InputLabel>
                     <Select
                       name="currency"
                       value={formData.currency}
                       label="Currency *"
                       onChange={handleSelectChange}
-                      required
                     >
                       <MenuItem value="EGP">EGP</MenuItem>
                       <MenuItem value="GBP">GBP</MenuItem>
                     </Select>
                     {errors.currency && <FormHelperText>{errors.currency}</FormHelperText>}
                   </FormControl>
-                </Box>
+                </Grid>
                 
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew} error={!!errors.placeOfPayment}>
-                    <InputLabel>Payment Type *</InputLabel>
+                <Grid xs={12} sm={6}>
+                  <FormControl fullWidth error={!!errors.method_id}>
+                    <InputLabel>Payment Method *</InputLabel>
                     <Select
-                      name="placeOfPayment"
-                      value={formData.placeOfPayment}
-                      label="Payment Type *"
+                      name="method_id"
+                      value={formData.method_id.toString()}
+                      label="Payment Method *"
                       onChange={handleSelectChange}
-                      required
                     >
-                      {mockPaymentMethods.map(method => (
-                        <MenuItem key={method.id} value={method.name}>{method.name}</MenuItem>
+                      <MenuItem value="">
+                        <em>Select Payment Method</em>
+                      </MenuItem>
+                      {(paymentMethods || []).map(method => (
+                        <MenuItem key={method.id} value={method.id.toString()}>
+                          {method.name}
+                        </MenuItem>
                       ))}
                     </Select>
-                    {errors.placeOfPayment && <FormHelperText>{errors.placeOfPayment}</FormHelperText>}
+                    {errors.method_id && <FormHelperText>{errors.method_id}</FormHelperText>}
                   </FormControl>
-                </Box>
-              </Box>
-              
-              {(isEditing || isNew) && (
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
-                  <Button variant="outlined" onClick={handleCancel}>
-                    Cancel
-                  </Button>
-                  <Button 
-                    variant="contained" 
-                    startIcon={<SaveIcon />}
-                    onClick={handleSubmit}
-                    disabled={
-                      !formData.apartmentId || 
-                      !formData.userId || 
-                      !formData.description || 
-                      !formData.cost || 
-                      !formData.placeOfPayment ||
-                      (formData.userType === 'renter' && !formData.bookingId)
-                    }
-                  >
-                    {isNew ? 'Create Payment' : 'Save Changes'}
-                  </Button>
-                </Box>
-              )}
+                </Grid>
+                
+                <Grid xs={12} sm={6}>
+                  <TextField
+                    name="date"
+                    label="Date *"
+                    type="date"
+                    value={formData.date}
+                    onChange={handleInputChange}
+                    fullWidth
+                    error={!!errors.date}
+                    helperText={errors.date}
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                
+                {formData.user_type === 'renter' && (
+                  <Grid xs={12}>
+                    <FormControl fullWidth error={!!errors.booking_id}>
+                      <InputLabel>Booking {formData.user_type === 'renter' ? '*' : ''}</InputLabel>
+                      <Select
+                        name="booking_id"
+                        value={formData.booking_id.toString()}
+                        label={`Booking ${formData.user_type === 'renter' ? '*' : ''}`}
+                        onChange={handleSelectChange}
+                      >
+                        <MenuItem value="">
+                          <em>Select Booking</em>
+                        </MenuItem>
+                        {availableBookings.map(booking => (
+                          <MenuItem key={booking.id} value={booking.id.toString()}>
+                            {booking.apartment?.name || 'Unknown'} - {formatDate(booking.arrival_date)} to {formatDate(booking.leaving_date)}
+                            {booking.user && ` (${booking.user.name})`}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.booking_id && <FormHelperText>{errors.booking_id}</FormHelperText>}
+                    </FormControl>
+                  </Grid>
+                )}
+                
+                <Grid xs={12}>
+                  <TextField
+                    name="description"
+                    label="Description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    fullWidth
+                    multiline
+                    rows={3}
+                    error={!!errors.description}
+                    helperText={errors.description}
+                  />
+                </Grid>
+              </Grid>
             </Stack>
-          </Box>
-        </Paper>
-        
-        {!isNew && !isEditing && (
-          <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" gutterBottom>Related Information</Typography>
-            
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-              {apartment && (
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Apartment</Typography>
-                      <Typography variant="body1">{apartment.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{apartment.village}</Typography>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        sx={{ mt: 2 }} 
-                        onClick={() => navigate(`/apartments/${apartment.id}`)}
-                      >
-                        View Apartment
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
-              
-              {user && (
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>User</Typography>
-                      <Typography variant="body1">{user.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">{user.email}</Typography>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        sx={{ mt: 2 }} 
-                        onClick={() => navigate(`/bills/user/${user.id}`)}
-                      >
-                        View User Bills
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
-              
-              {booking && (
-                <Box sx={{ width: { xs: '100%', md: '31%' } }}>
-                  <Card>
-                    <CardContent>
-                      <Typography variant="h6" gutterBottom>Booking</Typography>
-                      <Typography variant="body1">
-                        {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Status: {booking.state.charAt(0).toUpperCase() + booking.state.slice(1)}
-                      </Typography>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        sx={{ mt: 2 }} 
-                        onClick={() => navigate(`/bookings/${booking.id}`)}
-                      >
-                        View Booking
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </Box>
-              )}
-            </Box>
-          </Box>
+          </Paper>
         )}
+        
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>Delete Payment</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to delete this payment? This action cannot be undone.
+            </Typography>
+            {payment && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <Typography variant="body2">
+                  <strong>Payment:</strong> {paymentService.formatAmount(payment.amount, payment.currency)}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Date:</strong> {formatDate(payment.date)}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleDelete} color="error" variant="contained">
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Container>
   );

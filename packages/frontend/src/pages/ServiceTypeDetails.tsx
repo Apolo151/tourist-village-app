@@ -1,210 +1,348 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  Box, 
-  Typography, 
-  Paper, 
-  Button, 
-  TextField, 
-  Container, 
-  Alert,
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  Container,
+  Paper,
+  Typography,
+  TextField,
+  Button,
+  Box,
+  Grid,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  FormHelperText
+  Alert,
+  Card,
+  CardContent,
+  Divider,
+  CircularProgress,
+  IconButton,
+  Tooltip,
+  Stack
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material';
-import { 
-  ArrowBack as ArrowBackIcon,
-  Save as SaveIcon,
-  Edit as EditIcon,
-  Cancel as CancelIcon
-} from '@mui/icons-material';
-import { mockServiceTypes, mockUsers } from '../mockData';
+import type { SelectChangeEvent } from '@mui/material/Select';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import CancelIcon from '@mui/icons-material/Cancel';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useAuth } from '../context/AuthContext';
-import type { ServiceType } from '../types';
+import { serviceRequestService } from '../services/serviceRequestService';
+import type { 
+  ServiceType, 
+  CreateServiceTypeRequest, 
+  UpdateServiceTypeRequest
+} from '../services/serviceRequestService';
+import { userService } from '../services/userService';
+import type { User } from '../services/userService';
 
 export default function ServiceTypeDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { currentUser } = useAuth();
-  const isNew = location.pathname.includes('/services/types/new');
-  const [isEditing, setIsEditing] = useState(isNew);
-  const [error, setError] = useState('');
+  const [searchParams] = useSearchParams();
   
-  // Find service type from mock data
-  const initialServiceType = id 
-    ? mockServiceTypes.find(service => service.id === id) 
-    : { id: '', name: '', cost: 0, currency: 'EGP' as const, description: '', assigneeId: '' };
+  const [serviceType, setServiceType] = useState<ServiceType | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isNew] = useState(id === 'new');
   
-  const [serviceType, setServiceType] = useState<ServiceType | undefined>(initialServiceType);
-  
+  // Form data
+  const [formData, setFormData] = useState<CreateServiceTypeRequest>({
+    name: '',
+    cost: 0,
+    currency: 'EGP',
+    description: '',
+    default_assignee_id: undefined
+  });
+
+  // Check if user is admin
   useEffect(() => {
-    // Redirect if not admin
-    if (currentUser?.role !== 'admin') {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'super_admin') {
       navigate('/unauthorized');
     }
+  }, [currentUser?.role, navigate]);
+
+  // Check for success messages
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const message = searchParams.get('message');
     
-    // Set error if service type not found
-    if (!isNew && !serviceType) {
+    if (success && message) {
+      // Show success message (you can implement a snackbar here)
+      console.log('Success:', decodeURIComponent(message));
+    }
+  }, [searchParams]);
+
+  // Load data
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        console.log('Loading service type data for ID:', id);
+        
+        // Load users for assignee selection
+        const usersData = await userService.getUsers({ limit: 100 });
+        setUsers(usersData.data);
+
+        if (!isNew && id) {
+          console.log('Fetching service type by ID:', id);
+          // Load service type
+          const serviceTypeData = await serviceRequestService.getServiceTypeById(parseInt(id));
+          console.log('Loaded service type:', serviceTypeData);
+          setServiceType(serviceTypeData);
+          setFormData({
+            name: serviceTypeData.name,
+            cost: serviceTypeData.cost,
+            currency: serviceTypeData.currency,
+            description: serviceTypeData.description || '',
+            default_assignee_id: serviceTypeData.default_assignee_id
+          });
+        } else if (isNew) {
+          setIsEditing(true);
+        }
+      } catch (err) {
+        console.error('Error loading service type data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load service type');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [id, isNew]);
+
+  // If error, set error if service type not found
+  useEffect(() => {
+    if (!isNew && !serviceType && !loading) {
       setError('Service type not found');
     }
-  }, [currentUser?.role, serviceType, isNew, navigate]);
-  
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    if (serviceType) {
-      setServiceType({
-        ...serviceType,
-        [name]: name === 'cost' ? parseFloat(value) || 0 : value,
-      });
-    }
+  }, [serviceType, isNew, loading]);
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'cost' ? parseFloat(value) || 0 : value
+    }));
   };
 
-  const handleSelectChange = (e: SelectChangeEvent) => {
-    const { name, value } = e.target;
-    if (serviceType && name) {
-      setServiceType({
-        ...serviceType,
-        [name]: value,
-      });
-    }
+  const handleSelectChange = (event: SelectChangeEvent, fieldName: string) => {
+    const value = event.target.value;
+    setFormData(prev => ({
+      ...prev,
+      [fieldName]: fieldName === 'default_assignee_id' ? (value === '' ? undefined : parseInt(value)) : value
+    }));
   };
-  
-  const handleBack = () => {
-    navigate(-1);
-  };
-  
+
   const handleEdit = () => {
     setIsEditing(true);
   };
-  
+
   const handleCancel = () => {
     if (isNew) {
       navigate('/services');
     } else {
       setIsEditing(false);
-      // Reset to original values
-      setServiceType(initialServiceType);
+      // Reset form data
+      if (serviceType) {
+        setFormData({
+          name: serviceType.name,
+          cost: serviceType.cost,
+          currency: serviceType.currency,
+          description: serviceType.description || '',
+          default_assignee_id: serviceType.default_assignee_id
+        });
+      }
     }
   };
-  
-  const handleSave = () => {
-    if (!serviceType?.name || serviceType.cost <= 0) {
-      setError('Please fill in all required fields');
-      return;
-    }
-    
-    // In a real app, this would send data to an API
-    console.log('Saving service type:', serviceType);
-    
-    if (isNew) {
-      // Generate an ID for the new service type
-      const newServiceTypeId = `service${Date.now()}`;
-      console.log('Creating service type with ID:', newServiceTypeId);
-      
-      // Navigate to the created service type details page
-      navigate(`/services/types/${newServiceTypeId}`);
-    } else {
-      // Exit edit mode
-      setIsEditing(false);
-      setError('');
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Validate form data
+      if (!formData.name || formData.name.trim() === '') {
+        setError('Service name is required');
+        return;
+      }
+
+      if (formData.cost <= 0) {
+        setError('Cost must be greater than 0');
+        return;
+      }
+
+      console.log('Saving service type with data:', formData);
+
+      if (isNew) {
+        try {
+          const newServiceType = await serviceRequestService.createServiceType(formData);
+          console.log('Created service type:', newServiceType);
+          
+          if (newServiceType && newServiceType.id) {
+            console.log('Navigating to service type detail page:', `/services/types/${newServiceType.id}`);
+            // Navigate to the created service type's detail page
+            navigate(`/services/types/${newServiceType.id}?success=true&message=${encodeURIComponent('Service type created successfully')}`);
+          } else {
+            console.error('Service type created but no ID returned:', newServiceType);
+            setError('Service type was created but navigation failed. Check the services list.');
+            // Navigate back to services list instead
+            navigate(`/services?success=true&message=${encodeURIComponent('Service type created successfully')}&tab=0`);
+          }
+        } catch (createError) {
+          console.error('Create service type error:', createError);
+          throw createError;
+        }
+      } else if (id) {
+        const updateData: UpdateServiceTypeRequest = {
+          name: formData.name,
+          cost: formData.cost,
+          currency: formData.currency,
+          description: formData.description,
+          default_assignee_id: formData.default_assignee_id
+        };
+        
+        console.log('Updating service type with data:', updateData);
+        const updatedServiceType = await serviceRequestService.updateServiceType(parseInt(id), updateData);
+        console.log('Updated service type:', updatedServiceType);
+        
+        setServiceType(updatedServiceType);
+        setIsEditing(false);
+      }
+    } catch (err) {
+      console.error('Error saving service type:', err);
+      if (err instanceof Error) {
+        setError(`Failed to save service type: ${err.message}`);
+      } else {
+        setError('Failed to save service type: Unknown error');
+      }
+    } finally {
+      setLoading(false);
     }
   };
-  
-  if (error && !serviceType) {
+
+  const handleDelete = async () => {
+    if (!id || isNew) return;
+    
+    if (window.confirm('Are you sure you want to delete this service type? This action cannot be undone.')) {
+      try {
+        setLoading(true);
+        await serviceRequestService.deleteServiceType(parseInt(id));
+        navigate(`/services?success=true&message=${encodeURIComponent('Service type deleted successfully')}&tab=0`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to delete service type');
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleBack = () => {
+    navigate('/services');
+  };
+
+  if (loading) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3 }}>
-          <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={handleBack}
-          >
-            Back to Services
-          </Button>
+      <Container maxWidth="md">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
         </Box>
       </Container>
     );
   }
-  
+
+  if (error) {
+    return (
+      <Container maxWidth="md">
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack} sx={{ mt: 2 }}>
+          Back to Services
+        </Button>
+      </Container>
+    );
+  }
+
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 3 }}>
+    <Container maxWidth="md">
+      <Box sx={{ mb: 4 }}>
+        {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button 
-              startIcon={<ArrowBackIcon />} 
-              onClick={handleBack}
-              sx={{ mr: 2 }}
-            >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
-            <Typography variant="h5">
-              {isNew ? 'Add New Service Type' : serviceType?.name}
+            <Typography variant="h4">
+              {isNew ? 'New Service Type' : serviceType?.name || 'Service Type'}
             </Typography>
           </Box>
           
-          {!isNew && !isEditing && (
-            <Button
-              variant="contained"
-              startIcon={<EditIcon />}
-              onClick={handleEdit}
-            >
-              Edit
-            </Button>
-          )}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {!isEditing && !isNew && (
+              <>
+                <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
+                  Edit
+                </Button>
+                <Tooltip title="Delete Service Type">
+                  <IconButton color="error" onClick={handleDelete}>
+                    <DeleteIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            )}
+            {isEditing && (
+              <>
+                <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave}>
+                  Save
+                </Button>
+                <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
+                  Cancel
+                </Button>
+              </>
+            )}
+          </Box>
         </Box>
-        
-        {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
-        
+
+        {/* Form */}
         <Paper sx={{ p: 3 }}>
-          <Box sx={{ 
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' },
-            gap: 3
-          }}>
-            <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
-              <TextField
-                fullWidth
-                label="Service Name"
-                name="name"
-                value={serviceType?.name || ''}
-                onChange={handleInputChange}
-                disabled={!isEditing}
-                required
-                error={isEditing && !serviceType?.name}
-                helperText={isEditing && !serviceType?.name ? 'Service name is required' : ''}
-              />
-            </Box>
+          <Stack spacing={3}>
+            <TextField
+              label="Service Name"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              fullWidth
+              required
+              disabled={!isEditing}
+              error={!formData.name}
+              helperText={!formData.name ? 'Service name is required' : ''}
+            />
             
-            <Box>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
               <TextField
-                fullWidth
                 label="Cost"
                 name="cost"
                 type="number"
-                value={serviceType?.cost || ''}
+                value={formData.cost}
                 onChange={handleInputChange}
-                disabled={!isEditing}
+                fullWidth
                 required
-                error={isEditing && (serviceType?.cost || 0) <= 0}
-                helperText={isEditing && (serviceType?.cost || 0) <= 0 ? 'Cost must be greater than 0' : ''}
+                disabled={!isEditing}
+                inputProps={{ min: 0, step: 0.01 }}
+                error={formData.cost <= 0}
+                helperText={formData.cost <= 0 ? 'Cost must be greater than 0' : ''}
               />
-            </Box>
-            
-            <Box>
+              
               <FormControl fullWidth disabled={!isEditing}>
-                <InputLabel id="currency-label">Currency</InputLabel>
+                <InputLabel>Currency</InputLabel>
                 <Select
-                  labelId="currency-label"
-                  id="currency"
-                  name="currency"
-                  value={serviceType?.currency || 'EGP'}
-                  onChange={handleSelectChange}
+                  value={formData.currency}
                   label="Currency"
+                  onChange={(e) => handleSelectChange(e, 'currency')}
                 >
                   <MenuItem value="EGP">EGP</MenuItem>
                   <MenuItem value="GBP">GBP</MenuItem>
@@ -212,63 +350,65 @@ export default function ServiceTypeDetails() {
               </FormControl>
             </Box>
             
-            <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
-              <FormControl fullWidth disabled={!isEditing}>
-                <InputLabel id="assignee-label">Assignee</InputLabel>
-                <Select
-                  labelId="assignee-label"
-                  id="assigneeId"
-                  name="assigneeId"
-                  value={serviceType?.assigneeId || ''}
-                  onChange={handleSelectChange}
-                  label="Assignee"
-                >
-                  <MenuItem value="">
-                    <em>Not Assigned</em>
-                  </MenuItem>
-                  {mockUsers.filter(user => user.role === 'admin').map(user => (
-                    <MenuItem key={user.id} value={user.id}>
-                      {user.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-                <FormHelperText>Select who will be responsible for this service</FormHelperText>
-              </FormControl>
-            </Box>
+            <TextField
+              label="Description"
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              fullWidth
+              multiline
+              rows={3}
+              disabled={!isEditing}
+            />
             
-            <Box sx={{ gridColumn: { xs: '1', md: '1 / 3' } }}>
-              <TextField
-                fullWidth
-                label="Description"
-                name="description"
-                multiline
-                rows={4}
-                value={serviceType?.description || ''}
-                onChange={handleInputChange}
-                disabled={!isEditing}
-              />
-            </Box>
-          </Box>
-          
-          {isEditing && (
-            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 3 }}>
-              <Button
-                variant="outlined"
-                startIcon={<CancelIcon />}
-                onClick={handleCancel}
+            <FormControl fullWidth disabled={!isEditing}>
+              <InputLabel>Default Assignee (Optional)</InputLabel>
+              <Select
+                value={formData.default_assignee_id?.toString() || ''}
+                label="Default Assignee (Optional)"
+                onChange={(e) => handleSelectChange(e, 'default_assignee_id')}
               >
-                Cancel
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSave}
-              >
-                Save
-              </Button>
-            </Box>
-          )}
+                <MenuItem value="">
+                  <em>No default assignee</em>
+                </MenuItem>
+                {(users || []).filter(user => user.role === 'admin' || user.role === 'super_admin').map(user => (
+                  <MenuItem key={user.id} value={user.id.toString()}>
+                    {user.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
         </Paper>
+
+        {/* Service Type Info (when not editing) */}
+        {!isEditing && serviceType && (
+          <Card sx={{ mt: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Service Type Information</Typography>
+              <Divider sx={{ mb: 2 }} />
+              
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Created By</Typography>
+                  <Typography variant="body1">{serviceType.created_by_user?.name || 'Unknown'}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Created Date</Typography>
+                  <Typography variant="body1">{new Date(serviceType.created_at).toLocaleDateString()}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Last Updated</Typography>
+                  <Typography variant="body1">{new Date(serviceType.updated_at).toLocaleDateString()}</Typography>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" color="text.secondary">Service Type ID</Typography>
+                  <Typography variant="body1">{serviceType.id}</Typography>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        )}
       </Box>
     </Container>
   );

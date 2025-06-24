@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -7,7 +7,6 @@ import {
   Paper,
   Button,
   TextField,
-  Grid,
   Tabs,
   Tab,
   FormControl,
@@ -17,7 +16,6 @@ import {
   FormHelperText,
   Chip,
   Alert,
-  AlertTitle,
   List,
   ListItem,
   ListItemText,
@@ -26,6 +24,17 @@ import {
   SpeedDial,
   SpeedDialAction,
   SpeedDialIcon,
+  CircularProgress,
+  Card,
+  CardContent,
+  Divider,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -39,44 +48,58 @@ import {
   Edit as EditIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
+  Person as PersonIcon,
+  Home as HomeIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { format, parseISO, isBefore, isAfter } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { 
-  mockBookings,
-  mockApartments,
-  mockUsers,
-  mockBills,
-  mockEmails,
-  mockServiceRequests,
-  mockPayments
-} from '../mockData';
-import type { Booking, User } from '../types';
+import { bookingService } from '../services/bookingService';
+import type { Booking, BookingRelatedData, CreateBookingRequest, UpdateBookingRequest } from '../services/bookingService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { userService } from '../services/userService';
+import type { User } from '../services/userService';
 
 interface FormData {
-  id: string;
-  apartmentId: string;
-  userId: string;
-  userType: 'owner' | 'renter';
-  personName: string;
-  peopleCount: number;
-  arrivalDate: Date | null;
-  leavingDate: Date | null;
-  state: 'notArrived' | 'inVillage' | 'left';
+  apartment_id: number;
+  user_id: number;
+  number_of_people: number;
+  arrival_date: Date | null;
+  leaving_date: Date | null;
+  status: 'not_arrived' | 'in_village' | 'left';
   notes: string;
-  flightDetails: string;
 }
 
 interface FormErrors {
-  apartmentId?: string;
-  userId?: string;
-  personName?: string;
-  peopleCount?: string;
-  arrivalDate?: string;
-  leavingDate?: string;
+  apartment_id?: string;
+  user_id?: string;
+  arrival_date?: string;
+  leaving_date?: string;
+}
+
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel(props: TabPanelProps) {
+  const { children, value, index, ...other } = props;
+  return (
+    <div
+      role="tabpanel"
+      hidden={value !== index}
+      id={`booking-tabpanel-${index}`}
+      aria-labelledby={`booking-tab-${index}`}
+      {...other}
+    >
+      {value === index && <Box sx={{ py: 3 }}>{children}</Box>}
+    </div>
+  );
 }
 
 const BookingDetails: React.FC = () => {
@@ -85,70 +108,97 @@ const BookingDetails: React.FC = () => {
   const { currentUser } = useAuth();
   const isNew = id === 'new';
   
+  // State
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [relatedData, setRelatedData] = useState<BookingRelatedData | null>(null);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
   // Tab management
   const [activeTab, setActiveTab] = useState(0);
   
   // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(isNew);
   
   // Form state
   const [formData, setFormData] = useState<FormData>({
-    id: '',
-    apartmentId: '',
-    userId: '',
-    userType: 'renter',
-    personName: '',
-    peopleCount: 1,
-    arrivalDate: null,
-    leavingDate: null,
-    state: 'notArrived',
-    notes: '',
-    flightDetails: ''
+    apartment_id: 0,
+    user_id: 0,
+    number_of_people: 0,
+    arrival_date: null,
+    leaving_date: null,
+    status: 'not_arrived',
+    notes: ''
   });
   
   const [errors, setErrors] = useState<FormErrors>({});
   const [success, setSuccess] = useState(false);
   
-  // Filter states
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
-  
-  // Fetch booking data if editing
-  useEffect(() => {
-    if (!isNew && id) {
-      const booking = mockBookings.find(b => b.id === id);
-      if (booking) {
-        const user = mockUsers.find(u => u.id === booking.userId);
-        setFormData({
-          id: booking.id,
-          apartmentId: booking.apartmentId,
-          userId: booking.userId,
-          userType: user?.role as 'owner' | 'renter' || 'renter',
-          personName: user?.name || '',
-          peopleCount: 1, // This would be from an extended booking model
-          arrivalDate: parseISO(booking.arrivalDate),
-          leavingDate: parseISO(booking.leavingDate),
-          state: booking.state,
-          notes: '', // This would be from an extended booking model
-          flightDetails: '' // This would be from an extended booking model
-        });
-      } else {
-        // Booking not found
-        navigate('/bookings');
-      }
-    }
-  }, [id, isNew, navigate]);
-  
-  // Filter users based on selected user type
-  useEffect(() => {
-    setFilteredUsers(mockUsers.filter(user => user.role === formData.userType));
-  }, [formData.userType]);
-  
   // Check if user is admin
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin') {
+    if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
       navigate('/unauthorized');
     }
   }, [currentUser, navigate]);
+
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const [apartmentsData, usersData] = await Promise.all([
+          apartmentService.getApartments({ limit: 100 }),
+          userService.getUsers({ limit: 100 })
+        ]);
+        setApartments(apartmentsData.data);
+        setUsers(usersData.data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load initial data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+
+  // Load booking data if editing
+  useEffect(() => {
+    const loadBookingData = async () => {
+    if (!isNew && id) {
+        try {
+          setLoading(true);
+          const [bookingData, relatedBookingData] = await Promise.all([
+            bookingService.getBookingById(parseInt(id)),
+            bookingService.getBookingWithRelatedData(parseInt(id))
+          ]);
+          
+          setBooking(bookingData);
+          setRelatedData(relatedBookingData);
+        setFormData({
+            apartment_id: bookingData.apartment_id,
+            user_id: bookingData.user_id,
+            number_of_people: bookingData.number_of_people,
+            arrival_date: parseISO(bookingData.arrival_date),
+            leaving_date: parseISO(bookingData.leaving_date),
+            status: bookingData.status,
+            notes: bookingData.notes || ''
+          });
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to load booking data');
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (!isNew && apartments.length > 0) {
+      loadBookingData();
+    }
+  }, [id, isNew, apartments.length]);
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -156,316 +206,237 @@ const BookingDetails: React.FC = () => {
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === 'number_of_people') {
+      setFormData(prev => ({ ...prev, [name]: parseInt(value) || 1 }));
+    } else {
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-  
-  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    const numValue = value === '' ? 0 : parseInt(value, 10);
-    
-    if (!isNaN(numValue)) {
-      setFormData(prev => ({ ...prev, [name]: numValue }));
     }
   };
   
   const handleSelectChange = (e: SelectChangeEvent<string>, field: keyof FormData) => {
-    setFormData(prev => ({ ...prev, [field]: e.target.value }));
-    
-    // Special case for user selection
-    if (field === 'userId') {
-      const user = mockUsers.find(u => u.id === e.target.value);
-      if (user) {
-        setFormData(prev => ({ 
-          ...prev, 
-          userId: user.id,
-          personName: user.name
-        }));
-      }
+    const value = e.target.value;
+    if (field === 'apartment_id' || field === 'user_id') {
+      setFormData(prev => ({ ...prev, [field]: parseInt(value) }));
+    } else {
+      setFormData(prev => ({ ...prev, [field]: value }));
     }
   };
   
-  const handleDateChange = (date: Date | null, field: 'arrivalDate' | 'leavingDate') => {
+  const handleDateChange = (date: Date | null, field: 'arrival_date' | 'leaving_date') => {
     setFormData(prev => ({ ...prev, [field]: date }));
   };
   
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
     
-    if (!formData.apartmentId) {
-      newErrors.apartmentId = 'Please select an apartment';
+    if (!formData.apartment_id) {
+      newErrors.apartment_id = 'Please select an apartment';
     }
     
-    if (formData.userType === 'owner') {
-      // For owners, must select user ID
-      if (!formData.userId) {
-        newErrors.userId = 'Please select an owner';
+    if (!formData.user_id) {
+      newErrors.user_id = 'Please select a user';
+    }
+    
+    if (!formData.arrival_date) {
+      newErrors.arrival_date = 'Please select an arrival date';
+    }
+    
+    if (!formData.leaving_date) {
+      newErrors.leaving_date = 'Please select a leaving date';
+    }
+    
+    if (formData.arrival_date && formData.leaving_date) {
+      if (formData.arrival_date >= formData.leaving_date) {
+        newErrors.leaving_date = 'Leaving date must be after arrival date';
       }
-    } else {
-      // For renters, can enter a name
-      if (!formData.personName) {
-        newErrors.personName = 'Please enter the renter name';
-      }
-    }
-    
-    if (!formData.arrivalDate) {
-      newErrors.arrivalDate = 'Please select an arrival date';
-    }
-    
-    if (!formData.leavingDate) {
-      newErrors.leavingDate = 'Please select a leaving date';
-    }
-    
-    if (formData.arrivalDate && formData.leavingDate) {
-      if (isAfter(formData.arrivalDate, formData.leavingDate)) {
-        newErrors.leavingDate = 'Leaving date must be after arrival date';
-      }
-      
-      // Check for booking conflicts
-      if (formData.apartmentId) {
-        const conflictingBookings = mockBookings.filter(b => {
-          // Skip the current booking
-          if (!isNew && b.id === id) return false;
-          
-          // Only check bookings for the same apartment
-          if (b.apartmentId !== formData.apartmentId) return false;
-          
-          const bookingStart = parseISO(b.arrivalDate);
-          const bookingEnd = parseISO(b.leavingDate);
-          
-          // Check if new booking overlaps with existing booking
-          return !(
-            isAfter(formData.arrivalDate!, bookingEnd) || 
-            isBefore(formData.leavingDate!, bookingStart)
-          );
-        });
-        
-        if (conflictingBookings.length > 0) {
-          newErrors.arrivalDate = 'There is a booking conflict with the selected dates';
-          newErrors.leavingDate = 'There is a booking conflict with the selected dates';
-        }
-      }
-    }
-    
-    if (formData.peopleCount <= 0) {
-      newErrors.peopleCount = 'Number of people must be greater than 0';
     }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
     
-    // Create booking object
-    const bookingData: Partial<Booking> = {
-      apartmentId: formData.apartmentId,
-      userId: formData.userId || 'newuser', // In a real app, would create a new user
-      arrivalDate: formData.arrivalDate ? format(formData.arrivalDate, 'yyyy-MM-dd') : '',
-      leavingDate: formData.leavingDate ? format(formData.leavingDate, 'yyyy-MM-dd') : '',
-      state: formData.state,
-      createdAt: new Date().toISOString(),
-      notes: formData.notes,
-      flightDetails: formData.flightDetails
+    try {
+      setSaving(true);
+      setError(null);
+      
+      const bookingData = {
+        apartment_id: formData.apartment_id,
+        user_id: formData.user_id,
+        number_of_people: formData.number_of_people,
+        arrival_date: formData.arrival_date!.toISOString(),
+        leaving_date: formData.leaving_date!.toISOString(),
+        status: formData.status,
+        notes: formData.notes
     };
     
     if (isNew) {
-      // In a real app, would make API call to create booking
-      console.log('Creating new booking:', bookingData);
-    } else {
-      // In a real app, would make API call to update booking
-      console.log('Updating booking:', { id, ...bookingData });
-    }
-    
+        const newBooking = await bookingService.createBooking(bookingData as CreateBookingRequest);
     setSuccess(true);
-    
-    // Redirect after success
     setTimeout(() => {
-      navigate('/bookings');
+          navigate(`/bookings/${newBooking.id}`);
     }, 1500);
-  };
-  
-  // Get related data for booking
-  const getRelatedPayments = () => {
-    if (isNew) return [];
-    return mockPayments.filter(payment => payment.bookingId === id);
-  };
-  
-  const getRelatedEmails = () => {
-    if (isNew) return [];
-    return mockEmails.filter(email => email.bookingId === id);
-  };
-  
-  const getRelatedServiceRequests = () => {
-    if (isNew) return [];
-    return mockServiceRequests.filter(req => req.bookingId === id);
-  };
-  
-  const getRelatedBills = () => {
-    if (isNew) return [];
-    
-    if (formData.userType === 'renter') {
-      // For renters, show bills related to this booking
-      return mockBills.filter(bill => bill.bookingId === id);
-    } else {
-      // For owners, show all bills related to this owner
-      return mockBills.filter(bill => bill.userId === formData.userId && bill.userType === 'owner');
+      } else {
+        const updatedBooking = await bookingService.updateBooking(parseInt(id!), bookingData as UpdateBookingRequest);
+        setBooking(updatedBooking);
+        setIsEditing(false);
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save booking');
+    } finally {
+      setSaving(false);
     }
   };
   
-  // Get apartment name by ID
-  const getApartmentName = (id: string) => {
-    const apartment = mockApartments.find(a => a.id === id);
-    return apartment ? apartment.name : 'Unknown';
+  const handleToggleEdit = () => {
+    if (isEditing) {
+      // Reset form data to original booking data
+      if (booking) {
+        setFormData({
+          apartment_id: booking.apartment_id,
+          user_id: booking.user_id,
+          number_of_people: booking.number_of_people,
+          arrival_date: parseISO(booking.arrival_date),
+          leaving_date: parseISO(booking.leaving_date),
+          status: booking.status,
+          notes: booking.notes || ''
+        });
+      }
+      setErrors({});
+    }
+    setIsEditing(!isEditing);
   };
   
-  // Add new utility reading
+  const handleBack = () => {
+    navigate('/bookings');
+  };
+
+  // Quick actions
   const handleAddUtilityReading = () => {
-    navigate(`/utilities/new?bookingId=${id}&apartmentId=${formData.apartmentId}`);
+    navigate(`/utilities/new?bookingId=${id}`);
   };
-  
-  // Add new payment
+
   const handleAddPayment = () => {
-    if (!formData.id || !formData.apartmentId || !formData.userId) {
-      return;
-    }
-    
-    // Navigate to new payment page with pre-filled data
-    navigate(`/payments/new?bookingId=${formData.id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}&userType=${formData.userType}`);
+    navigate(`/payments/new?bookingId=${id}&apartmentId=${booking?.apartment_id}&userId=${booking?.user_id}`);
   };
 
   const handleAddServiceRequest = () => {
-    if (!formData.id || !formData.apartmentId || !formData.userId) {
-      return;
-    }
-    
-    // Navigate to create service request page with pre-filled data
-    navigate(`/services/new?bookingId=${formData.id}&apartmentId=${formData.apartmentId}&userId=${formData.userId}`);
+    navigate(`/services/requests/create?bookingId=${id}&apartmentId=${booking?.apartment_id}&userId=${booking?.user_id}`);
   };
 
-  // Toggle edit mode
-  const handleToggleEdit = () => {
-    setIsEditing(!isEditing);
+  const handleAddEmail = () => {
+    navigate(`/emails/new?bookingId=${id}&apartmentId=${booking?.apartment_id}`);
   };
 
-  // Handle cancel edit
-  const handleCancelEdit = () => {
-    // Reset form data to original booking data
-    if (id) {
-      const booking = mockBookings.find(b => b.id === id);
-      if (booking) {
-        const user = mockUsers.find(u => u.id === booking.userId);
-        setFormData({
-          id: booking.id,
-          apartmentId: booking.apartmentId,
-          userId: booking.userId,
-          userType: user?.role as 'owner' | 'renter' || 'renter',
-          personName: user?.name || '',
-          peopleCount: 1,
-          arrivalDate: parseISO(booking.arrivalDate),
-          leavingDate: parseISO(booking.leavingDate),
-          state: booking.state,
-          notes: booking.notes || '',
-          flightDetails: booking.flightDetails || ''
-        });
-      }
-    }
-    setIsEditing(false);
-  };
-
-  // Quick actions for admin
-  const actions = [
+  const speedDialActions = [
+    { icon: <UtilityIcon />, name: 'Add Utility Reading', onClick: handleAddUtilityReading },
     { icon: <PaymentIcon />, name: 'Add Payment', onClick: handleAddPayment },
-    { icon: <ServiceIcon />, name: 'Add Service Request', onClick: handleAddServiceRequest },
+    { icon: <ServiceIcon />, name: 'Request Service', onClick: handleAddServiceRequest },
+    { icon: <EmailIcon />, name: 'Add Email', onClick: handleAddEmail }
   ];
 
-  const handleBack = () => {
-    navigate(-1);
+  const formatDate = (dateString: string) => {
+    return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'not_arrived': return 'info';
+      case 'in_village': return 'success';
+      case 'left': return 'default';
+      default: return 'default';
+    }
+  };
+
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case 'not_arrived': return 'Not Arrived';
+      case 'in_village': return 'In Village';
+      case 'left': return 'Left';
+      default: return status;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  if (error) {
+    return (
+      <Container maxWidth="lg">
+        <Alert severity="error" sx={{ mt: 4 }}>
+          {error}
+        </Alert>
+        <Button startIcon={<BackIcon />} onClick={handleBack} sx={{ mt: 2 }}>
+          Back to Bookings
+        </Button>
+      </Container>
+    );
+  }
+
   return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
     <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
+        <Box sx={{ py: 3 }}>
+          {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button 
-              variant="text"
-              color="primary"
-              startIcon={<BackIcon />}
-              onClick={handleBack}
-              sx={{ mr: 2 }}
-            >
-              Back
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Button startIcon={<BackIcon />} onClick={handleBack}>
+                Back to Bookings
             </Button>
             <Typography variant="h4">
-              {isNew ? 'Create New Booking' : 'Booking Details'}
+                {isNew ? 'Create New Booking' : `Booking #${booking?.id}`}
             </Typography>
           </Box>
           
-          <Box>
-            {!isNew && !isEditing && (
+            {!isNew && (
               <Button
-                variant="contained"
-                startIcon={<EditIcon />}
+                variant={isEditing ? "outlined" : "contained"}
+                color={isEditing ? "secondary" : "primary"}
+                startIcon={isEditing ? <CancelIcon /> : <EditIcon />}
                 onClick={handleToggleEdit}
-                sx={{ mr: 1 }}
               >
-                Edit
+                {isEditing ? 'Cancel' : 'Edit'}
               </Button>
             )}
-            {!isNew && (
-              <>
-                <Button
-                  variant="contained"
-                  startIcon={<UtilityIcon />}
-                  onClick={handleAddUtilityReading}
-                  sx={{ mr: 1 }}
-                >
-                  Add Utility Reading
-                </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<PaymentIcon />}
-                  onClick={handleAddPayment}
-                >
-                  Add Payment
-                </Button>
-              </>
-            )}
-          </Box>
         </Box>
 
+          {/* Success Alert */}
         {success && (
           <Alert severity="success" sx={{ mb: 3 }}>
-            <AlertTitle>Success</AlertTitle>
-            Booking has been {isNew ? 'created' : 'updated'} successfully. Redirecting...
+              {isNew ? 'Booking created successfully!' : 'Booking updated successfully!'}
           </Alert>
         )}
 
-        {!isNew && (
-          <Box sx={{ width: '100%', mb: 3 }}>
-            <Tabs value={activeTab} onChange={handleTabChange} aria-label="booking tabs">
-              <Tab label="Details" />
-              <Tab label="Payments" />
-              <Tab label="Service Requests" />
-              <Tab label="Emails" />
-              <Tab label="Bills" />
-            </Tabs>
-          </Box>
-        )}
+          {/* Error Alert */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
-        {/* Quick actions speed dial (admin only) */}
-        {currentUser?.role === 'admin' && !isNew && (
+          {/* Speed Dial for quick actions (non-edit mode only) */}
+          {!isNew && !isEditing && (
           <SpeedDial
-            ariaLabel="Quick Actions"
-            sx={{ position: 'fixed', bottom: 16, right: 16 }}
+              ariaLabel="Quick actions"
+              sx={{ position: 'fixed', bottom: 24, right: 24 }}
             icon={<SpeedDialIcon />}
           >
-            {actions.map((action) => (
+              {speedDialActions.map((action) => (
               <SpeedDialAction
                 key={action.name}
                 icon={action.icon}
@@ -476,374 +447,427 @@ const BookingDetails: React.FC = () => {
           </SpeedDial>
         )}
 
-        {/* Booking Details Tab */}
-        {(activeTab === 0 || isNew) && (
+          {/* Main Content */}
+          {isEditing ? (
+            /* Edit/Create Form */
           <Paper sx={{ p: 3 }}>
-            <Box component="form" onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit}>
               <Grid container spacing={3}>
-                {/* Apartment Selection */}
-                <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth error={!!errors.apartmentId} disabled={!isEditing && !isNew}>
+                  <Grid xs={12} md={6}>
+                    <FormControl fullWidth error={!!errors.apartment_id}>
                     <InputLabel>Apartment</InputLabel>
                     <Select
-                      name="apartmentId"
-                      value={formData.apartmentId}
+                        value={formData.apartment_id.toString()}
                       label="Apartment"
-                      onChange={(e) => handleSelectChange(e, 'apartmentId')}
+                        onChange={(e) => handleSelectChange(e, 'apartment_id')}
                     >
                       <MenuItem value="">
                         <em>Select an apartment</em>
                       </MenuItem>
-                      {mockApartments.map(apt => (
-                        <MenuItem key={apt.id} value={apt.id}>{apt.name} ({apt.village})</MenuItem>
+                        {apartments.map(apartment => (
+                          <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                            {apartment.name} - {apartment.village?.name}
+                          </MenuItem>
                       ))}
                     </Select>
-                    {errors.apartmentId && <FormHelperText>{errors.apartmentId}</FormHelperText>}
+                      {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
                   </FormControl>
                 </Grid>
 
-                {/* User Type Selection */}
-                <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew}>
-                    <InputLabel>User Type</InputLabel>
+                  <Grid xs={12} md={6}>
+                    <FormControl fullWidth error={!!errors.user_id}>
+                      <InputLabel>User</InputLabel>
                     <Select
-                      name="userType"
-                      value={formData.userType}
-                      label="User Type"
-                      onChange={(e) => handleSelectChange(e, 'userType')}
-                    >
-                      <MenuItem value="owner">Owner</MenuItem>
-                      <MenuItem value="renter">Renter</MenuItem>
-                    </Select>
-                  </FormControl>
-                </Grid>
-
-                {/* User Selection or Name Input */}
-                {formData.userType === 'owner' ? (
-                  <Grid size={{xs: 12, md: 6}}>
-                    <FormControl fullWidth error={!!errors.userId} disabled={!isEditing && !isNew}>
-                      <InputLabel>Owner</InputLabel>
-                      <Select
-                        name="userId"
-                        value={formData.userId}
-                        label="Owner"
-                        onChange={(e) => handleSelectChange(e, 'userId')}
+                        value={formData.user_id.toString()}
+                        label="User"
+                        onChange={(e) => handleSelectChange(e, 'user_id')}
                       >
                         <MenuItem value="">
-                          <em>Select an owner</em>
+                          <em>Select a user</em>
                         </MenuItem>
-                        {filteredUsers.map(user => (
-                          <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
+                        {users.map(user => (
+                          <MenuItem key={user.id} value={user.id.toString()}>
+                            {user.name} ({user.role})
+                          </MenuItem>
                         ))}
                       </Select>
-                      {errors.userId && <FormHelperText>{errors.userId}</FormHelperText>}
+                      {errors.user_id && <FormHelperText>{errors.user_id}</FormHelperText>}
                     </FormControl>
                   </Grid>
-                ) : (
-                  <Grid size={{xs: 12, md: 6}}>
-                    <TextField
-                      fullWidth
-                      label="Person Name"
-                      name="personName"
-                      value={formData.personName}
-                      onChange={handleChange}
-                      error={!!errors.personName}
-                      helperText={errors.personName}
-                      disabled={!isEditing && !isNew}
-                    />
-                  </Grid>
-                )}
 
-                {/* Number of People */}
-                <Grid size={{xs: 12, md: 6}}>
+                  <Grid xs={12} md={6}>
                   <TextField
-                    fullWidth
+                      name="number_of_people"
                     label="Number of People"
-                    name="peopleCount"
                     type="number"
-                    value={formData.peopleCount}
-                    onChange={handleNumberChange}
-                    error={!!errors.peopleCount}
-                    helperText={errors.peopleCount}
-                    InputProps={{ inputProps: { min: 1 } }}
-                    disabled={!isEditing && !isNew}
+                      fullWidth
+                      value={formData.number_of_people}
+                      onChange={handleChange}
+                      inputProps={{ min: 1, max: 20 }}
                   />
                 </Grid>
 
-                {/* Date Fields */}
-                <Grid size={{xs: 12, md: 6}}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <Grid xs={12} md={6}>
                     <DateTimePicker
-                      label="Arrival Date & Time"
-                      value={formData.arrivalDate}
-                      onChange={(date) => handleDateChange(date, 'arrivalDate')}
+                      label="Arrival Date"
+                      value={formData.arrival_date}
+                      onChange={(date) => handleDateChange(date, 'arrival_date')}
                       slotProps={{
                         textField: {
                           fullWidth: true,
-                          error: !!errors.arrivalDate,
-                          helperText: errors.arrivalDate,
-                          disabled: !isEditing && !isNew
+                          error: !!errors.arrival_date,
+                          helperText: errors.arrival_date
                         }
                       }}
                     />
-                  </LocalizationProvider>
                 </Grid>
 
-                <Grid size={{xs: 12, md: 6}}>
-                  <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <Grid xs={12} md={6}>
                     <DateTimePicker
-                      label="Leaving Date & Time"
-                      value={formData.leavingDate}
-                      onChange={(date) => handleDateChange(date, 'leavingDate')}
+                      label="Leaving Date"
+                      value={formData.leaving_date}
+                      onChange={(date) => handleDateChange(date, 'leaving_date')}
                       slotProps={{
                         textField: {
                           fullWidth: true,
-                          error: !!errors.leavingDate,
-                          helperText: errors.leavingDate,
-                          disabled: !isEditing && !isNew
+                          error: !!errors.leaving_date,
+                          helperText: errors.leaving_date
                         }
                       }}
                     />
-                  </LocalizationProvider>
                 </Grid>
 
-                {/* Booking Status */}
-                <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth disabled={!isEditing && !isNew}>
-                    <InputLabel>Booking Status</InputLabel>
+                  <Grid xs={12} md={6}>
+                    <FormControl fullWidth>
+                      <InputLabel>Status</InputLabel>
                     <Select
-                      name="state"
-                      value={formData.state}
-                      label="Booking Status"
-                      onChange={(e) => handleSelectChange(e, 'state')}
-                    >
-                      <MenuItem value="notArrived">Has Not Arrived</MenuItem>
-                      <MenuItem value="inVillage">In Village</MenuItem>
+                        value={formData.status}
+                        label="Status"
+                        onChange={(e) => handleSelectChange(e, 'status')}
+                      >
+                        <MenuItem value="not_arrived">Not Arrived</MenuItem>
+                        <MenuItem value="in_village">In Village</MenuItem>
                       <MenuItem value="left">Left</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
 
-                {/* Notes and Flight Details */}
-                <Grid size={{xs: 12}}>
+                  <Grid xs={12}>
                   <TextField
-                    fullWidth
-                    label="Notes"
                     name="notes"
-                    value={formData.notes}
-                    onChange={handleChange}
+                      label="Notes"
                     multiline
                     rows={3}
-                    disabled={!isEditing && !isNew}
-                  />
-                </Grid>
-
-                <Grid size={{xs: 12}}>
-                  <TextField
                     fullWidth
-                    label="Flight Details"
-                    name="flightDetails"
-                    value={formData.flightDetails}
+                      value={formData.notes}
                     onChange={handleChange}
-                    multiline
-                    rows={2}
-                    disabled={!isEditing && !isNew}
                   />
                 </Grid>
 
-                {/* Submit and Cancel Buttons */}
-                <Grid size={{xs: 12}}>
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2 }}>
-                    {(isNew || isEditing) && (
-                      <>
+                  <Grid xs={12}>
+                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                         <Button 
                           variant="outlined"
-                          startIcon={<CancelIcon />}
-                          onClick={isNew ? () => navigate('/bookings') : handleCancelEdit}
+                        onClick={isNew ? handleBack : handleToggleEdit}
                         >
                           Cancel
                         </Button>
                         <Button 
                           type="submit" 
                           variant="contained" 
-                          color="primary"
-                          startIcon={<SaveIcon />}
+                        startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                        disabled={saving}
                         >
-                          {isNew ? 'Create Booking' : 'Save Changes'}
+                        {saving ? 'Saving...' : (isNew ? 'Create Booking' : 'Save Changes')}
                         </Button>
-                      </>
-                    )}
                   </Box>
                 </Grid>
               </Grid>
-            </Box>
+              </form>
           </Paper>
-        )}
+          ) : (
+            /* View Mode */
+            booking && (
+              <>
+                {/* Booking Summary */}
+                <Card sx={{ mb: 3 }}>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      Booking Information
+                    </Typography>
+                    <Divider sx={{ mb: 2 }} />
+                    
+                    <Grid container spacing={2}>
+                      <Grid xs={12} md={4}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <HomeIcon color="primary" />
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
+                            <Typography variant="body1">{booking.apartment?.name} - {booking.apartment?.village?.name}</Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid xs={12} md={4}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <PersonIcon color="primary" />
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary">Guest</Typography>
+                            <Typography variant="body1">
+                              {booking.user?.name} 
+                              <Chip 
+                                label={booking.user_type} 
+                                size="small" 
+                                color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                                sx={{ ml: 1 }}
+                              />
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid xs={12} md={4}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <CalendarIcon color="primary" />
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                            <Chip 
+                              label={getStatusDisplay(booking.status)} 
+                              color={getStatusColor(booking.status) as any}
+                              size="small"
+                            />
+                          </Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid xs={12} md={4}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                          <PersonIcon color="primary" />
+                          <Box>
+                            <Typography variant="subtitle2" color="text.secondary">Number of People</Typography>
+                            <Typography variant="body1">{booking.number_of_people}</Typography>
+                          </Box>
+                        </Box>
+                      </Grid>
+                      
+                      <Grid xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Arrival Date</Typography>
+                        <Typography variant="body1">{formatDate(booking.arrival_date)}</Typography>
+                      </Grid>
+                      
+                      <Grid xs={12} md={6}>
+                        <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
+                        <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
+                      </Grid>
+                      
+                      {booking.notes && (
+                        <Grid xs={12}>
+                          <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
+                          <Typography variant="body1">{booking.notes}</Typography>
+                        </Grid>
+                      )}
+                    </Grid>
+                  </CardContent>
+                </Card>
 
-        {/* Payments Tab */}
-        {!isNew && activeTab === 1 && (
-          <Paper sx={{ p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                {/* Tabs for related data */}
+                <Paper>
+                  <Tabs
+                    value={activeTab}
+                    onChange={handleTabChange}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    sx={{ borderBottom: 1, borderColor: 'divider' }}
+                  >
+                    <Tab label="Payments" icon={<PaymentIcon />} iconPosition="start" />
+                    <Tab label="Service Requests" icon={<ServiceIcon />} iconPosition="start" />
+                    <Tab label="Emails" icon={<EmailIcon />} iconPosition="start" />
+                    <Tab label="Utility Readings" icon={<UtilityIcon />} iconPosition="start" />
+                  </Tabs>
+
+                  {/* Related Payments */}
+                  <TabPanel value={activeTab} index={0}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6">Related Payments</Typography>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
+                        startIcon={<PaymentIcon />}
                 onClick={handleAddPayment}
-                size="small"
               >
                 Add Payment
               </Button>
             </Box>
             
-            {getRelatedPayments().length > 0 ? (
-              <List>
-                {getRelatedPayments().map(payment => (
-                  <ListItem 
-                    key={payment.id}
-                    component={RouterLink}
-                    to={`/payments/${payment.id}`}
-                    sx={{ 
-                      textDecoration: 'none', 
-                      color: 'inherit',
-                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <PaymentIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${payment.description} - ${payment.cost} ${payment.currency}`}
-                      secondary={`Payment Date: ${format(new Date(payment.createdAt), 'MMM dd, yyyy')}`}
-                    />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No payments found for this booking.</Typography>
-            )}
-          </Paper>
-        )}
+                    {relatedData?.payments && relatedData.payments.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Amount</TableCell>
+                              <TableCell>Currency</TableCell>
+                              <TableCell>Method</TableCell>
+                              <TableCell>Description</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {relatedData.payments.map((payment: any) => (
+                              <TableRow key={payment.id}>
+                                <TableCell>{formatDate(payment.date)}</TableCell>
+                                <TableCell>{payment.cost}</TableCell>
+                                <TableCell>{payment.currency}</TableCell>
+                                <TableCell>{payment.method_name || 'N/A'}</TableCell>
+                                <TableCell>{payment.description}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Alert severity="info">No payments found for this booking</Alert>
+                    )}
+                  </TabPanel>
 
-        {/* Service Requests Tab */}
-        {!isNew && activeTab === 2 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Related Service Requests</Typography>
-            
-            {getRelatedServiceRequests().length > 0 ? (
-              <List>
-                {getRelatedServiceRequests().map(request => (
-                  <ListItem 
-                    key={request.id}
-                    component={RouterLink}
-                    to={`/services/requests/${request.id}`}
-                    sx={{ 
-                      textDecoration: 'none', 
-                      color: 'inherit',
-                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <ServiceIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`Service Request for ${getApartmentName(request.apartmentId)}`}
-                      secondary={`Date: ${format(new Date(request.serviceDate), 'MMM dd, yyyy')} - Status: ${request.status}`}
-                    />
-                    <ListItemSecondaryAction>
+                  {/* Related Service Requests */}
+                  <TabPanel value={activeTab} index={1}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="h6">Related Service Requests</Typography>
+                      <Button 
+                        variant="contained" 
+                        startIcon={<ServiceIcon />}
+                        onClick={handleAddServiceRequest}
+                      >
+                        Request Service
+                      </Button>
+                    </Box>
+                    
+                    {relatedData?.service_requests && relatedData.service_requests.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Service Type</TableCell>
+                              <TableCell>Date Requested</TableCell>
+                              <TableCell>Wanted Date</TableCell>
+                              <TableCell>Cost</TableCell>
+                              <TableCell>Assignee</TableCell>
+                              <TableCell>Status</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {relatedData.service_requests.map((request: any) => (
+                              <TableRow key={request.id}>
+                                <TableCell>{request.service_type_name}</TableCell>
+                                <TableCell>{formatDate(request.date_created)}</TableCell>
+                                <TableCell>{request.wanted_service_date ? formatDate(request.wanted_service_date) : 'N/A'}</TableCell>
+                                <TableCell>{request.service_type_cost} {request.service_type_currency}</TableCell>
+                                <TableCell>{request.assignee_name || 'Unassigned'}</TableCell>
+                                <TableCell>
                       <Chip 
-                        label={request.status} 
-                        color={request.status === 'completed' ? 'success' : request.status === 'pending' ? 'warning' : 'default'}
+                                    label={request.status || 'Pending'} 
                         size="small"
-                      />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No service requests found for this booking.</Typography>
-            )}
-          </Paper>
-        )}
+                                    color={request.status === 'completed' ? 'success' : 'default'}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Alert severity="info">No service requests found for this booking</Alert>
+                    )}
+                  </TabPanel>
 
-        {/* Emails Tab */}
-        {!isNew && activeTab === 3 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Related Emails</Typography>
-            
-            {getRelatedEmails().length > 0 ? (
+                  {/* Related Emails */}
+                  <TabPanel value={activeTab} index={2}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="h6">Related Emails</Typography>
+                      <Button 
+                        variant="contained" 
+                        startIcon={<EmailIcon />}
+                        onClick={handleAddEmail}
+                      >
+                        Add Email
+                      </Button>
+                    </Box>
+                    
+                    {relatedData?.emails && relatedData.emails.length > 0 ? (
               <List>
-                {getRelatedEmails().map(email => (
-                  <ListItem 
-                    key={email.id}
-                    sx={{ 
-                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <EmailIcon />
-                    </ListItemIcon>
+                        {relatedData.emails.map((email: any) => (
+                          <ListItem key={email.id} divider>
                     <ListItemText 
                       primary={email.subject}
-                      secondary={`From: ${email.from} | To: ${email.to} | Date: ${format(new Date(email.date), 'MMM dd, yyyy')}`}
-                    />
-                    <ListItemSecondaryAction>
-                      <Chip 
-                        label={email.emailType} 
-                        color="primary"
-                        size="small"
-                      />
-                    </ListItemSecondaryAction>
+                              secondary={
+                                <>
+                                  <Typography variant="body2">
+                                    From: {email.from_email} | To: {email.to_email}
+                                  </Typography>
+                                  <Typography variant="caption">
+                                    {formatDate(email.date)}
+                                  </Typography>
+                                </>
+                              }
+                            />
                   </ListItem>
                 ))}
               </List>
             ) : (
-              <Typography variant="body2" color="textSecondary">No emails found for this booking.</Typography>
-            )}
-          </Paper>
-        )}
+                      <Alert severity="info">No emails found for this booking</Alert>
+                    )}
+                  </TabPanel>
 
-        {/* Bills Tab */}
-        {!isNew && activeTab === 4 && (
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" sx={{ mb: 2 }}>Related Bills</Typography>
-            
-            {getRelatedBills().length > 0 ? (
-              <List>
-                {getRelatedBills().map(bill => (
-                  <ListItem 
-                    key={bill.id}
-                    component={RouterLink}
-                    to={`/bills/apartment/${bill.apartmentId}`}
-                    sx={{ 
-                      textDecoration: 'none', 
-                      color: 'inherit',
-                      '&:hover': { backgroundColor: 'rgba(0, 0, 0, 0.04)' }
-                    }}
-                  >
-                    <ListItemIcon>
-                      <BillIcon />
-                    </ListItemIcon>
-                    <ListItemText 
-                      primary={`${bill.billNumber} - ${bill.description}`}
-                      secondary={`Amount: ${bill.totalAmountEGP > 0 ? `${bill.totalAmountEGP} EGP` : `${bill.totalAmountGBP} GBP`} | Due: ${format(new Date(bill.dueDate), 'MMM dd, yyyy')}`}
-                    />
-                    <ListItemSecondaryAction>
-                      <Chip 
-                        label={bill.isPaid ? 'Paid' : 'Unpaid'} 
-                        color={bill.isPaid ? 'success' : 'error'}
-                        size="small"
-                      />
-                    </ListItemSecondaryAction>
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
-              <Typography variant="body2" color="textSecondary">No bills found related to this booking.</Typography>
-            )}
+                  {/* Related Utility Readings */}
+                  <TabPanel value={activeTab} index={3}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Typography variant="h6">Utility Readings</Typography>
+                      <Button 
+                        variant="contained" 
+                        startIcon={<UtilityIcon />}
+                        onClick={handleAddUtilityReading}
+                      >
+                        Add Reading
+                      </Button>
+                    </Box>
+                    
+                    {relatedData?.utility_readings && relatedData.utility_readings.length > 0 ? (
+                      <TableContainer>
+                        <Table>
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Utility Type</TableCell>
+                              <TableCell>Start Reading</TableCell>
+                              <TableCell>End Reading</TableCell>
+                              <TableCell>Start Date</TableCell>
+                              <TableCell>End Date</TableCell>
+                              <TableCell>Consumption</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {relatedData.utility_readings.map((reading: any) => (
+                              <TableRow key={reading.id}>
+                                <TableCell>{reading.utility_type}</TableCell>
+                                <TableCell>{reading.start_reading}</TableCell>
+                                <TableCell>{reading.end_reading}</TableCell>
+                                <TableCell>{formatDate(reading.start_date)}</TableCell>
+                                <TableCell>{formatDate(reading.end_date)}</TableCell>
+                                <TableCell>{reading.end_reading - reading.start_reading}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
+                      <Alert severity="info">No utility readings found for this booking</Alert>
+                    )}
+                  </TabPanel>
           </Paper>
+              </>
+            )
         )}
       </Box>
     </Container>
+    </LocalizationProvider>
   );
 };
 

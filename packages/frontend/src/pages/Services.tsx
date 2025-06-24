@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Box, 
   Typography, 
@@ -27,9 +27,11 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  CircularProgress,
+  Pagination,
+  IconButton,
+  Tooltip
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
   Search as SearchIcon, 
@@ -39,11 +41,18 @@ import {
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
   Schedule as ScheduleIcon,
-  Cancel as CancelIcon
+  AssignmentLateOutlined as CreatedIcon,
+  Visibility as ViewIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
-import { mockServiceTypes, mockApartments, mockServiceRequests} from '../mockData';
 import { useAuth } from '../context/AuthContext';
-import type { ServiceType } from '../types';
+import { serviceRequestService } from '../services/serviceRequestService';
+import type { ServiceType, ServiceRequest } from '../services/serviceRequestService';
+import { apartmentService } from '../services/apartmentService';
+import type { Apartment } from '../services/apartmentService';
+import { userService } from '../services/userService';
+import type { User } from '../services/userService';
+import { format, parseISO } from 'date-fns';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -72,191 +81,283 @@ function TabPanel(props: TabPanelProps) {
 }
 
 export default function Services() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [openSnackbar, setOpenSnackbar] = useState(false);
-  const [tabValue, setTabValue] = useState(0);
-  const [apartmentFilter, setApartmentFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const [searchParams] = useSearchParams();
   
-  // Filter services based on search
-  const filteredServices = mockServiceTypes.filter(service => 
-    service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  // Filter service requests
-  const filteredRequests = mockServiceRequests.filter(request => {
-    // Filter by apartment if selected
-    if (apartmentFilter && request.apartmentId !== apartmentFilter) {
-      return false;
-    }
-    
-    // Filter by status if selected
-    if (statusFilter && request.status !== statusFilter) {
-      return false;
-    }
-    
-    // Filter by search term (match against service type name)
-    if (searchTerm) {
-      const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
-      if (!serviceType || !serviceType.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-        return false;
-      }
-    }
-    
-    return true;
+  const [searchTerm, setSearchTerm] = useState('');
+  const [openSnackbar, setOpenSnackbar] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [tabValue, setTabValue] = useState(() => {
+    const tab = searchParams.get('tab');
+    return tab ? parseInt(tab) : 0;
   });
+  const [apartmentFilter, setApartmentFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [whoPayFilter, setWhoPayFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Data states
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
+  // Pagination
+  const [serviceTypesPagination, setServiceTypesPagination] = useState({
+    page: 1,
+    limit: 12,
+    total: 0,
+    total_pages: 0
+  });
+  
+  const [serviceRequestsPagination, setServiceRequestsPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    total_pages: 0
+  });
+  
+  // Check if user is admin
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  
+  // Load initial data
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        setLoading(true);
+        const [apartmentsData, usersData] = await Promise.all([
+          apartmentService.getApartments({ limit: 100 }),
+          userService.getUsers({ limit: 100 })
+        ]);
+        setApartments(apartmentsData.data);
+        setUsers(usersData.data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load initial data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+  
+  // Load service types
+  useEffect(() => {
+    const loadServiceTypes = async () => {
+      try {
+        const filters = {
+          page: serviceTypesPagination.page,
+          limit: serviceTypesPagination.limit,
+          search: searchTerm || undefined,
+          sort_by: 'name',
+          sort_order: 'asc' as const
+        };
+        
+        const response = await serviceRequestService.getServiceTypes(filters);
+        setServiceTypes(response.data || []);
+        
+        // Check if pagination exists in response
+        if (response.pagination) {
+          setServiceTypesPagination({
+            page: response.pagination.page || 1,
+            limit: response.pagination.limit || 12,
+            total: response.pagination.total || 0,
+            total_pages: response.pagination.total_pages || 0
+          });
+        } else {
+          // Fallback if pagination is missing
+          setServiceTypesPagination(prev => ({ 
+            ...prev, 
+            total: response.data?.length || 0,
+            total_pages: 1 
+          }));
+        }
+      } catch (err) {
+        console.error('Error loading service types:', err);
+        setServiceTypes([]);
+        setServiceTypesPagination(prev => ({ ...prev, total: 0, total_pages: 0 }));
+      }
+    };
+
+    if (tabValue === 0) {
+      loadServiceTypes();
+    }
+  }, [tabValue, searchTerm, serviceTypesPagination.page]);
+  
+  // Load service requests
+  useEffect(() => {
+    const loadServiceRequests = async () => {
+      try {
+        const filters = {
+          page: serviceRequestsPagination.page,
+          limit: serviceRequestsPagination.limit,
+          search: searchTerm || undefined,
+          apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+          status: (statusFilter as 'Created' | 'In Progress' | 'Done' | undefined) || undefined,
+          who_pays: (whoPayFilter as 'owner' | 'renter' | 'company' | undefined) || undefined,
+          sort_by: 'date_created',
+          sort_order: 'desc' as const
+        };
+        
+        const response = await serviceRequestService.getServiceRequests(filters);
+        setServiceRequests(response.data || []);
+        
+        // Check if pagination exists in response
+        if (response.pagination) {
+          setServiceRequestsPagination({
+            page: response.pagination.page || 1,
+            limit: response.pagination.limit || 20,
+            total: response.pagination.total || 0,
+            total_pages: response.pagination.total_pages || 0
+          });
+        } else {
+          // Fallback if pagination is missing
+          setServiceRequestsPagination(prev => ({ 
+            ...prev, 
+            total: response.data?.length || 0,
+            total_pages: 1 
+          }));
+        }
+      } catch (err) {
+        console.error('Error loading service requests:', err);
+        setServiceRequests([]);
+        setServiceRequestsPagination(prev => ({ ...prev, total: 0, total_pages: 0 }));
+      }
+    };
+
+    if (tabValue === 1) {
+      loadServiceRequests();
+    }
+  }, [tabValue, searchTerm, apartmentFilter, statusFilter, whoPayFilter, serviceRequestsPagination.page]);
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
+    // Update URL with current tab
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tab', newValue.toString());
+    navigate(`/services?${newSearchParams.toString()}`, { replace: true });
+    
+    // Reset pagination when changing tabs
+    if (newValue === 0) {
+      setServiceTypesPagination(prev => ({ ...prev, page: 1 }));
+    } else {
+      setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+    }
   };
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
+    // Reset to first page when searching
+    if (tabValue === 0) {
+      setServiceTypesPagination(prev => ({ ...prev, page: 1 }));
+    } else {
+      setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+    }
   };
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
     setApartmentFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
   };
   
   const handleStatusFilterChange = (event: SelectChangeEvent) => {
     setStatusFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
   };
   
-  const handleOpenRequestDialog = (service: ServiceType | null = null) => {
-    navigate('/services/requests/create' + (service ? `?serviceId=${service.id}` : ''));
+  const handleWhoPayFilterChange = (event: SelectChangeEvent) => {
+    setWhoPayFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleRequestService = (serviceType?: ServiceType) => {
+    navigate('/services/requests/create' + (serviceType ? `?serviceTypeId=${serviceType.id}` : ''));
   };
   
   const handleAddServiceType = () => {
     navigate('/services/types/new');
   };
   
-  const handleServiceTypeClick = (id: string) => {
-    navigate(`/services/types/${id}`);
+  const handleServiceTypeClick = (id: number) => {
+    navigate(`/services/types/${id}/edit`);
   };
   
-  const handleServiceRequestClick = (id: string) => {
+  const handleServiceRequestClick = (id: number) => {
     navigate(`/services/requests/${id}`);
   };
   
-  const getStatusIcon = (status: string) => {
+  const handleServiceTypePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
+    setServiceTypesPagination(prev => ({ ...prev, page }));
+  };
+  
+  const handleServiceRequestPageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
+    setServiceRequestsPagination(prev => ({ ...prev, page }));
+  };
+  
+  const getStatusIcon = (status: 'Created' | 'In Progress' | 'Done') => {
     switch (status) {
-      case 'completed':
+      case 'Done':
         return <CheckCircleIcon color="success" />;
-      case 'pending':
+      case 'In Progress':
         return <ScheduleIcon color="warning" />;
-      case 'cancelled':
-        return <CancelIcon color="error" />;
+      case 'Created':
+        return <CreatedIcon color="info" />;
       default:
         return null;
     }
   };
 
-  // Box component returning ServiceType grid
-  const renderServiceTypeGrid = () => (
-    <Box
-      sx={{ 
-        display: 'grid',
-        gridTemplateColumns: {
-          xs: '1fr',
-          sm: 'repeat(2, 1fr)',
-          md: 'repeat(3, 1fr)'
-        },
-        gap: 3
-      }}
-    >
-      {filteredServices.length > 0 ? (
-        filteredServices.map(service => (
-          <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <CardContent sx={{ flexGrow: 1 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" 
-                  onClick={() => currentUser?.role === 'admin' && handleServiceTypeClick(service.id)} 
-                  sx={{ 
-                    cursor: currentUser?.role === 'admin' ? 'pointer' : 'default',
-                    color: 'primary.main',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}
-                >
-                  <BuildIcon sx={{ mr: 1 }} fontSize="small" />
-                  {service.name}
-                </Typography>
-                <Chip 
-                  label={`${service.cost} EGP`} 
-                  color="primary" 
-                  variant="outlined"
-                />
-              </Box>
-              
-              <Divider sx={{ my: 1 }} />
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {service.description}
-              </Typography>
-            </CardContent>
-            
-            <CardActions sx={{ p: 2, pt: 0 }}>
-              {currentUser?.role !== 'admin' && (
-                <Button 
-                  size="small" 
-                  color="primary"
-                  startIcon={<EventAvailableIcon />}
-                  onClick={() => handleOpenRequestDialog(service)}
-                  fullWidth
-                  variant="contained"
-                >
-                  Request Service
-                </Button>
-              )}
-              {currentUser?.role === 'admin' && (
-                <Button 
-                  size="small" 
-                  color="primary"
-                  startIcon={<InfoIcon />}
-                  onClick={() => handleServiceTypeClick(service.id)}
-                  fullWidth
-                  variant="outlined"
-                >
-                  View Details
-                </Button>
-              )}
-            </CardActions>
-          </Card>
-        ))
-      ) : (
-        <Box sx={{ gridColumn: '1 / -1' }}>
-          <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography>
-              No services found matching your criteria.
-            </Typography>
-          </Paper>
+  const formatDate = (dateString: string) => {
+    return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
+  };
+  
+  const showMessage = useCallback((message: string) => {
+    setSnackbarMessage(message);
+    setOpenSnackbar(true);
+  }, []);
+
+  // Check for operation success messages in URL
+  useEffect(() => {
+    const success = searchParams.get('success');
+    const message = searchParams.get('message');
+    
+    if (success && message) {
+      showMessage(decodeURIComponent(message));
+      // Clean up URL parameters
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('success');
+      newSearchParams.delete('message');
+      navigate(`/services?${newSearchParams.toString()}`, { replace: true });
+    }
+  }, [searchParams, navigate]);
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
         </Box>
-      )}
-    </Box>
+      </Container>
   );
+  }
+
+  if (error) {
+  return (
+      <Container maxWidth="lg">
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+      </Container>
+    );
+  }
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Container maxWidth="lg">
-        <Box sx={{ py: 3 }}>
+    <Container maxWidth="lg">
+      <Box sx={{ mb: 4 }}>
+        {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Typography variant="h4">Services</Typography>
-          </Box>
-          
-          <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
-              <Tab label="Service Types" id="services-tab-0" aria-controls="services-tabpanel-0" />
-              <Tab label="Service Requests" id="services-tab-1" aria-controls="services-tabpanel-1" />
-            </Tabs>
-          </Box>
-          
-          <TabPanel value={tabValue} index={0}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h6">Service Types</Typography>
-              {currentUser?.role === 'admin' && (
+          {isAdmin && (
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
@@ -267,44 +368,19 @@ export default function Services() {
               )}
             </Box>
             
-            <Paper sx={{ p: 2, mb: 3 }}>
-              <TextField
-                label="Search Services"
-                variant="outlined"
-                size="small"
-                fullWidth
-                value={searchTerm}
-                onChange={handleSearchChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-                placeholder="Search by service name or description"
-              />
-            </Paper>
-            
-            {renderServiceTypeGrid()}
-          </TabPanel>
-          
-          <TabPanel value={tabValue} index={1}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h6">Service Requests</Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenRequestDialog()}
-              >
-                Create a Service Request
-              </Button>
+        {/* Tabs */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+          <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
+            <Tab label="Service Types" icon={<BuildIcon />} iconPosition="start" />
+            <Tab label="Service Requests" icon={<EventAvailableIcon />} iconPosition="start" />
+          </Tabs>
             </Box>
             
+        {/* Search and Filters */}
             <Paper sx={{ p: 2, mb: 3 }}>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                 <TextField
-                  label="Search Services"
+              label="Search"
                   variant="outlined"
                   size="small"
                   sx={{ flexGrow: 1, minWidth: '200px' }}
@@ -317,94 +393,246 @@ export default function Services() {
                       </InputAdornment>
                     ),
                   }}
-                  placeholder="Search by service name"
-                />
-                
-                <FormControl size="small" sx={{ minWidth: '200px' }}>
-                  <InputLabel id="apartment-filter-label">Apartment</InputLabel>
+            />
+            
+            {tabValue === 1 && (
+              <>
+                <FormControl sx={{ minWidth: 150 }} size="small">
+                  <InputLabel>Apartment</InputLabel>
                   <Select
-                    labelId="apartment-filter-label"
                     value={apartmentFilter}
                     label="Apartment"
                     onChange={handleApartmentFilterChange}
                   >
-                    <MenuItem value="">All Apartments</MenuItem>
-                    {mockApartments.map(apt => (
-                      <MenuItem key={apt.id} value={apt.id}>{apt.name}</MenuItem>
+                    <MenuItem value="">
+                      <em>All Apartments</em>
+                    </MenuItem>
+                    {(apartments || []).map(apt => (
+                      <MenuItem key={apt.id} value={apt.id.toString()}>{apt.name}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
                 
-                <FormControl size="small" sx={{ minWidth: '150px' }}>
-                  <InputLabel id="status-filter-label">Status</InputLabel>
+                <FormControl sx={{ minWidth: 150 }} size="small">
+                  <InputLabel>Status</InputLabel>
                   <Select
-                    labelId="status-filter-label"
                     value={statusFilter}
                     label="Status"
                     onChange={handleStatusFilterChange}
                   >
-                    <MenuItem value="">All Statuses</MenuItem>
-                    <MenuItem value="pending">Pending</MenuItem>
-                    <MenuItem value="completed">Completed</MenuItem>
-                    <MenuItem value="cancelled">Cancelled</MenuItem>
+                    <MenuItem value="">
+                      <em>All Statuses</em>
+                    </MenuItem>
+                    <MenuItem value="Created">Created</MenuItem>
+                    <MenuItem value="In Progress">In Progress</MenuItem>
+                    <MenuItem value="Done">Done</MenuItem>
                   </Select>
                 </FormControl>
+                
+                <FormControl sx={{ minWidth: 150 }} size="small">
+                  <InputLabel>Who Pays</InputLabel>
+                  <Select
+                    value={whoPayFilter}
+                    label="Who Pays"
+                    onChange={handleWhoPayFilterChange}
+                  >
+                    <MenuItem value="">
+                      <em>All</em>
+                    </MenuItem>
+                    <MenuItem value="owner">Owner</MenuItem>
+                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="company">Company</MenuItem>
+                  </Select>
+                </FormControl>
+              </>
+            )}
               </Box>
             </Paper>
+        
+        {/* Service Types Tab */}
+        <TabPanel value={tabValue} index={0}>
+          <Box
+            sx={{ 
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)'
+              },
+              gap: 3,
+              mb: 3
+            }}
+          >
+            {serviceTypes && serviceTypes.length > 0 ? (
+              serviceTypes.map(service => (
+                <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6" 
+                        onClick={() => isAdmin && handleServiceTypeClick(service.id)} 
+                        sx={{ 
+                          cursor: isAdmin ? 'pointer' : 'default',
+                          color: 'primary.main',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <BuildIcon sx={{ mr: 1 }} fontSize="small" />
+                        {service.name}
+                      </Typography>
+                      <Chip 
+                        label={`${service.cost} ${service.currency}`} 
+                        color="primary" 
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
+                    
+                    <Divider sx={{ my: 1 }} />
+                    
+                    {service.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {service.description}
+                      </Typography>
+                    )}
+                    
+                    {service.default_assignee && (
+                      <Typography variant="caption" color="text.secondary">
+                        Default Assignee: {service.default_assignee.name}
+                      </Typography>
+                    )}
+                  </CardContent>
+                  
+                  <CardActions sx={{ p: 2, pt: 0 }}>
+                    <Button 
+                      size="small" 
+                      startIcon={<EventAvailableIcon />}
+                      onClick={() => handleRequestService(service)}
+                      disabled={!currentUser}
+                    >
+                      Request Service
+                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        size="small" 
+                        startIcon={<EditIcon />}
+                        onClick={() => handleServiceTypeClick(service.id)}
+                      >
+                        Edit
+                      </Button>
+                    )}
+                  </CardActions>
+                </Card>
+              ))
+            ) : (
+              <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  No service types found
+                </Typography>
+                {isAdmin && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddServiceType}
+                    sx={{ mt: 2 }}
+                  >
+                    Add First Service Type
+                  </Button>
+                )}
+              </Box>
+            )}
+          </Box>
+          
+          {/* Service Types Pagination */}
+          {serviceTypesPagination.total_pages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Pagination
+                count={serviceTypesPagination.total_pages}
+                page={serviceTypesPagination.page}
+                onChange={handleServiceTypePageChange}
+                color="primary"
+              />
+            </Box>
+          )}
+        </TabPanel>
+        
+        {/* Service Requests Tab */}
+        <TabPanel value={tabValue} index={1}>
+          <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Service Requests</Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => handleRequestService()}
+            >
+              Request Service
+            </Button>
+          </Box>
             
             <TableContainer component={Paper}>
-              <Table sx={{ minWidth: 650 }} aria-label="service requests table">
+            <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Service</TableCell>
+                  <TableCell>ID</TableCell>
+                  <TableCell>Service Type</TableCell>
                     <TableCell>Apartment</TableCell>
-                    <TableCell>Request Date</TableCell>
-                    <TableCell>Service Date</TableCell>
+                  <TableCell>Requester</TableCell>
+                  <TableCell>Action Date</TableCell>
                     <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
+                  <TableCell>Who Pays</TableCell>
+                  <TableCell>Assignee</TableCell>
+                  <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredRequests.length > 0 ? (
-                    filteredRequests.map(request => {
-                      const serviceType = mockServiceTypes.find(type => type.id === request.serviceTypeId);
-                      const apartment = mockApartments.find(apt => apt.id === request.apartmentId);
-                      
-                      return (
+                {serviceRequests && serviceRequests.length > 0 ? (
+                  serviceRequests.map(request => (
                         <TableRow
                           key={request.id}
-                          sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                           hover
-                        >
-                          <TableCell component="th" scope="row">
-                            {serviceType?.name || 'Unknown'}
+                      onClick={() => handleServiceRequestClick(request.id)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>{request.id}</TableCell>
+                      <TableCell>{request.type?.name || 'Unknown'}</TableCell>
+                      <TableCell>{request.apartment?.name || 'Unknown'}</TableCell>
+                      <TableCell>{request.requester?.name || 'Unknown'}</TableCell>
+                      <TableCell>
+                        {request.date_action ? formatDate(request.date_action) : 'Not scheduled'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={request.status}
+                          color={serviceRequestService.getStatusColor(request.status)}
+                          size="small"
+                        />
                           </TableCell>
-                          <TableCell>{apartment?.name || 'Unknown'}</TableCell>
-                          <TableCell>{request.requestDate}</TableCell>
-                          <TableCell>{request.serviceDate}</TableCell>
                           <TableCell>
-                            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                              {getStatusIcon(request.status)}
-                              <Typography sx={{ ml: 1, textTransform: 'capitalize' }}>
-                                {request.status}
-                              </Typography>
-                            </Box>
+                        <Chip 
+                          label={request.who_pays.charAt(0).toUpperCase() + request.who_pays.slice(1)}
+                          variant="outlined"
+                          size="small"
+                        />
                           </TableCell>
-                          <TableCell align="right">
-                            <Button
+                      <TableCell>{request.assignee?.name || 'Unassigned'}</TableCell>
+                      <TableCell>
+                        <Tooltip title="View Details">
+                          <IconButton 
                               size="small"
-                              onClick={() => handleServiceRequestClick(request.id)}
-                              variant="outlined"
-                            >
-                              View
-                            </Button>
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleServiceRequestClick(request.id);
+                            }}
+                          >
+                            <ViewIcon />
+                          </IconButton>
+                        </Tooltip>
                           </TableCell>
                         </TableRow>
-                      );
-                    })
+                  ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                    <TableCell colSpan={9} align="center">
                         No service requests found matching your criteria.
                       </TableCell>
                     </TableRow>
@@ -412,21 +640,37 @@ export default function Services() {
                 </TableBody>
               </Table>
             </TableContainer>
+          
+          {/* Service Requests Pagination */}
+          {serviceRequestsPagination.total_pages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Pagination
+                count={serviceRequestsPagination.total_pages}
+                page={serviceRequestsPagination.page}
+                onChange={handleServiceRequestPageChange}
+                color="primary"
+              />
+            </Box>
+          )}
+          
+          {/* Results summary */}
+          <Box sx={{ mt: 2, textAlign: 'center', color: 'text.secondary' }}>
+            <Typography variant="body2">
+              Showing {((serviceRequestsPagination.page - 1) * serviceRequestsPagination.limit) + 1} to{' '}
+              {Math.min(serviceRequestsPagination.page * serviceRequestsPagination.limit, serviceRequestsPagination.total)} of{' '}
+              {serviceRequestsPagination.total} service requests
+            </Typography>
+          </Box>
           </TabPanel>
-        </Box>
         
-        {/* Success Snackbar */}
+        {/* Snackbar for messages */}
         <Snackbar
           open={openSnackbar}
           autoHideDuration={6000}
           onClose={() => setOpenSnackbar(false)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        >
-          <Alert onClose={() => setOpenSnackbar(false)} severity="success" sx={{ width: '100%' }}>
-            Service request submitted successfully!
-          </Alert>
-        </Snackbar>
+          message={snackbarMessage}
+        />
+      </Box>
       </Container>
-    </LocalizationProvider>
   );
 } 

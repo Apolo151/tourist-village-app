@@ -90,34 +90,35 @@ export class ServiceTypeService {
     const serviceTypes = await query;
 
     // Transform data
-    const transformedServiceTypes = serviceTypes.map((st: any) => ({
-      id: st.id,
-      name: st.name,
-      cost: parseFloat(st.cost),
-      currency: st.currency,
-      description: st.description || undefined,
-      default_assignee_id: st.default_assignee_id || undefined,
-      created_at: new Date(st.created_at),
-      updated_at: new Date(st.updated_at),
-      default_assignee: st.assignee_name ? {
-        id: st.default_assignee_id,
-        name: st.assignee_name,
-        email: st.assignee_email,
-        phone_number: st.assignee_phone || undefined,
-        role: st.assignee_role,
-        is_active: Boolean(st.assignee_is_active),
-        created_at: new Date(st.assignee_created_at),
-        updated_at: new Date(st.assignee_updated_at)
+    const transformedServiceTypes = serviceTypes.map((serviceType: any) => ({
+      id: serviceType.id,
+      name: serviceType.name,
+      cost: parseFloat(serviceType.cost),
+      currency: serviceType.currency,
+      description: serviceType.description,
+      default_assignee_id: serviceType.default_assignee_id,
+      created_by: serviceType.created_by,
+      created_at: new Date(serviceType.created_at),
+      updated_at: new Date(serviceType.updated_at),
+      default_assignee: serviceType.assignee_name ? {
+        id: serviceType.default_assignee_id,
+        name: serviceType.assignee_name,
+        email: serviceType.assignee_email,
+        phone_number: serviceType.assignee_phone || undefined,
+        role: serviceType.assignee_role,
+        is_active: Boolean(serviceType.assignee_is_active),
+        created_at: new Date(serviceType.assignee_created_at),
+        updated_at: new Date(serviceType.assignee_updated_at)
       } : undefined,
-      created_by_user: st.creator_name ? {
-        id: st.created_by,
-        name: st.creator_name,
-        email: st.creator_email,
-        phone_number: st.creator_phone || undefined,
-        role: st.creator_role,
-        is_active: Boolean(st.creator_is_active),
-        created_at: new Date(st.creator_created_at),
-        updated_at: new Date(st.creator_updated_at)
+      created_by_user: serviceType.creator_name ? {
+        id: serviceType.created_by,
+        name: serviceType.creator_name,
+        email: serviceType.creator_email,
+        phone_number: serviceType.creator_phone || undefined,
+        role: serviceType.creator_role,
+        is_active: Boolean(serviceType.creator_is_active),
+        created_at: new Date(serviceType.creator_created_at),
+        updated_at: new Date(serviceType.creator_updated_at)
       } : undefined
     }));
 

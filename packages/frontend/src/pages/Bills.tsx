@@ -20,11 +20,7 @@ import {
   Alert,
   IconButton,
   Tooltip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Stack
+  CircularProgress
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -35,263 +31,111 @@ import {
   FilterList as FilterListIcon,
   FileDownload as FileDownloadIcon,
   Assignment as AssignmentIcon,
-  TouchApp as TouchAppIcon
+  TouchApp as TouchAppIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
-import { mockApartments, mockUsers, mockVillages, mockBookings, mockServiceRequests, mockServiceTypes, mockPayments } from '../mockData';
 import { format } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-
-// Type for bill display data
-interface BillDisplayData {
-  id: string;
-  billNumber: string;
-  apartmentName: string;
-  userName: string;
-  village: string;
-  userType: 'owner' | 'renter';
-  billDate: string;
-  dueDate: string;
-  isPaid: boolean;
-  description: string;
-  billType: 'service' | 'payment';
-  apartmentId: string;
-  userId: string;
-  bookingId?: string;
-  bookingArrivalDate?: string;
-  totalMoneySpentEGP: number;
-  totalMoneySpentGBP: number;
-  totalMoneyRequestedEGP: number;
-  totalMoneyRequestedGBP: number;
-  netMoneyEGP: number;
-  netMoneyGBP: number;
-}
-
-interface BillSummary {
-  totalMoneySpentEGP: number;
-  totalMoneySpentGBP: number;
-  totalMoneyRequestedEGP: number;
-  totalMoneyRequestedGBP: number;
-  netMoneyEGP: number;
-  netMoneyGBP: number;
-}
+import { billService, type BillSummaryItem, type BillTotals } from '../services/billService';
+import { villageService } from '../services/villageService';
+import type { Village } from '../types';
 
 interface HighlightedBillSummary {
-  ownerSummary: BillSummary & { userName: string };
-  renterSummary?: BillSummary & { userName: string };
-}
-
-// Interface for the payment dialog form
-interface PaymentFormData {
-  cost: number;
-  currency: 'EGP' | 'GBP';
-  description: string;
-  placeOfPayment: string;
-  userType: 'owner' | 'renter';
-  userId: string;
-  apartmentId: string;
-  bookingId?: string;
+  ownerSummary: BillTotals & { userName: string };
+  renterSummary?: BillTotals & { userName: string };
 }
 
 export default function Bills() {
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
-  const [billDisplayData, setBillDisplayData] = useState<BillDisplayData[]>([]);
-  const [prevYearTotalEGP, setPrevYearTotalEGP] = useState(0);
-  const [prevYearTotalGBP, setPrevYearTotalGBP] = useState(0);
+  const [billDisplayData, setBillDisplayData] = useState<BillSummaryItem[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [previousYearTotals, setPreviousYearTotals] = useState<BillTotals | null>(null);
   const [currentYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | null>(new Date(currentYear, 0, 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date(currentYear, 11, 31));
-  const [openAddPaymentDialog, setOpenAddPaymentDialog] = useState(false);
-  const [highlightedBill, setHighlightedBill] = useState<string | null>(null);
+  const [highlightedBill, setHighlightedBill] = useState<number | null>(null);
   const [highlightedBillSummary, setHighlightedBillSummary] = useState<HighlightedBillSummary | null>(null);
-  const [paymentFormData, setPaymentFormData] = useState<PaymentFormData>({
-    cost: 0,
-    currency: 'EGP',
-    description: '',
-    placeOfPayment: '',
-    userType: 'owner',
-    userId: '',
-    apartmentId: '',
-  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Calculate bill summary for a specific user type and apartment
-  const calculateBillSummary = (apartmentId: string, userType: 'owner' | 'renter'): BillSummary => {
-    const relevantBills = billDisplayData.filter(bill => 
-      bill.apartmentId === apartmentId && bill.userType === userType
-    );
-
-    return {
-      totalMoneySpentEGP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneySpentEGP, 0),
-      totalMoneySpentGBP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneySpentGBP, 0),
-      totalMoneyRequestedEGP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneyRequestedEGP, 0),
-      totalMoneyRequestedGBP: relevantBills.reduce((sum, bill) => sum + bill.totalMoneyRequestedGBP, 0),
-      netMoneyEGP: relevantBills.reduce((sum, bill) => sum + bill.netMoneyEGP, 0),
-      netMoneyGBP: relevantBills.reduce((sum, bill) => sum + bill.netMoneyGBP, 0),
-    };
-  };
-
   // Handle bill highlighting
-  const handleHighlightBill = (billId: string) => {
-    const bill = billDisplayData.find(b => b.id === billId);
+  const handleHighlightBill = (apartmentId: number) => {
+    const bill = billDisplayData.find(b => b.apartment_id === apartmentId);
     if (!bill) return;
 
-    setHighlightedBill(billId);
-    
-    // Get owner user for this apartment
-    const apartment = mockApartments.find(apt => apt.id === bill.apartmentId);
-    const ownerUser = apartment ? mockUsers.find(u => u.id === apartment.ownerId) : null;
+    setHighlightedBill(apartmentId);
     
     const summary: HighlightedBillSummary = {
       ownerSummary: {
-        ...calculateBillSummary(bill.apartmentId, 'owner'),
-        userName: ownerUser?.name || 'Unknown Owner'
+        total_money_spent: bill.total_money_spent,
+        total_money_requested: bill.total_money_requested,
+        net_money: bill.net_money,
+        userName: bill.owner_name
       },
     };
-
-    // If there's a booking, add renter summary
-    if (bill.bookingId) {
-      const renterUser = mockUsers.find(u => u.id === bill.userId && bill.userType === 'renter');
-      summary.renterSummary = {
-        ...calculateBillSummary(bill.apartmentId, 'renter'),
-        userName: renterUser?.name || 'Unknown Renter'
-      };
-    }
 
     setHighlightedBillSummary(summary);
   };
 
-  // Process bill data from service requests and payments
+  // Load bill data from API
   useEffect(() => {
-    const billsData: BillDisplayData[] = [];
-    
-    // Calculate due date (15 days from service date or created date)
-    const calculateDueDate = (date: string): string => {
-      const dueDate = new Date(date);
-      dueDate.setDate(dueDate.getDate() + 15);
-      return format(dueDate, 'yyyy-MM-dd');
+    const loadData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Load villages for filter
+        const villagesData = await villageService.getVillages();
+        setVillages(villagesData.data);
+        
+        // Build filters for API call
+        const filters: any = {};
+        if (villageFilter) {
+          const selectedVillage = villagesData.data.find(v => v.name === villageFilter);
+          if (selectedVillage) filters.village_id = selectedVillage.id;
+        }
+        if (userTypeFilter) filters.user_type = userTypeFilter;
+        if (startDate && endDate) {
+          filters.date_from = format(startDate, 'yyyy-MM-dd');
+          filters.date_to = format(endDate, 'yyyy-MM-dd');
+        } else {
+          filters.year = currentYear; // Default to current year
+        }
+        
+        // Load bill summary data
+        const billsResponse = await billService.getBillsSummary(filters);
+        
+        // Apply search filter on frontend
+        const filteredData = billsResponse.summary.filter(bill => {
+          if (!searchTerm) return true;
+          return (
+            bill.apartment_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bill.owner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            bill.village_name.toLowerCase().includes(searchTerm.toLowerCase())
+          );
+        });
+        
+        setBillDisplayData(filteredData);
+        
+        // Load previous years totals
+        const prevTotals = await billService.getPreviousYearsTotals(currentYear);
+        setPreviousYearTotals(prevTotals);
+        
+      } catch (err: any) {
+        console.error('Error loading bills data:', err);
+        setError(err.message || 'Failed to load bills data');
+      } finally {
+        setLoading(false);
+      }
     };
     
-    // 1. Process service requests as bills
-    mockServiceRequests.forEach(request => {
-      const serviceType = mockServiceTypes.find(st => st.id === request.serviceTypeId);
-      const apartment = mockApartments.find(apt => apt.id === request.apartmentId) || { name: 'Unknown', village: 'Unknown' };
-      const user = mockUsers.find(u => u.id === request.userId) || { name: 'Unknown', role: 'owner' };
-      const booking = mockBookings.find(b => b.apartmentId === request.apartmentId && b.userId === request.userId);
-      
-      if (serviceType) {
-        // Only include service requests within date range
-        const requestDate = new Date(request.requestDate);
-        if (
-          (!startDate || requestDate >= startDate) &&
-          (!endDate || requestDate <= endDate)
-        ) {
-          billsData.push({
-            id: request.id,
-            billNumber: request.id,
-            apartmentName: apartment.name,
-            userName: user.name,
-            village: apartment.village as string,
-            userType: user.role === 'owner' ? 'owner' : 'renter',
-            billDate: request.requestDate,
-            dueDate: calculateDueDate(request.serviceDate || request.requestDate),
-            isPaid: request.status === 'completed',
-            totalMoneySpentEGP: 0,
-            totalMoneySpentGBP: 0,
-            totalMoneyRequestedEGP: serviceType.currency === 'EGP' ? serviceType.cost : 0,
-            totalMoneyRequestedGBP: serviceType.currency === 'GBP' ? serviceType.cost : 0,
-            netMoneyEGP: serviceType.currency === 'EGP' ? -serviceType.cost : 0,
-            netMoneyGBP: serviceType.currency === 'GBP' ? -serviceType.cost : 0,
-            description: `${serviceType.name} - ${serviceType.description}`,
-            billType: 'service',
-            apartmentId: request.apartmentId,
-            userId: request.userId,
-            bookingId: booking?.id,
-            bookingArrivalDate: booking?.arrivalDate
-          });
-        }
-      }
-    });
-    
-    // 2. Process payments as bills
-    mockPayments.forEach(payment => {
-      const apartment = mockApartments.find(apt => apt.id === payment.apartmentId) || { name: 'Unknown', village: 'Unknown' };
-      const user = mockUsers.find(u => u.id === payment.userId) || { name: 'Unknown', role: 'owner' };
-      const booking = mockBookings.find(b => b.id === payment.bookingId);
-      
-      // Only include payments within date range
-      const paymentDate = new Date(payment.createdAt);
-      if (
-        (!startDate || paymentDate >= startDate) &&
-        (!endDate || paymentDate <= endDate)
-      ) {
-        billsData.push({
-          id: payment.id,
-          billNumber: payment.id,
-          apartmentName: apartment.name,
-          userName: user.name,
-          village: apartment.village as string,
-          userType: payment.userType,
-          billDate: payment.createdAt,
-          dueDate: calculateDueDate(payment.createdAt),
-          isPaid: true, // Payments are already paid
-          totalMoneySpentEGP: payment.currency === 'EGP' ? payment.cost : 0,
-          totalMoneySpentGBP: payment.currency === 'GBP' ? payment.cost : 0,
-          totalMoneyRequestedEGP: 0,
-          totalMoneyRequestedGBP: 0,
-          netMoneyEGP: payment.currency === 'EGP' ? payment.cost : 0,
-          netMoneyGBP: payment.currency === 'GBP' ? payment.cost : 0,
-          description: payment.description,
-          billType: 'payment',
-          apartmentId: payment.apartmentId,
-          userId: payment.userId,
-          bookingId: payment.bookingId,
-          bookingArrivalDate: booking?.arrivalDate
-        });
-      }
-    });
-    
-    // Apply filters
-    const filteredDisplayData = billsData.filter(bill => {
-      const matchesVillage = villageFilter ? bill.village === villageFilter : true;
-      const matchesUserType = userTypeFilter ? bill.userType === userTypeFilter : true;
-      const matchesSearch = 
-        !searchTerm || 
-        bill.apartmentName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        bill.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bill.billNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bill.description.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      return matchesVillage && matchesUserType && matchesSearch;
-    });
-    
-    // Sort by date (newest first)
-    filteredDisplayData.sort((a, b) => new Date(b.billDate).getTime() - new Date(a.billDate).getTime());
-    
-    setBillDisplayData(filteredDisplayData);
-    
-    // Calculate previous year totals
-    const prevYearStart = new Date(currentYear - 1, 0, 1);
-    const prevYearEnd = new Date(currentYear - 1, 11, 31);
-    
-    let totalPrevEGP = 0;
-    let totalPrevGBP = 0;
-    
-    billsData.forEach(bill => {
-      const billDate = new Date(bill.billDate);
-      if (billDate >= prevYearStart && billDate <= prevYearEnd) {
-        totalPrevEGP += bill.totalMoneySpentEGP;
-        totalPrevGBP += bill.totalMoneySpentGBP;
-      }
-    });
-    
-    setPrevYearTotalEGP(totalPrevEGP);
-    setPrevYearTotalGBP(totalPrevGBP);
-    
+    loadData();
   }, [searchTerm, villageFilter, userTypeFilter, startDate, endDate, currentYear]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -314,76 +158,33 @@ export default function Bills() {
     setEndDate(date);
   };
   
-  const handleViewBillDetails = (billId: string) => {
-    navigate(`/bills/${billId}`);
+  const handleViewBillDetails = (apartmentId: number) => {
+    navigate(`/apartments/${apartmentId}/bills`);
   };
   
   const handleAddPayment = () => {
-    setOpenAddPaymentDialog(true);
+    navigate('/payments/new');
   };
-  
-  const handleClosePaymentDialog = () => {
-    setOpenAddPaymentDialog(false);
-    setPaymentFormData({
-      cost: 0,
-      currency: 'EGP',
-      description: '',
-      placeOfPayment: '',
-      userType: 'owner',
-      userId: '',
-      apartmentId: '',
-    });
+
+  const handleAddServiceRequest = () => {
+    navigate('/service-requests/new');
   };
-  
-  const handlePaymentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setPaymentFormData(prev => ({
-      ...prev,
-      [name]: name === 'cost' ? parseFloat(value) : value
-    }));
-  };
-  
-  const handlePaymentSelectChange = (e: SelectChangeEvent) => {
-    const { name, value } = e.target;
-    setPaymentFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-  
-  const handleSubmitPayment = () => {
-    // In a real app, this would submit to an API
-    const newPayment = {
-      ...paymentFormData,
-      id: `payment${Date.now()}`,  // Generate a unique ID
-      createdById: currentUser?.id || 'user1', // Use current user ID or fallback
-      createdAt: new Date().toISOString(),
-    };
-    
-    console.log('Creating new payment:', newPayment);
-    handleClosePaymentDialog();
+
+  const handleAddUtilityReading = () => {
+    navigate('/utility-readings/new');
   };
   
   const handleExportData = () => {
-    // In a real app, this would generate and download a file
     console.log('Exporting data as PDF/Excel...');
   };
 
-  // Get bill type label with color
-  const getBillTypeChip = (type: 'service' | 'payment') => {
-    const typeConfig = {
-      service: { label: 'Service', color: 'primary' as const },
-      payment: { label: 'Payment', color: 'success' as const }
-    };
-    
+  if (loading) {
     return (
-      <Chip 
-        label={typeConfig[type].label} 
-        color={typeConfig[type].color}
-        size="small"
-      />
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+        <CircularProgress />
+      </Box>
     );
-  };
+  }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -407,35 +208,59 @@ export default function Bills() {
             >
               Add Payment
             </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddServiceRequest}
+              sx={{ mr: 1 }}
+            >
+              Add Service Request
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleAddUtilityReading}
+            >
+              Add Utility Reading
+            </Button>
           </Box>
         </Box>
+
+        {/* Error Display */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
         
         {/* Previous Year Summary */}
+        {previousYearTotals && (
         <Alert severity="info" sx={{ mb: 3 }}>
           <Typography variant="body1">
             Running Total for Previous Years: 
-            <strong> {prevYearTotalEGP.toFixed(2)} EGP</strong> and 
-            <strong> {prevYearTotalGBP.toFixed(2)} GBP</strong>
+              <strong> {previousYearTotals.total_money_spent.EGP.toFixed(2)} EGP</strong> and 
+              <strong> {previousYearTotals.total_money_spent.GBP.toFixed(2)} GBP</strong>
           </Typography>
         </Alert>
+        )}
 
         {/* Highlighted Bill Summary */}
         {highlightedBillSummary && (
           <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Selected Bill Summary</Typography>
+            <Typography variant="h6" gutterBottom>Selected Apartment Summary</Typography>
             <Box sx={{ display: 'flex', gap: 4 }}>
               <Box>
                 <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
-                <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneySpentGBP} GBP</Typography>
-                <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.ownerSummary.totalMoneyRequestedGBP} GBP</Typography>
-                <Typography>Net Money: {highlightedBillSummary.ownerSummary.netMoneyEGP} EGP / {highlightedBillSummary.ownerSummary.netMoneyGBP} GBP</Typography>
+                <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
+                <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
+                <Typography>Net Money: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
               </Box>
               {highlightedBillSummary.renterSummary && (
                 <Box>
                   <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
-                  <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.totalMoneySpentEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneySpentGBP} GBP</Typography>
-                  <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.totalMoneyRequestedEGP} EGP / {highlightedBillSummary.renterSummary.totalMoneyRequestedGBP} GBP</Typography>
-                  <Typography>Net Money: {highlightedBillSummary.renterSummary.netMoneyEGP} EGP / {highlightedBillSummary.renterSummary.netMoneyGBP} GBP</Typography>
+                  <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
+                  <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
+                  <Typography>Net Money: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
                 </Box>
               )}
             </Box>
@@ -477,7 +302,7 @@ export default function Bills() {
                   onChange={handleVillageFilterChange}
                 >
                   <MenuItem value="">All Villages</MenuItem>
-                  {mockVillages.map(village => (
+                  {villages.map(village => (
                     <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
                   ))}
                 </Select>
@@ -525,13 +350,9 @@ export default function Bills() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Description</TableCell>
-                <TableCell>Type</TableCell>
                 <TableCell>Village</TableCell>
                 <TableCell>Apartment</TableCell>
                 <TableCell>User Name</TableCell>
-                <TableCell>Booking ID</TableCell>
-                <TableCell>Booking Arrival Date</TableCell>
                 <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
                 <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
                 <TableCell align="right">Net Money (EGP/GBP)</TableCell>
@@ -542,13 +363,11 @@ export default function Bills() {
               {billDisplayData.length > 0 ? (
                 billDisplayData.map((bill) => (
                   <TableRow 
-                    key={bill.id}
-                    selected={bill.id === highlightedBill}
+                    key={bill.apartment_id}
+                    selected={bill.apartment_id === highlightedBill}
                   >
-                    <TableCell>{bill.description}</TableCell>
-                    <TableCell>{getBillTypeChip(bill.billType)}</TableCell>
-                    <TableCell>{bill.village}</TableCell>
-                    <TableCell>{bill.apartmentName}</TableCell>
+                    <TableCell>{bill.village_name}</TableCell>
+                    <TableCell>{bill.apartment_name}</TableCell>
                     <TableCell>
                       <Tooltip title="Click to view financial summary for this apartment" arrow>
                         <Box 
@@ -588,7 +407,7 @@ export default function Bills() {
                               transform: 'translateY(0px)',
                               boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
                             },
-                            ...(bill.id === highlightedBill && {
+                            ...(bill.apartment_id === highlightedBill && {
                               backgroundColor: 'primary.main',
                               color: 'primary.contrastText',
                               boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
@@ -602,7 +421,7 @@ export default function Bills() {
                               }
                             })
                           }}
-                          onClick={() => handleHighlightBill(bill.id)}
+                          onClick={() => handleHighlightBill(bill.apartment_id)}
                         >
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
                             <Typography 
@@ -613,11 +432,11 @@ export default function Bills() {
                                 color: 'text.primary'
                               }}
                             >
-                              {bill.userName}
+                              {bill.owner_name}
                             </Typography>
                             <Chip 
-                              label={bill.userType === 'owner' ? 'Owner' : 'Renter'} 
-                              color={bill.userType === 'owner' ? 'primary' : 'default'}
+                              label="Owner" 
+                              color="primary"
                               size="small"
                               variant="outlined"
                               sx={{ 
@@ -633,7 +452,7 @@ export default function Bills() {
                               opacity: 0.6,
                               color: 'text.secondary',
                               transition: 'all 0.2s ease-in-out',
-                              ...(bill.id === highlightedBill && {
+                              ...(bill.apartment_id === highlightedBill && {
                                 opacity: 1,
                                 color: 'primary.contrastText'
                               })
@@ -642,25 +461,23 @@ export default function Bills() {
                         </Box>
                       </Tooltip>
                     </TableCell>
-                    <TableCell>{bill.bookingId || '-'}</TableCell>
-                    <TableCell>{bill.bookingArrivalDate ? new Date(bill.bookingArrivalDate).toLocaleDateString() : '-'}</TableCell>
                     <TableCell align="right">
-                      {bill.totalMoneySpentEGP > 0 && `${bill.totalMoneySpentEGP.toLocaleString()} EGP`}
-                      {bill.totalMoneySpentEGP > 0 && bill.totalMoneySpentGBP > 0 && ' / '}
-                      {bill.totalMoneySpentGBP > 0 && `${bill.totalMoneySpentGBP.toLocaleString()} GBP`}
-                      {bill.totalMoneySpentEGP === 0 && bill.totalMoneySpentGBP === 0 && '-'}
+                      {bill.total_money_spent.EGP > 0 && `${bill.total_money_spent.EGP.toLocaleString()} EGP`}
+                      {bill.total_money_spent.EGP > 0 && bill.total_money_spent.GBP > 0 && ' / '}
+                      {bill.total_money_spent.GBP > 0 && `${bill.total_money_spent.GBP.toLocaleString()} GBP`}
+                      {bill.total_money_spent.EGP === 0 && bill.total_money_spent.GBP === 0 && '-'}
                     </TableCell>
                     <TableCell align="right">
-                      {bill.totalMoneyRequestedEGP > 0 && `${bill.totalMoneyRequestedEGP.toLocaleString()} EGP`}
-                      {bill.totalMoneyRequestedEGP > 0 && bill.totalMoneyRequestedGBP > 0 && ' / '}
-                      {bill.totalMoneyRequestedGBP > 0 && `${bill.totalMoneyRequestedGBP.toLocaleString()} GBP`}
-                      {bill.totalMoneyRequestedEGP === 0 && bill.totalMoneyRequestedGBP === 0 && '-'}
+                      {bill.total_money_requested.EGP > 0 && `${bill.total_money_requested.EGP.toLocaleString()} EGP`}
+                      {bill.total_money_requested.EGP > 0 && bill.total_money_requested.GBP > 0 && ' / '}
+                      {bill.total_money_requested.GBP > 0 && `${bill.total_money_requested.GBP.toLocaleString()} GBP`}
+                      {bill.total_money_requested.EGP === 0 && bill.total_money_requested.GBP === 0 && '-'}
                     </TableCell>
                     <TableCell align="right">
-                      {bill.netMoneyEGP > 0 && `${bill.netMoneyEGP.toLocaleString()} EGP`}
-                      {bill.netMoneyEGP > 0 && bill.netMoneyGBP > 0 && ' / '}
-                      {bill.netMoneyGBP > 0 && `${bill.netMoneyGBP.toLocaleString()} GBP`}
-                      {bill.netMoneyEGP === 0 && bill.netMoneyGBP === 0 && '-'}
+                      {bill.net_money.EGP > 0 && `${bill.net_money.EGP.toLocaleString()} EGP`}
+                      {bill.net_money.EGP > 0 && bill.net_money.GBP > 0 && ' / '}
+                      {bill.net_money.GBP > 0 && `${bill.net_money.GBP.toLocaleString()} GBP`}
+                      {bill.net_money.EGP === 0 && bill.net_money.GBP === 0 && '-'}
                     </TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
@@ -669,7 +486,7 @@ export default function Bills() {
                             size="small" 
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleViewBillDetails(bill.id);
+                              handleViewBillDetails(bill.apartment_id);
                             }}
                           >
                             <AssignmentIcon fontSize="small" />
@@ -681,152 +498,12 @@ export default function Bills() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={11} align="center">No bills found matching your criteria.</TableCell>
+                  <TableCell colSpan={7} align="center">No bills found matching your criteria.</TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </TableContainer>
-        
-        {/* Add Payment Dialog */}
-        <Dialog open={openAddPaymentDialog} onClose={handleClosePaymentDialog} maxWidth="sm" fullWidth>
-          <DialogTitle>Add New Payment</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ mt: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel>Apartment</InputLabel>
-                <Select
-                  name="apartmentId"
-                  value={paymentFormData.apartmentId}
-                  label="Apartment"
-                  onChange={handlePaymentSelectChange}
-                >
-                  {mockApartments.map(apt => (
-                    <MenuItem key={apt.id} value={apt.id}>{apt.name} ({apt.village})</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              
-              <FormControl fullWidth>
-                <InputLabel>User Type</InputLabel>
-                <Select
-                  name="userType"
-                  value={paymentFormData.userType}
-                  label="User Type"
-                  onChange={handlePaymentSelectChange}
-                >
-                  <MenuItem value="owner">Owner</MenuItem>
-                  <MenuItem value="renter">Renter</MenuItem>
-                </Select>
-              </FormControl>
-              
-              <FormControl fullWidth>
-                <InputLabel>User</InputLabel>
-                <Select
-                  name="userId"
-                  value={paymentFormData.userId}
-                  label="User"
-                  onChange={handlePaymentSelectChange}
-                >
-                  {mockUsers
-                    .filter(user => user.role === paymentFormData.userType || (paymentFormData.userType === 'owner' && user.role === 'admin'))
-                    .map(user => (
-                      <MenuItem key={user.id} value={user.id}>{user.name}</MenuItem>
-                    ))
-                  }
-                </Select>
-              </FormControl>
-              
-              {paymentFormData.userType === 'renter' && paymentFormData.apartmentId && (
-                <FormControl fullWidth>
-                  <InputLabel>Booking (Optional)</InputLabel>
-                  <Select
-                    name="bookingId"
-                    value={paymentFormData.bookingId || ''}
-                    label="Booking (Optional)"
-                    onChange={handlePaymentSelectChange}
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {mockBookings
-                      .filter(booking => 
-                        booking.apartmentId === paymentFormData.apartmentId && 
-                        booking.userId === paymentFormData.userId
-                      )
-                      .map(booking => (
-                        <MenuItem key={booking.id} value={booking.id}>
-                          {new Date(booking.arrivalDate).toLocaleDateString()} - {new Date(booking.leavingDate).toLocaleDateString()}
-                        </MenuItem>
-                      ))
-                    }
-                  </Select>
-                </FormControl>
-              )}
-              
-              <TextField
-                name="description"
-                label="Description"
-                fullWidth
-                value={paymentFormData.description}
-                onChange={handlePaymentInputChange}
-              />
-              
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <TextField
-                  name="cost"
-                  label="Amount"
-                  type="number"
-                  fullWidth
-                  value={paymentFormData.cost || ''}
-                  onChange={handlePaymentInputChange}
-                  inputProps={{ min: 0, step: 0.01 }}
-                />
-                
-                <FormControl fullWidth>
-                  <InputLabel>Currency</InputLabel>
-                  <Select
-                    name="currency"
-                    value={paymentFormData.currency}
-                    label="Currency"
-                    onChange={handlePaymentSelectChange}
-                  >
-                    <MenuItem value="EGP">EGP</MenuItem>
-                    <MenuItem value="GBP">GBP</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-              
-              <FormControl fullWidth>
-                <InputLabel>Payment Method</InputLabel>
-                <Select
-                  name="placeOfPayment"
-                  value={paymentFormData.placeOfPayment}
-                  label="Payment Method"
-                  onChange={handlePaymentSelectChange}
-                >
-                  {['Cash', 'Bank transfer', 'Credit Card'].map(method => (
-                    <MenuItem key={method} value={method}>{method}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleClosePaymentDialog}>Cancel</Button>
-            <Button 
-              onClick={handleSubmitPayment} 
-              variant="contained"
-              disabled={
-                !paymentFormData.apartmentId || 
-                !paymentFormData.userId || 
-                !paymentFormData.description || 
-                !paymentFormData.cost || 
-                !paymentFormData.placeOfPayment
-              }
-            >
-              Add Payment
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Box>
     </LocalizationProvider>
   );

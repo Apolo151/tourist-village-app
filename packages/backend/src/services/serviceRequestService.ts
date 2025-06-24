@@ -234,6 +234,7 @@ export class ServiceRequestService {
       who_pays: sr.who_pays,
       notes: sr.notes || undefined,
       assignee_id: sr.assignee_id || undefined,
+      created_by: sr.created_by,
       created_at: new Date(sr.created_at),
       updated_at: new Date(sr.updated_at),
       service_type: {
@@ -438,6 +439,7 @@ export class ServiceRequestService {
       who_pays: serviceRequest.who_pays,
       notes: serviceRequest.notes || undefined,
       assignee_id: serviceRequest.assignee_id || undefined,
+      created_by: serviceRequest.created_by,
       created_at: new Date(serviceRequest.created_at),
       updated_at: new Date(serviceRequest.updated_at),
       service_type: {

@@ -1,0 +1,368 @@
+// User Types
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  phone_number?: string;
+  role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  last_login?: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Apartment Types
+export interface Apartment {
+  id: string;
+  name: string;
+  ownerId: string;
+  ownerName?: string;
+  village: 'Sharm' | 'Luxor' | 'International Resort';
+  phase: string;
+  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
+  payingStatus?: 'Payed By Transfer' | 'Payed By Rent' | 'Non-Payer';
+  purchaseDate: string;
+  description?: string;
+  images?: string[];
+  amenities?: string[];
+  city?: string;
+  address?: string;
+  size?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+}
+
+// Booking Types
+export interface Booking {
+  id: string;
+  apartmentId: string;
+  userId: string;
+  arrivalDate: string;
+  leavingDate: string;
+  state: 'notArrived' | 'inVillage' | 'left';
+  createdAt: string;
+  notes?: string;
+  flightDetails?: string;
+  personName: string;
+  peopleCount: number;
+}
+
+// Service Types
+export interface ServiceType {
+  id: number;
+  name: string;
+  cost: number;
+  currency: 'EGP' | 'GBP';
+  description?: string;
+  default_assignee_id?: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  default_assignee?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+export interface ServiceRequest {
+  id: number;
+  type_id: number;
+  apartment_id: number;
+  booking_id?: number;
+  requester_id: number;
+  date_action?: string; // ISO string - when the service will be done
+  date_created: string; // ISO string - when the request was created
+  status: 'Created' | 'In Progress' | 'Done';
+  who_pays: 'owner' | 'renter' | 'company';
+  notes?: string;
+  assignee_id?: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  type?: ServiceType;
+  apartment?: {
+    id: number;
+    name: string;
+    village?: {
+      id: number;
+      name: string;
+    };
+  };
+  booking?: {
+    id: number;
+    arrival_date: string;
+    leaving_date: string;
+    user?: {
+      id: number;
+      name: string;
+    };
+  };
+  requester?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  assignee?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+}
+
+// Utility Types
+export interface Utility {
+  id: string;
+  apartmentId: string;
+  bookingId: string;
+  utilityType: 'water' | 'electricity';
+  startReading: number;
+  endReading?: number;
+  startDate: string;
+  endDate?: string;
+  startNotes?: string;
+  endNotes?: string;
+  createdById: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+// Bill Types
+export interface BillItem {
+  description: string;
+  amount: number;
+  currency: 'EGP' | 'GBP';
+}
+
+export interface Bill {
+  id: string;
+  billNumber: string;
+  apartmentId: string;
+  userId: string;
+  userType: 'owner' | 'renter';
+  billDate: string;
+  dueDate: string;
+  isPaid: boolean;
+  paidDate?: string;
+  totalAmountEGP: number;
+  totalAmountGBP: number;
+  description: string;
+  items: BillItem[];
+  createdById: string;
+  createdAt: string;
+  paymentId?: string;
+  bookingId?: string;
+  serviceRequestId?: string;
+  utilityId?: string[];
+}
+
+// Payment Types
+export interface Payment {
+  id: number;
+  apartment_id: number;
+  booking_id?: number;
+  created_by: number;
+  amount: number;
+  currency: 'EGP' | 'GBP';
+  method_id: number;
+  user_type: 'owner' | 'renter';
+  date: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: {
+    id: number;
+    name: string;
+    village_id: number;
+    phase: number;
+    owner_id: number;
+    paying_status: string;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+    village?: {
+      id: number;
+      name: string;
+      electricity_price: number;
+      water_price: number;
+      phases: number;
+      created_at: string;
+      updated_at: string;
+    };
+    owner?: {
+      id: number;
+      name: string;
+      email: string;
+      phone_number?: string;
+      role: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    };
+  };
+  booking?: {
+    id: number;
+    apartment_id: number;
+    user_id: number;
+    user_type: string;
+    number_of_people: number;
+    arrival_date: string;
+    leaving_date: string;
+    status: string;
+    notes?: string;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+    user?: {
+      id: number;
+      name: string;
+      email: string;
+      phone_number?: string;
+      role: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    };
+  };
+  payment_method?: {
+    id: number;
+    name: string;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+    usage_count?: number;
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone_number?: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
+// Email Types
+export interface Email {
+  id: number;
+  apartment_id: number;
+  booking_id?: number;
+  date: string;
+  from: string;
+  to: string;
+  subject: string;
+  content: string;
+  type: 'complaint' | 'inquiry' | 'other';
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Joined fields
+  apartment?: {
+    id: number;
+    name: string;
+    village_id: number;
+    phase: number;
+    owner_id: number;
+    paying_status: string;
+    village?: {
+      id: number;
+      name: string;
+      electricity_price: number;
+      water_price: number;
+      phases: number;
+    };
+    owner?: {
+      id: number;
+      name: string;
+      email: string;
+      role: string;
+    };
+  };
+  booking?: {
+    id: number;
+    apartment_id: number;
+    user_id: number;
+    user_type: string;
+    arrival_date: string;
+    leaving_date: string;
+    status: string;
+    notes?: string;
+    created_by: number;
+    created_at: string;
+    updated_at: string;
+    user?: {
+      id: number;
+      name: string;
+      email: string;
+      phone_number?: string;
+      role: string;
+      is_active: boolean;
+      created_at: string;
+      updated_at: string;
+    };
+  };
+  created_by_user?: {
+    id: number;
+    name: string;
+    email: string;
+    phone_number?: string;
+    role: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
+// Settings Types
+export interface Settings {
+  electricityPrice: number;
+  gasPrice: number;
+  waterPrice: number;
+}
+
+export interface Village {
+  id: number;
+  name: string;
+  electricity_price: number;
+  water_price: number;
+  phases: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentMethod {
+  id: number;
+  name: string;
+  description?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  creator?: {
+    id: number;
+    name: string;
+  };
+} 

@@ -10,9 +10,9 @@ const serviceTypeService = new ServiceTypeService();
 /**
  * @route GET /api/service-types
  * @desc Get all service types with filtering and pagination
- * @access Private (Admin, Super Admin)
+ * @access Private (All authenticated users)
  */
-router.get('/', authenticateToken, requireRole('admin', 'super_admin'), async (req: Request, res: Response) => {
+router.get('/', authenticateToken, async (req: Request, res: Response) => {
   try {
     const filters: ServiceTypeFilters = {
       search: req.query.search as string,
@@ -68,9 +68,9 @@ router.get('/stats', authenticateToken, requireRole('admin', 'super_admin'), asy
 /**
  * @route GET /api/service-types/:id
  * @desc Get service type by ID
- * @access Private (Admin, Super Admin)
+ * @access Private (All authenticated users)
  */
-router.get('/:id', authenticateToken, requireRole('admin', 'super_admin'), async (req: Request, res: Response) => {
+router.get('/:id', authenticateToken, async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
 
