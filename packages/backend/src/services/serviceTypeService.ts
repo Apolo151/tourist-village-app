@@ -107,8 +107,8 @@ export class ServiceTypeService {
         phone_number: serviceType.assignee_phone || undefined,
         role: serviceType.assignee_role,
         is_active: Boolean(serviceType.assignee_is_active),
-        created_at: new Date(serviceType.assignee_created_at),
-        updated_at: new Date(serviceType.assignee_updated_at)
+        created_at: serviceType.assignee_created_at ? new Date(serviceType.assignee_created_at) : new Date(0),
+        updated_at: serviceType.assignee_updated_at ? new Date(serviceType.assignee_updated_at) : new Date(0)
       } : undefined,
       created_by_user: serviceType.creator_name ? {
         id: serviceType.created_by,
@@ -117,8 +117,8 @@ export class ServiceTypeService {
         phone_number: serviceType.creator_phone || undefined,
         role: serviceType.creator_role,
         is_active: Boolean(serviceType.creator_is_active),
-        created_at: new Date(serviceType.creator_created_at),
-        updated_at: new Date(serviceType.creator_updated_at)
+        created_at: serviceType.creator_created_at ? new Date(serviceType.creator_created_at) : new Date(0),
+        updated_at: serviceType.creator_updated_at ? new Date(serviceType.creator_updated_at) : new Date(0)
       } : undefined
     }));
 
@@ -175,6 +175,7 @@ export class ServiceTypeService {
       currency: serviceType.currency,
       description: serviceType.description || undefined,
       default_assignee_id: serviceType.default_assignee_id || undefined,
+      created_by: serviceType.created_by,
       created_at: new Date(serviceType.created_at),
       updated_at: new Date(serviceType.updated_at),
       default_assignee: serviceType.assignee_name ? {
@@ -184,8 +185,8 @@ export class ServiceTypeService {
         phone_number: serviceType.assignee_phone || undefined,
         role: serviceType.assignee_role,
         is_active: Boolean(serviceType.assignee_is_active),
-        created_at: new Date(serviceType.assignee_created_at),
-        updated_at: new Date(serviceType.assignee_updated_at)
+        created_at: serviceType.assignee_created_at ? new Date(serviceType.assignee_created_at) : new Date(0),
+        updated_at: serviceType.assignee_updated_at ? new Date(serviceType.assignee_updated_at) : new Date(0)
       } : undefined,
       created_by_user: serviceType.creator_name ? {
         id: serviceType.created_by,
@@ -194,8 +195,8 @@ export class ServiceTypeService {
         phone_number: serviceType.creator_phone || undefined,
         role: serviceType.creator_role,
         is_active: Boolean(serviceType.creator_is_active),
-        created_at: new Date(serviceType.creator_created_at),
-        updated_at: new Date(serviceType.creator_updated_at)
+        created_at: serviceType.creator_created_at ? new Date(serviceType.creator_created_at) : new Date(0),
+        updated_at: serviceType.creator_updated_at ? new Date(serviceType.creator_updated_at) : new Date(0)
       } : undefined
     };
   }

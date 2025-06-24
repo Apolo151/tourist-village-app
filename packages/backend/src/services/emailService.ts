@@ -262,6 +262,7 @@ export class EmailService {
         created_by: email.booking_created_by,
         created_at: new Date(email.booking_created_at),
         updated_at: new Date(email.booking_updated_at),
+        number_of_people: email.booking_number_of_people || 0,
         user: email.booking_user_name ? {
           id: email.booking_user_id,
           name: email.booking_user_name,
@@ -269,8 +270,8 @@ export class EmailService {
           phone_number: email.booking_user_phone || undefined,
           role: email.booking_user_role,
           is_active: Boolean(email.booking_user_is_active),
-          created_at: new Date(),
-          updated_at: new Date()
+          created_at: email.booking_user_created_at ? new Date(email.booking_user_created_at) : new Date(0),
+          updated_at: email.booking_user_updated_at ? new Date(email.booking_user_updated_at) : new Date(0)
         } : undefined
       } : undefined,
       created_by_user: email.creator_name ? {
@@ -280,8 +281,8 @@ export class EmailService {
         phone_number: email.creator_phone || undefined,
         role: email.creator_role,
         is_active: Boolean(email.creator_is_active),
-        created_at: new Date(email.creator_created_at),
-        updated_at: new Date(email.creator_updated_at)
+        created_at: email.creator_created_at ? new Date(email.creator_created_at) : new Date(0),
+        updated_at: email.creator_updated_at ? new Date(email.creator_updated_at) : new Date(0)
       } : undefined
     }));
 
@@ -428,6 +429,7 @@ export class EmailService {
         created_by: email.booking_created_by,
         created_at: new Date(email.booking_created_at),
         updated_at: new Date(email.booking_updated_at),
+        number_of_people: email.booking_number_of_people || 0,
         user: email.booking_user_name ? {
           id: email.booking_user_id,
           name: email.booking_user_name,
@@ -435,8 +437,8 @@ export class EmailService {
           phone_number: email.booking_user_phone || undefined,
           role: email.booking_user_role,
           is_active: Boolean(email.booking_user_is_active),
-          created_at: new Date(),
-          updated_at: new Date()
+          created_at: email.booking_user_created_at ? new Date(email.booking_user_created_at) : new Date(0),
+          updated_at: email.booking_user_updated_at ? new Date(email.booking_user_updated_at) : new Date(0)
         } : undefined
       } : undefined,
       created_by_user: email.creator_name ? {
@@ -446,8 +448,8 @@ export class EmailService {
         phone_number: email.creator_phone || undefined,
         role: email.creator_role,
         is_active: Boolean(email.creator_is_active),
-        created_at: new Date(email.creator_created_at),
-        updated_at: new Date(email.creator_updated_at)
+        created_at: email.creator_created_at ? new Date(email.creator_created_at) : new Date(0),
+        updated_at: email.creator_updated_at ? new Date(email.creator_updated_at) : new Date(0)
       } : undefined
     };
   }

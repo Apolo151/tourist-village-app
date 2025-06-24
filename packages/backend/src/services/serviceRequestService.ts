@@ -243,6 +243,7 @@ export class ServiceRequestService {
         cost: parseFloat(sr.service_type_cost),
         currency: sr.service_type_currency,
         description: sr.service_type_description || undefined,
+        created_by: 0, // Not fetched
         created_at: new Date(), // Not fetched
         updated_at: new Date()  // Not fetched
       },
@@ -284,9 +285,12 @@ export class ServiceRequestService {
         arrival_date: new Date(sr.booking_arrival_date),
         leaving_date: new Date(sr.booking_leaving_date),
         status: sr.booking_status,
-        created_by: 0, // Not fetched
-        created_at: new Date(),
-        updated_at: new Date()
+        notes: undefined,
+        created_by: sr.booking_created_by || 0,
+        created_at: new Date(sr.booking_created_at),
+        updated_at: new Date(sr.booking_updated_at),
+        number_of_people: sr.booking_number_of_people || 0,
+        user: undefined
       } : undefined,
       requester: sr.requester_name ? {
         id: sr.requester_id,
@@ -315,8 +319,8 @@ export class ServiceRequestService {
         phone_number: sr.creator_phone || undefined,
         role: sr.creator_role,
         is_active: Boolean(sr.creator_is_active),
-        created_at: new Date(),
-        updated_at: new Date()
+        created_at: sr.creator_created_at ? new Date(sr.creator_created_at) : new Date(0),
+        updated_at: sr.creator_updated_at ? new Date(sr.creator_updated_at) : new Date(0)
       } : undefined
     }));
 
@@ -448,6 +452,7 @@ export class ServiceRequestService {
         cost: parseFloat(serviceRequest.service_type_cost),
         currency: serviceRequest.service_type_currency,
         description: serviceRequest.service_type_description || undefined,
+        created_by: 0, // Not fetched
         created_at: new Date(serviceRequest.service_type_created_at),
         updated_at: new Date(serviceRequest.service_type_updated_at)
       },
@@ -489,9 +494,12 @@ export class ServiceRequestService {
         arrival_date: new Date(serviceRequest.booking_arrival_date),
         leaving_date: new Date(serviceRequest.booking_leaving_date),
         status: serviceRequest.booking_status,
-        created_by: serviceRequest.booking_created_by,
+        notes: undefined,
+        created_by: serviceRequest.booking_created_by || 0,
         created_at: new Date(serviceRequest.booking_created_at),
-        updated_at: new Date(serviceRequest.booking_updated_at)
+        updated_at: new Date(serviceRequest.booking_updated_at),
+        number_of_people: serviceRequest.booking_number_of_people || 0,
+        user: undefined
       } : undefined,
       requester: serviceRequest.requester_name ? {
         id: serviceRequest.requester_id,
@@ -520,8 +528,8 @@ export class ServiceRequestService {
         phone_number: serviceRequest.creator_phone || undefined,
         role: serviceRequest.creator_role,
         is_active: Boolean(serviceRequest.creator_is_active),
-        created_at: new Date(serviceRequest.creator_created_at),
-        updated_at: new Date(serviceRequest.creator_updated_at)
+        created_at: serviceRequest.creator_created_at ? new Date(serviceRequest.creator_created_at) : new Date(0),
+        updated_at: serviceRequest.creator_updated_at ? new Date(serviceRequest.creator_updated_at) : new Date(0)
       } : undefined
     };
   }

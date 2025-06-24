@@ -35,7 +35,14 @@ const WHO_PAYS_OPTIONS = [
   { value: 'company', label: 'Company' }
 ];
 
-export default function CreateUtilityReading() {
+export interface CreateUtilityReadingProps {
+  apartmentId?: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  lockApartment?: boolean;
+}
+
+export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
@@ -227,23 +234,22 @@ export default function CreateUtilityReading() {
   const selectedBooking = (bookings || []).find(b => b.id === bookingId);
   
   // Calculate potential bills
-  const waterBill = (waterStartReading !== undefined && waterEndReading !== undefined && selectedApartment?.village) 
+    const waterBill = (waterStartReading !== undefined && waterEndReading !== undefined && selectedApartment?.village) 
     ? utilityReadingService.calculateUtilityCost(
         waterStartReading, 
         waterEndReading, 
         'water', 
-        selectedApartment.village.electricity_price, 
-        selectedApartment.village.water_price
+        Number(selectedApartment.village.electricity_price),
+        Number(selectedApartment.village.water_price)
       )
     : null;
-    
   const electricityBill = (electricityStartReading !== undefined && electricityEndReading !== undefined && selectedApartment?.village)
     ? utilityReadingService.calculateUtilityCost(
         electricityStartReading, 
         electricityEndReading, 
         'electricity', 
-        selectedApartment.village.electricity_price, 
-        selectedApartment.village.water_price
+        Number(selectedApartment.village.electricity_price),
+        Number(selectedApartment.village.water_price)
       )
     : null;
 
@@ -279,15 +285,14 @@ export default function CreateUtilityReading() {
 
         <Grid container spacing={3}>
           {/* Form */}
-          <Grid xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 3 }}>
                 Reading Details
               </Typography>
-              
               <Grid container spacing={3}>
                 {/* Apartment Selection */}
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <FormControl fullWidth required>
                     <InputLabel>Related Apartment</InputLabel>
                     <Select
@@ -303,9 +308,8 @@ export default function CreateUtilityReading() {
                     </Select>
                   </FormControl>
                 </Grid>
-
                 {/* Booking Selection */}
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <FormControl fullWidth>
                     <InputLabel>Related Booking (Optional)</InputLabel>
                     <Select
@@ -323,9 +327,8 @@ export default function CreateUtilityReading() {
                     </Select>
                   </FormControl>
                 </Grid>
-
                 {/* Who Pays */}
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <FormControl fullWidth required>
                     <InputLabel>Who Will Pay</InputLabel>
                     <Select
@@ -341,9 +344,8 @@ export default function CreateUtilityReading() {
                     </Select>
                   </FormControl>
                 </Grid>
-
                 {/* Period Dates */}
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <DatePicker
                     label="Start Date"
                     value={startDate}
@@ -356,8 +358,7 @@ export default function CreateUtilityReading() {
                     }}
                   />
                 </Grid>
-
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <DatePicker
                     label="End Date"
                     value={endDate}
@@ -370,16 +371,14 @@ export default function CreateUtilityReading() {
                     }}
                   />
                 </Grid>
-
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Water Readings
                   </Typography>
                 </Grid>
-
                 {/* Water Readings */}
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Water Start Reading"
@@ -390,8 +389,7 @@ export default function CreateUtilityReading() {
                     helperText="Starting meter reading for water"
                   />
                 </Grid>
-
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Water End Reading"
@@ -402,16 +400,14 @@ export default function CreateUtilityReading() {
                     helperText="Ending meter reading for water"
                   />
                 </Grid>
-
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Electricity Readings
                   </Typography>
                 </Grid>
-
                 {/* Electricity Readings */}
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Electricity Start Reading"
@@ -422,8 +418,7 @@ export default function CreateUtilityReading() {
                     helperText="Starting meter reading for electricity"
                   />
                 </Grid>
-
-                <Grid xs={12} md={6}>
+                <Grid size={{ xs: 12, md: 6 }}>
                   <TextField
                     fullWidth
                     label="Electricity End Reading"
@@ -434,9 +429,8 @@ export default function CreateUtilityReading() {
                     helperText="Ending meter reading for electricity"
                   />
                 </Grid>
-
                 {/* Submit Buttons */}
-                <Grid xs={12}>
+                <Grid size={{ xs: 12 }}>
                   <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
                     <Button
                       variant="outlined"
@@ -457,14 +451,12 @@ export default function CreateUtilityReading() {
               </Grid>
             </Paper>
           </Grid>
-
           {/* Preview/Summary */}
-          <Grid xs={12} md={4}>
+          <Grid size= {{ xs: 12, md: 4 }}>
             <Paper sx={{ p: 3 }}>
               <Typography variant="h6" sx={{ mb: 2 }}>
                 Preview
               </Typography>
-              
               {selectedApartment && (
                 <Card sx={{ mb: 2 }}>
                   <CardContent>
@@ -480,7 +472,6 @@ export default function CreateUtilityReading() {
                   </CardContent>
                 </Card>
               )}
-
               {selectedBooking && (
                 <Card sx={{ mb: 2 }}>
                   <CardContent>
@@ -496,7 +487,6 @@ export default function CreateUtilityReading() {
                   </CardContent>
                 </Card>
               )}
-
               {startDate && endDate && (
                 <Card sx={{ mb: 2 }}>
                   <CardContent>
@@ -509,7 +499,6 @@ export default function CreateUtilityReading() {
                   </CardContent>
                 </Card>
               )}
-
               {(waterBill || electricityBill) && (
                 <Card>
                   <CardContent>
@@ -534,12 +523,11 @@ export default function CreateUtilityReading() {
                   </CardContent>
                 </Card>
               )}
-
               {selectedApartment?.village && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="caption">
-                    Village Rates: Water {selectedApartment.village.water_price} EGP/unit, 
-                    Electricity {selectedApartment.village.electricity_price} EGP/unit
+                    Village Rates: Water {Number(selectedApartment.village.water_price)} EGP/unit, 
+                    Electricity {Number(selectedApartment.village.electricity_price)} EGP/unit
                   </Typography>
                 </Alert>
               )}

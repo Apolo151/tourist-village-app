@@ -47,7 +47,15 @@ interface PaymentFormData {
   description: string;
 }
 
-export default function CreatePayment() {
+export interface CreatePaymentProps {
+  apartmentId?: number;
+  userId?: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  lockApartment?: boolean;
+}
+
+export default function CreatePayment({ apartmentId, userId, onSuccess, onCancel, lockApartment }: CreatePaymentProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();

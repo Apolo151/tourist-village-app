@@ -82,6 +82,7 @@ export class UtilityReadingService {
         // Booking details (if exists)
         'b.user_id as booking_user_id',
         'b.user_type as booking_user_type',
+        'b.number_of_people as booking_number_of_people',
         'b.arrival_date as booking_arrival_date',
         'b.leaving_date as booking_leaving_date',
         'b.status as booking_status',
@@ -307,6 +308,7 @@ export class UtilityReadingService {
           apartment_id: ur.apartment_id,
           user_id: ur.booking_user_id,
           user_type: ur.booking_user_type,
+          number_of_people: ur.booking_number_of_people || 0,
           arrival_date: new Date(ur.booking_arrival_date),
           leaving_date: new Date(ur.booking_leaving_date),
           status: ur.booking_status,
@@ -332,8 +334,8 @@ export class UtilityReadingService {
           phone_number: ur.creator_phone || undefined,
           role: ur.creator_role,
           is_active: Boolean(ur.creator_is_active),
-          created_at: new Date(ur.creator_created_at),
-          updated_at: new Date(ur.creator_updated_at)
+          created_at: ur.creator_created_at ? new Date(ur.creator_created_at) : new Date(0),
+          updated_at: ur.creator_updated_at ? new Date(ur.creator_updated_at) : new Date(0)
         } : undefined
       };
     });
@@ -400,6 +402,7 @@ export class UtilityReadingService {
         // Booking details (if exists)
         'b.user_id as booking_user_id',
         'b.user_type as booking_user_type',
+        'b.number_of_people as booking_number_of_people',
         'b.arrival_date as booking_arrival_date',
         'b.leaving_date as booking_leaving_date',
         'b.status as booking_status',
@@ -491,6 +494,7 @@ export class UtilityReadingService {
         apartment_id: utilityReading.apartment_id,
         user_id: utilityReading.booking_user_id,
         user_type: utilityReading.booking_user_type,
+        number_of_people: utilityReading.booking_number_of_people || 0,
         arrival_date: new Date(utilityReading.booking_arrival_date),
         leaving_date: new Date(utilityReading.booking_leaving_date),
         status: utilityReading.booking_status,
@@ -516,8 +520,8 @@ export class UtilityReadingService {
         phone_number: utilityReading.creator_phone || undefined,
         role: utilityReading.creator_role,
         is_active: Boolean(utilityReading.creator_is_active),
-        created_at: new Date(utilityReading.creator_created_at),
-        updated_at: new Date(utilityReading.creator_updated_at)
+        created_at: utilityReading.creator_created_at ? new Date(utilityReading.creator_created_at) : new Date(0),
+        updated_at: utilityReading.creator_updated_at ? new Date(utilityReading.creator_updated_at) : new Date(0)
       } : undefined
     };
   }

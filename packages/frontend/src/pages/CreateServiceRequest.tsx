@@ -37,7 +37,14 @@ import type { Booking } from '../services/bookingService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 
-export default function CreateServiceRequest() {
+export interface CreateServiceRequestProps {
+  apartmentId?: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  lockApartment?: boolean;
+}
+
+export default function CreateServiceRequest({ apartmentId, onSuccess, onCancel, lockApartment }: CreateServiceRequestProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();

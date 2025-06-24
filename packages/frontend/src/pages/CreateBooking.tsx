@@ -25,7 +25,14 @@ import { userService } from '../services/userService';
 import type { Apartment } from '../services/apartmentService';
 import type { User } from '../services/userService';
 
-export default function CreateBooking() {
+export interface CreateBookingProps {
+  apartmentId?: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  lockApartment?: boolean;
+}
+
+export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockApartment }: CreateBookingProps) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -37,7 +44,7 @@ export default function CreateBooking() {
   const [users, setUsers] = useState<User[]>([]);
   
   // Form fields
-  const [apartmentId, setApartmentId] = useState<number>(0);
+  const [apartmentIdForm, setApartmentIdForm] = useState<number>(apartmentId || 0);
   const [userId, setUserId] = useState<number>(0);
   const [userType, setUserType] = useState<'owner' | 'renter'>('renter');
   const [numberOfPeople, setNumberOfPeople] = useState<number>(1);
@@ -76,7 +83,7 @@ export default function CreateBooking() {
   }, []);
 
   const validateForm = (): string | null => {
-    if (!apartmentId || apartmentId === 0) return 'Please select an apartment';
+    if (!apartmentIdForm || apartmentIdForm === 0) return 'Please select an apartment';
     if (!userId || userId === 0) return 'Please select a user';
     if (!arrivalDate) return 'Please select arrival date';
     if (!leavingDate) return 'Please select leaving date';
@@ -101,7 +108,7 @@ export default function CreateBooking() {
       }
 
       const bookingData = {
-        apartment_id: apartmentId,
+        apartment_id: apartmentIdForm,
         user_id: userId,
         user_type: userType,
         number_of_people: numberOfPeople,
@@ -112,6 +119,7 @@ export default function CreateBooking() {
       };
 
       await bookingService.createBooking(bookingData);
+      onSuccess?.();
       navigate('/bookings?success=true&message=Booking%20created%20successfully');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create booking');
@@ -134,7 +142,10 @@ export default function CreateBooking() {
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate('/bookings')}
+            onClick={() => {
+              onCancel?.();
+              navigate('/bookings');
+            }}
             sx={{ mr: 2 }}
           >
             Back
@@ -157,9 +168,10 @@ export default function CreateBooking() {
               <FormControl fullWidth required>
                 <InputLabel>Related Apartment</InputLabel>
                 <Select
-                  value={apartmentId}
+                  value={apartmentIdForm}
                   label="Related Apartment"
-                  onChange={(e) => setApartmentId(e.target.value as number)}
+                  onChange={(e) => setApartmentIdForm(e.target.value as number)}
+                  disabled={lockApartment}
                 >
                   {apartments.map(apartment => (
                     <MenuItem key={apartment.id} value={apartment.id}>
@@ -294,7 +306,10 @@ export default function CreateBooking() {
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
                 <Button
                   variant="outlined"
-                  onClick={() => navigate('/bookings')}
+                  onClick={() => {
+                    onCancel?.();
+                    navigate('/bookings');
+                  }}
                   disabled={submitting}
                 >
                   Cancel

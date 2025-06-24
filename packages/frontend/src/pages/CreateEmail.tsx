@@ -29,7 +29,14 @@ import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 
-const CreateEmail: React.FC = () => {
+export interface CreateEmailProps {
+  apartmentId?: number;
+  onSuccess?: () => void;
+  onCancel?: () => void;
+  lockApartment?: boolean;
+}
+
+const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, onSuccess, onCancel, lockApartment }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();

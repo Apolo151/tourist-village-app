@@ -56,6 +56,15 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { paymentService } from '../services/paymentService';
 import type { Payment } from '../services/paymentService';
+import { serviceRequestService, type ServiceRequest } from '../services/serviceRequestService';
+import { utilityReadingService, type UtilityReading } from '../services/utilityReadingService';
+import { emailService, type Email } from '../services/emailService';
+import Dialog from '@mui/material/Dialog';
+import CreateBooking from './CreateBooking';
+import CreateEmail from './CreateEmail';
+import CreatePayment from './CreatePayment';
+import CreateServiceRequest from './CreateServiceRequest';
+import CreateUtilityReading from './CreateUtilityReading';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -92,6 +101,16 @@ export default function ApartmentDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
+  const [relatedServiceRequests, setRelatedServiceRequests] = useState<ServiceRequest[]>([]);
+  const [relatedUtilityReadings, setRelatedUtilityReadings] = useState<UtilityReading[]>([]);
+  const [relatedEmails, setRelatedEmails] = useState<Email[]>([]);
+
+  // Dialog state for quick actions
+  const [openBookingDialog, setOpenBookingDialog] = useState(false);
+  const [openEmailDialog, setOpenEmailDialog] = useState(false);
+  const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
+  const [openServiceRequestDialog, setOpenServiceRequestDialog] = useState(false);
+  const [openUtilityReadingDialog, setOpenUtilityReadingDialog] = useState(false);
 
   // Load apartment data
   useEffect(() => {
@@ -111,15 +130,21 @@ export default function ApartmentDetails() {
         setApartment(apartmentData);
 
         // Load related data in parallel
-        const [bookingsData, paymentsData, ownerData] = await Promise.all([
+        const [bookingsData, paymentsData, ownerData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
           bookingService.getBookingsByApartment(parseInt(id)).catch(() => []),
           paymentService.getPaymentsByApartment(parseInt(id)).catch(() => []),
-          apartmentData?.owner_id ? userService.getUserById(apartmentData.owner_id).catch(() => null) : Promise.resolve(null)
+          apartmentData?.owner_id ? userService.getUserById(apartmentData.owner_id).catch(() => null) : Promise.resolve(null),
+          serviceRequestService.getServiceRequests({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
+          utilityReadingService.getUtilityReadings({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
+          emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => [])
         ]);
 
         setRelatedBookings(bookingsData);
         setRelatedPayments(paymentsData);
         setOwner(ownerData);
+        setRelatedServiceRequests(serviceRequestsData);
+        setRelatedUtilityReadings(utilityReadingsData);
+        setRelatedEmails(emailsData);
 
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load apartment data');
@@ -133,8 +158,8 @@ export default function ApartmentDetails() {
 
   // Calculate financial summary
   const totalMoneySpent = {
-    EGP: relatedPayments.filter(p => p.currency === 'EGP').reduce((sum, p) => sum + p.cost, 0),
-    GBP: relatedPayments.filter(p => p.currency === 'GBP').reduce((sum, p) => sum + p.cost, 0)
+    EGP: relatedPayments.filter(p => p.currency === 'EGP').reduce((sum, p) => sum + (p.amount || 0), 0),
+    GBP: relatedPayments.filter(p => p.currency === 'GBP').reduce((sum, p) => sum + (p.amount || 0), 0)
   };
   
   // For now, using empty values for service requests until implemented
@@ -193,6 +218,23 @@ export default function ApartmentDetails() {
     return commonTabs;
   };
 
+  // Handler to refresh all related data
+  const refreshRelatedData = async () => {
+    if (!id) return;
+    const [bookingsData, paymentsData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
+      bookingService.getBookingsByApartment(parseInt(id)).catch(() => []),
+      paymentService.getPaymentsByApartment(parseInt(id)).catch(() => []),
+      serviceRequestService.getServiceRequests({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
+      utilityReadingService.getUtilityReadings({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
+      emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => [])
+    ]);
+    setRelatedBookings(bookingsData);
+    setRelatedPayments(paymentsData);
+    setRelatedServiceRequests(serviceRequestsData);
+    setRelatedUtilityReadings(utilityReadingsData);
+    setRelatedEmails(emailsData);
+  };
+
   // Show loading state
   if (loading) {
     return (
@@ -230,6 +272,7 @@ export default function ApartmentDetails() {
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   return (
+    <>
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
         {/* Header */}
@@ -509,7 +552,7 @@ export default function ApartmentDetails() {
                             <Chip 
                               label={booking.status} 
                               color={
-                                booking.status === 'not_arrived' ? 'default' : 
+                                  booking.status === 'has_not_arrived' ? 'default' : 
                                 booking.status === 'in_village' ? 'primary' : 'success'
                               }
                               size="small"
@@ -537,11 +580,44 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={3}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Service Requests</Typography>
-                <Button variant="contained" startIcon={<EngineeringIcon />} onClick={handleRequestService}>
+                  <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => setOpenServiceRequestDialog(true)}>
                   New Service Request
                 </Button>
               </Box>
-              <Alert severity="info">Service requests integration coming soon</Alert>
+                {relatedServiceRequests.length > 0 ? (
+                  <TableContainer component={Paper}>
+                    <Table sx={{ minWidth: 650 }} aria-label="service requests table">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Type</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Who Pays</TableCell>
+                          <TableCell>Date Created</TableCell>
+                          <TableCell>Notes</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {relatedServiceRequests.map(sr => (
+                          <TableRow key={sr.id}>
+                            <TableCell>{sr.type?.name || sr.type_id}</TableCell>
+                            <TableCell>{sr.status}</TableCell>
+                            <TableCell>{sr.who_pays}</TableCell>
+                            <TableCell>{new Date(sr.date_created).toLocaleDateString()}</TableCell>
+                            <TableCell>{sr.notes || '-'}</TableCell>
+                            <TableCell align="right">
+                              <Button size="small" onClick={() => navigate(`/services/requests/${sr.id}`)}>
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Alert severity="info">No service requests found for this apartment</Alert>
+                )}
             </TabPanel>
           )}
           
@@ -550,11 +626,44 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={4}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Related Emails</Typography>
-                <Button variant="contained" startIcon={<EmailIcon />} onClick={handleAddEmail}>
+                  <Button variant="contained" startIcon={<EmailIcon />} onClick={() => setOpenEmailDialog(true)}>
                   New Email
                 </Button>
               </Box>
-              <Alert severity="info">Email integration coming soon</Alert>
+                {relatedEmails.length > 0 ? (
+                  <TableContainer component={Paper}>
+                    <Table sx={{ minWidth: 650 }} aria-label="emails table">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Date</TableCell>
+                          <TableCell>From</TableCell>
+                          <TableCell>To</TableCell>
+                          <TableCell>Subject</TableCell>
+                          <TableCell>Type</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {relatedEmails.map(email => (
+                          <TableRow key={email.id}>
+                            <TableCell>{new Date(email.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{email.from}</TableCell>
+                            <TableCell>{email.to}</TableCell>
+                            <TableCell>{email.subject}</TableCell>
+                            <TableCell>{email.type}</TableCell>
+                            <TableCell align="right">
+                              <Button size="small" onClick={() => navigate(`/emails/${email.id}`)}>
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Alert severity="info">No emails found for this apartment</Alert>
+                )}
             </TabPanel>
           )}
           
@@ -563,16 +672,117 @@ export default function ApartmentDetails() {
             <TabPanel value={tabValue} index={5}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="h6">Utility Readings</Typography>
-                <Button variant="contained" startIcon={<WaterDropIcon />} 
-                  onClick={() => navigate(`/utilities/new?apartmentId=${id}`)}>
+                  <Button variant="contained" startIcon={<WaterDropIcon />} onClick={() => setOpenUtilityReadingDialog(true)}>
                   New Reading
                 </Button>
               </Box>
-              <Alert severity="info">Utility readings integration coming soon</Alert>
+                {relatedUtilityReadings.length > 0 ? (
+                  <TableContainer component={Paper}>
+                    <Table sx={{ minWidth: 650 }} aria-label="utility readings table">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Start Date</TableCell>
+                          <TableCell>End Date</TableCell>
+                          <TableCell>Water Start</TableCell>
+                          <TableCell>Water End</TableCell>
+                          <TableCell>Electricity Start</TableCell>
+                          <TableCell>Electricity End</TableCell>
+                          <TableCell>Who Pays</TableCell>
+                          <TableCell align="right">Actions</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {relatedUtilityReadings.map(reading => (
+                          <TableRow key={reading.id}>
+                            <TableCell>{new Date(reading.start_date).toLocaleDateString()}</TableCell>
+                            <TableCell>{new Date(reading.end_date).toLocaleDateString()}</TableCell>
+                            <TableCell>{reading.water_start_reading ?? '-'}</TableCell>
+                            <TableCell>{reading.water_end_reading ?? '-'}</TableCell>
+                            <TableCell>{reading.electricity_start_reading ?? '-'}</TableCell>
+                            <TableCell>{reading.electricity_end_reading ?? '-'}</TableCell>
+                            <TableCell>{reading.who_pays}</TableCell>
+                            <TableCell align="right">
+                              <Button size="small" onClick={() => navigate(`/utilities/${reading.id}`)}>
+                                View
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Alert severity="info">No utility readings found for this apartment</Alert>
+                )}
             </TabPanel>
           )}
         </Paper>
       </Box>
     </Container>
+      {/* Dialogs */}
+      <>
+        {/* Booking Dialog */}
+        <Dialog open={openBookingDialog} onClose={() => setOpenBookingDialog(false)} maxWidth="md" fullWidth>
+          <CreateBooking
+            apartmentId={apartment?.id}
+            onSuccess={() => {
+              setOpenBookingDialog(false);
+              refreshRelatedData();
+            }}
+            onCancel={() => setOpenBookingDialog(false)}
+            lockApartment
+          />
+        </Dialog>
+        {/* Email Dialog */}
+        <Dialog open={openEmailDialog} onClose={() => setOpenEmailDialog(false)} maxWidth="md" fullWidth>
+          <CreateEmail
+            apartmentId={apartment?.id}
+            onSuccess={() => {
+              setOpenEmailDialog(false);
+              refreshRelatedData();
+            }}
+            onCancel={() => setOpenEmailDialog(false)}
+            lockApartment
+          />
+        </Dialog>
+        {/* Payment Dialog */}
+        <Dialog open={openPaymentDialog} onClose={() => setOpenPaymentDialog(false)} maxWidth="md" fullWidth>
+          <CreatePayment
+            apartmentId={apartment?.id}
+            userId={apartment?.owner_id}
+            onSuccess={() => {
+              setOpenPaymentDialog(false);
+              refreshRelatedData();
+            }}
+            onCancel={() => setOpenPaymentDialog(false)}
+            lockApartment
+          />
+        </Dialog>
+        {/* Service Request Dialog */}
+        <Dialog open={openServiceRequestDialog} onClose={() => setOpenServiceRequestDialog(false)} maxWidth="md" fullWidth>
+          <CreateServiceRequest
+            apartmentId={apartment?.id}
+            onSuccess={() => {
+              setOpenServiceRequestDialog(false);
+              refreshRelatedData();
+            }}
+            onCancel={() => setOpenServiceRequestDialog(false)}
+            lockApartment
+          />
+        </Dialog>
+        {/* Utility Reading Dialog */}
+        <Dialog open={openUtilityReadingDialog} onClose={() => setOpenUtilityReadingDialog(false)} maxWidth="md" fullWidth>
+          <CreateUtilityReading
+            apartmentId={apartment?.id}
+            onSuccess={() => {
+              setOpenUtilityReadingDialog(false);
+              refreshRelatedData();
+            }}
+            onCancel={() => setOpenUtilityReadingDialog(false)}
+            lockApartment
+          />
+        </Dialog>
+      </>
+    </>
   );
 }

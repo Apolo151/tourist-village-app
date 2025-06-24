@@ -255,13 +255,13 @@ export default function Utilities() {
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>Filters</Typography>
         <Grid container spacing={2} alignItems="center">
-          <Grid xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Apartment</InputLabel>
               <Select
                 value={filters.apartment_id || ''}
                 label="Apartment"
-                onChange={(e) => handleFilterChange('apartment_id', e.target.value ? parseInt(e.target.value as string) : undefined)}
+                onChange={(e) => handleFilterChange('apartment_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
               >
                 <MenuItem value="">All Apartments</MenuItem>
                 {apartments.map(apartment => (
@@ -273,13 +273,13 @@ export default function Utilities() {
             </FormControl>
           </Grid>
 
-          <Grid xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Booking</InputLabel>
               <Select
                 value={filters.booking_id || ''}
                 label="Booking"
-                onChange={(e) => handleFilterChange('booking_id', e.target.value ? parseInt(e.target.value as string) : undefined)}
+                onChange={(e) => handleFilterChange('booking_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
               >
                 <MenuItem value="">All Bookings</MenuItem>
                 {(bookings || []).map(booking => (
@@ -291,7 +291,7 @@ export default function Utilities() {
             </FormControl>
           </Grid>
 
-          <Grid xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <FormControl fullWidth size="small">
               <InputLabel>Who Pays</InputLabel>
               <Select
@@ -309,7 +309,7 @@ export default function Utilities() {
             </FormControl>
           </Grid>
 
-          <Grid xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Button
               variant="outlined"
               onClick={clearFilters}

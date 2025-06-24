@@ -281,6 +281,7 @@ export class PaymentService {
         created_by: payment.booking_created_by,
         created_at: new Date(payment.booking_created_at),
         updated_at: new Date(payment.booking_updated_at),
+        number_of_people: payment.booking_number_of_people || 0,
         user: payment.booking_user_name ? {
           id: payment.booking_user_id,
           name: payment.booking_user_name,
@@ -288,8 +289,8 @@ export class PaymentService {
           phone_number: payment.booking_user_phone || undefined,
           role: payment.booking_user_role,
           is_active: Boolean(payment.booking_user_is_active),
-          created_at: new Date(),
-          updated_at: new Date()
+          created_at: payment.booking_user_created_at ? new Date(payment.booking_user_created_at) : new Date(0),
+          updated_at: payment.booking_user_updated_at ? new Date(payment.booking_user_updated_at) : new Date(0)
         } : undefined
       } : undefined,
       payment_method: {
@@ -306,8 +307,8 @@ export class PaymentService {
         phone_number: payment.creator_phone || undefined,
         role: payment.creator_role,
         is_active: Boolean(payment.creator_is_active),
-        created_at: new Date(payment.creator_created_at),
-        updated_at: new Date(payment.creator_updated_at)
+        created_at: payment.creator_created_at ? new Date(payment.creator_created_at) : new Date(0),
+        updated_at: payment.creator_updated_at ? new Date(payment.creator_updated_at) : new Date(0)
       } : undefined
     }));
 
@@ -461,6 +462,7 @@ export class PaymentService {
         created_by: payment.booking_created_by,
         created_at: new Date(payment.booking_created_at),
         updated_at: new Date(payment.booking_updated_at),
+        number_of_people: payment.booking_number_of_people || 0,
         user: payment.booking_user_name ? {
           id: payment.booking_user_id,
           name: payment.booking_user_name,
@@ -468,8 +470,8 @@ export class PaymentService {
           phone_number: payment.booking_user_phone || undefined,
           role: payment.booking_user_role,
           is_active: Boolean(payment.booking_user_is_active),
-          created_at: new Date(),
-          updated_at: new Date()
+          created_at: payment.booking_user_created_at ? new Date(payment.booking_user_created_at) : new Date(0),
+          updated_at: payment.booking_user_updated_at ? new Date(payment.booking_user_updated_at) : new Date(0)
         } : undefined
       } : undefined,
       payment_method: {
@@ -486,8 +488,8 @@ export class PaymentService {
         phone_number: payment.creator_phone || undefined,
         role: payment.creator_role,
         is_active: Boolean(payment.creator_is_active),
-        created_at: new Date(payment.creator_created_at),
-        updated_at: new Date(payment.creator_updated_at)
+        created_at: payment.creator_created_at ? new Date(payment.creator_created_at) : new Date(0),
+        updated_at: payment.creator_updated_at ? new Date(payment.creator_updated_at) : new Date(0)
       } : undefined
     };
   }
