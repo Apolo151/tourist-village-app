@@ -296,7 +296,7 @@ export class AuthService {
     if (!includePassword) {
       query.select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
       ]);
     }
 
@@ -324,7 +324,7 @@ export class AuthService {
     if (!includePassword) {
       query.select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
       ]);
     }
 

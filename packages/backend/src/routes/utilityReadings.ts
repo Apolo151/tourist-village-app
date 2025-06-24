@@ -14,6 +14,7 @@ const utilityReadingService = new UtilityReadingService();
 router.get(
   '/',
   authenticateToken,
+  filterByResponsibleVillage(),
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -54,7 +55,7 @@ router.get(
       }
       // Admins and super_admins can see all readings (no additional filtering)
 
-      const result = await utilityReadingService.getUtilityReadings(filters);
+      const result = await utilityReadingService.getUtilityReadings(filters, req.villageFilter);
 
       res.json({
         success: true,

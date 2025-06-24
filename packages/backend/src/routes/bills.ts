@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { db } from '../database/connection';
 
 const router = Router();
@@ -11,6 +11,7 @@ const router = Router();
 router.get(
   '/summary',
   authenticateToken,
+  filterByResponsibleVillage(),
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -52,6 +53,11 @@ router.get(
       // Apply filters
       if (village_id) {
         query = query.where('a.village_id', village_id);
+      }
+
+      // Apply village filter from middleware (for admin users with responsible_village)
+      if (req.villageFilter) {
+        query = query.where('a.village_id', req.villageFilter);
       }
 
       if (user_type) {
@@ -179,6 +185,7 @@ router.get(
 router.get(
   '/apartment/:id',
   authenticateToken,
+  filterByResponsibleVillage(),
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -225,6 +232,15 @@ router.get(
             message: 'You can only access bills for apartments you have bookings for'
           });
         }
+      }
+
+      // Check village filter (for admin users with responsible_village)
+      if (req.villageFilter && apartment.village_id !== req.villageFilter) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+          message: 'You can only access bills for apartments in your responsible village'
+        });
       }
 
       // Get all payments for this apartment
@@ -538,6 +554,7 @@ router.get(
 router.get(
   '/previous-years',
   authenticateToken,
+  filterByResponsibleVillage(),
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -585,6 +602,12 @@ router.get(
       } else if (user.role === 'renter') {
         paymentsQuery = paymentsQuery.where('p.created_by', user.id);
         serviceRequestsQuery = serviceRequestsQuery.where('sr.requester_id', user.id);
+      }
+
+      // Apply village filter from middleware (for admin users with responsible_village)
+      if (req.villageFilter) {
+        paymentsQuery = paymentsQuery.where('a.village_id', req.villageFilter);
+        serviceRequestsQuery = serviceRequestsQuery.where('a.village_id', req.villageFilter);
       }
 
       const [paymentsResult, serviceRequestsResult] = await Promise.all([

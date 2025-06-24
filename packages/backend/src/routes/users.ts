@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { UserService } from '../services/userService';
 import { ValidationMiddleware } from '../middleware/validation';
-import { authenticateToken, requireAdmin, requireOwnershipOrAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireOwnershipOrAdmin, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { UserFilters } from '../types';
 
 export const usersRouter = Router();
@@ -14,10 +14,19 @@ const userService = new UserService();
 usersRouter.get(
   '/',
   authenticateToken,
-  requireAdmin,
+  filterByResponsibleVillage(),
   ValidationMiddleware.validateUserQueryParams,
   async (req: Request, res: Response) => {
     try {
+      // Check user role and implement access control
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized',
+          message: 'Authentication required'
+        });
+      }
+
       const filters: UserFilters = {
         search: req.query.search as string,
         role: req.query.role as 'super_admin' | 'admin' | 'owner' | 'renter',
@@ -27,14 +36,41 @@ usersRouter.get(
         sort_order: (req.query.sort_order as 'asc' | 'desc') || 'asc'
       };
 
-      const result = await userService.getUsers(filters);
+      // Super admins see all users, Admins see users in their village
+      if (req.user.role === 'super_admin' || req.user.role === 'admin') {
+        const result = await userService.getUsers(filters, req.villageFilter);
 
-      res.json({
-        success: true,
-        data: result.data,
-        pagination: result.pagination,
-        message: `Found ${result.pagination.total} users`
-      });
+        res.json({
+          success: true,
+          data: result.data,
+          pagination: result.pagination,
+          message: `Found ${result.pagination.total} users`
+        });
+      }
+      // Other roles can only see their own user
+      else {
+        const user = await userService.getUserById(req.user.id);
+        
+        if (!user) {
+          return res.status(404).json({
+            success: false,
+            error: 'Not found',
+            message: 'User not found'
+          });
+        }
+
+        res.json({
+          success: true,
+          data: [user],
+          pagination: {
+            page: 1,
+            limit: 1,
+            total: 1,
+            total_pages: 1
+          },
+          message: 'Found 1 user'
+        });
+      }
     } catch (error) {
       console.error('Error fetching users:', error);
       res.status(500).json({
@@ -45,8 +81,6 @@ usersRouter.get(
     }
   }
 );
-
-
 
 /**
  * GET /api/users/:id
@@ -88,13 +122,14 @@ usersRouter.get(
 
 /**
  * POST /api/users
- * Create a new user
+ * Create a new user (super admin only)
  */
 usersRouter.post(
   '/',
   authenticateToken,
-  requireAdmin,
+  requireRole('super_admin'),
   ValidationMiddleware.validateCreateUser,
+  ValidationMiddleware.validateVillageExists,
   async (req: Request, res: Response) => {
     try {
       const user = await userService.createUser(req.body);
@@ -139,6 +174,7 @@ usersRouter.put(
   requireOwnershipOrAdmin('id'),
   ValidationMiddleware.validateIdParam,
   ValidationMiddleware.validateUpdateUser,
+  ValidationMiddleware.validateVillageExists,
   async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -183,12 +219,12 @@ usersRouter.put(
 
 /**
  * DELETE /api/users/:id
- * Delete user by ID
+ * Delete user by ID (super admin only)
  */
 usersRouter.delete(
   '/:id',
   authenticateToken,
-  requireAdmin,
+  requireRole('super_admin'),
   ValidationMiddleware.validateIdParam,
   async (req: Request, res: Response) => {
     try {

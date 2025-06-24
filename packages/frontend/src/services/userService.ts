@@ -10,6 +10,7 @@ export interface User {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: string;
   is_active: boolean;
+  responsible_village?: number;
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +30,7 @@ export interface CreateUserRequest {
   password: string;
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  responsible_village?: number;
 }
 
 export interface UpdateUserRequest {
@@ -37,6 +39,7 @@ export interface UpdateUserRequest {
   phone_number?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
   is_active?: boolean;
+  responsible_village?: number;
 }
 
 export interface PaginatedResponse<T> {

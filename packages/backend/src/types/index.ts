@@ -241,6 +241,7 @@ export interface UpdateUserRequest {
   phone_number?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
   responsible_village?: number;
+  password?: string;
 }
 
 // Auth-related types

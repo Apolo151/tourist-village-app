@@ -295,6 +295,15 @@ export class ValidationMiddleware {
     if (data.phone_number !== undefined && data.phone_number !== null) {
       if (typeof data.phone_number !== 'string') {
         errors.push({ field: 'phone_number', message: 'Phone number must be a string' });
+      } else if (data.phone_number.length > 20) {
+        errors.push({ field: 'phone_number', message: 'Phone number must be less than 20 characters' });
+      }
+    }
+
+    // Responsible village validation (optional field)
+    if (data.responsible_village !== undefined && data.responsible_village !== null) {
+      if (typeof data.responsible_village !== 'number' || data.responsible_village <= 0) {
+        errors.push({ field: 'responsible_village', message: 'Responsible village ID must be a positive number' });
       }
     }
 
@@ -309,11 +318,6 @@ export class ValidationMiddleware {
       if (!emailRegex.test(data.email)) {
         errors.push({ field: 'email', message: 'Email must be in valid format' });
       }
-    }
-
-    // Phone number length validation
-    if (data.phone_number && data.phone_number.length > 20) {
-      errors.push({ field: 'phone_number', message: 'Phone number must be less than 20 characters' });
     }
 
     if (errors.length > 0) {
@@ -368,6 +372,13 @@ export class ValidationMiddleware {
         errors.push({ field: 'phone_number', message: 'Phone number must be a string' });
       } else if (data.phone_number.length > 20) {
         errors.push({ field: 'phone_number', message: 'Phone number must be less than 20 characters' });
+      }
+    }
+
+    // Responsible village validation (optional field)
+    if (data.responsible_village !== undefined && data.responsible_village !== null) {
+      if (typeof data.responsible_village !== 'number' || data.responsible_village <= 0) {
+        errors.push({ field: 'responsible_village', message: 'Responsible village ID must be a positive number' });
       }
     }
 
@@ -1580,72 +1591,108 @@ export class ValidationMiddleware {
    * Validate update payment request body
    */
   static validateUpdatePayment(req: Request, res: Response, next: NextFunction): void {
-    const data = req.body;
     const errors: ValidationError[] = [];
+    const data = req.body;
 
-    // Check if at least one field is provided
-    const allowedFields = ['apartment_id', 'booking_id', 'amount', 'currency', 'method_id', 'user_type', 'date', 'description'];
-    const providedFields = Object.keys(data).filter(key => allowedFields.includes(key));
-    
+    // Check if at least one field is provided for update
+    const providedFields = Object.keys(data).filter(key => data[key] !== undefined);
     if (providedFields.length === 0) {
       errors.push({ field: 'general', message: 'At least one field must be provided for update' });
     }
 
     // Validate provided fields
-    if (data.apartment_id !== undefined && (typeof data.apartment_id !== 'number' || data.apartment_id <= 0)) {
-      errors.push({ field: 'apartment_id', message: 'Apartment ID must be a positive number' });
+    if (data.apartment_id !== undefined) {
+      if (typeof data.apartment_id !== 'number' || data.apartment_id <= 0) {
+        errors.push({ field: 'apartment_id', message: 'Apartment ID must be a positive number' });
+      }
     }
 
-    if (data.booking_id !== undefined && data.booking_id !== null && (typeof data.booking_id !== 'number' || data.booking_id <= 0)) {
-      errors.push({ field: 'booking_id', message: 'Booking ID must be a positive number or null' });
+    if (data.booking_id !== undefined && data.booking_id !== null) {
+      if (typeof data.booking_id !== 'number' || data.booking_id <= 0) {
+        errors.push({ field: 'booking_id', message: 'Booking ID must be a positive number' });
+      }
     }
 
     if (data.amount !== undefined) {
       if (typeof data.amount !== 'number' || data.amount <= 0) {
         errors.push({ field: 'amount', message: 'Amount must be a positive number' });
-      } else if (data.amount > 999999999.99) {
-        errors.push({ field: 'amount', message: 'Amount is too large' });
       }
     }
 
-    if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
-      errors.push({ field: 'currency', message: 'Currency must be EGP or GBP' });
+    if (data.currency !== undefined) {
+      if (!['EGP', 'GBP'].includes(data.currency)) {
+        errors.push({ field: 'currency', message: 'Currency must be either EGP or GBP' });
+      }
     }
 
-    if (data.method_id !== undefined && (typeof data.method_id !== 'number' || data.method_id <= 0)) {
-      errors.push({ field: 'method_id', message: 'Payment method ID must be a positive number' });
+    if (data.method_id !== undefined) {
+      if (typeof data.method_id !== 'number' || data.method_id <= 0) {
+        errors.push({ field: 'method_id', message: 'Payment method ID must be a positive number' });
+      }
     }
 
-    if (data.user_type !== undefined && !['owner', 'renter'].includes(data.user_type)) {
-      errors.push({ field: 'user_type', message: 'User type must be owner or renter' });
+    if (data.user_type !== undefined) {
+      if (!['owner', 'renter'].includes(data.user_type)) {
+        errors.push({ field: 'user_type', message: 'User type must be either owner or renter' });
+      }
     }
 
     if (data.date !== undefined) {
-      if (typeof data.date !== 'string' || !data.date.trim()) {
-        errors.push({ field: 'date', message: 'Date must be a non-empty string' });
-      } else {
-        const date = new Date(data.date);
-        if (isNaN(date.getTime())) {
-          errors.push({ field: 'date', message: 'Date must be a valid date' });
-        }
+      if (!ValidationMiddleware.isValidDate(data.date)) {
+        errors.push({ field: 'date', message: 'Date must be a valid date in YYYY-MM-DD format' });
       }
     }
 
-    if (data.description !== undefined && typeof data.description !== 'string') {
-      errors.push({ field: 'description', message: 'Description must be a string' });
-    } else if (data.description && data.description.length > 1000) {
-      errors.push({ field: 'description', message: 'Description must not exceed 1,000 characters' });
+    if (data.description !== undefined && data.description !== null) {
+      if (typeof data.description !== 'string') {
+        errors.push({ field: 'description', message: 'Description must be a string' });
+      } else if (data.description.length > 500) {
+        errors.push({ field: 'description', message: 'Description must be less than 500 characters' });
+      }
     }
 
     if (errors.length > 0) {
-      res.status(400).json({
+      return res.status(400).json({
         success: false,
         error: 'Validation failed',
         details: errors
       });
-      return;
     }
 
+    next();
+  }
+
+  /**
+   * Validate that a village ID exists in the database
+   * This should be used after basic validation to ensure the village exists
+   */
+  static async validateVillageExists(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const { responsible_village } = req.body;
+    
+    if (responsible_village !== undefined && responsible_village !== null) {
+      try {
+        const { db } = await import('../database/connection');
+        const village = await db('villages').where('id', responsible_village).first();
+        
+        if (!village) {
+          res.status(400).json({
+            success: false,
+            error: 'Validation failed',
+            details: [{ field: 'responsible_village', message: 'Village with this ID does not exist' }]
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error validating village existence:', error);
+        res.status(500).json({
+          success: false,
+          error: 'Internal server error',
+          message: 'Failed to validate village existence'
+        });
+        return;
+      }
+    }
+    
     next();
   }
 

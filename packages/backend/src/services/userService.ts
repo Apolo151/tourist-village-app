@@ -14,7 +14,7 @@ export class UserService {
   /**
    * Get all users with filtering, sorting, and pagination
    */
-  async getUsers(filters: UserFilters): Promise<PaginatedResponse<PublicUser>> {
+  async getUsers(filters: UserFilters, villageFilter?: number): Promise<PaginatedResponse<PublicUser>> {
     const {
       search,
       role,
@@ -30,6 +30,11 @@ export class UserService {
 
     // Start with base query (no select yet)
     let baseQuery = db('users').where('is_active', true); // Only return active users by default
+
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      baseQuery = baseQuery.where('responsible_village', villageFilter);
+    }
 
     // Apply search filter (search in name and email)
     if (search && search.trim()) {
@@ -338,6 +343,12 @@ export class UserService {
 
     if (data.responsible_village !== undefined) {
       updateData.responsible_village = data.responsible_village || null;
+    }
+
+    // Handle password update if provided
+    if (data.password && data.password.trim()) {
+      const password_hash = await this.hashPassword(data.password.trim());
+      await this.updateUserAuth(id, { password_hash });
     }
 
     try {

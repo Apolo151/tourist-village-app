@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { bookingService } from '../services/bookingService';
 import { ValidationMiddleware } from '../middleware/validation';
-import { authenticateToken, requireAdmin, filterByResponsibleVillage } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireOwnershipOrAdmin, filterByResponsibleVillage } from '../middleware/auth';
 import { CreateBookingRequest, UpdateBookingRequest } from '../types';
+import { BookingFilters, BookingQueryOptions } from '../services/bookingService';
 
 const bookingsRouter = Router();
 
@@ -17,36 +18,32 @@ bookingsRouter.get(
   ValidationMiddleware.validateBookingQueryParams,
   async (req: Request, res: Response) => {
     try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 10;
-      const sort_by = req.query.sort_by as string || 'arrival_date';
-      const sort_order = req.query.sort_order as 'asc' | 'desc' || 'desc';
-
-      const filters = {
+      const filters: BookingFilters = {
         apartment_id: req.query.apartment_id ? parseInt(req.query.apartment_id as string) : undefined,
         user_id: req.query.user_id ? parseInt(req.query.user_id as string) : undefined,
-        user_type: req.query.user_type as 'owner' | 'renter' | undefined,
+        user_type: req.query.user_type as 'owner' | 'renter',
         village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
-        status: req.query.status as 'not_arrived' | 'in_village' | 'left' | undefined,
-        arrival_date_start: req.query.arrival_date_start as string | undefined,
-        arrival_date_end: req.query.arrival_date_end as string | undefined,
-        leaving_date_start: req.query.leaving_date_start as string | undefined,
-        leaving_date_end: req.query.leaving_date_end as string | undefined,
-        search: req.query.search as string | undefined
+        status: req.query.status as 'not_arrived' | 'in_village' | 'left',
+        arrival_date_start: req.query.arrival_date_start as string,
+        arrival_date_end: req.query.arrival_date_end as string,
+        leaving_date_start: req.query.leaving_date_start as string,
+        leaving_date_end: req.query.leaving_date_end as string,
+        search: req.query.search as string
       };
 
-      const options = {
-        page,
-        limit,
-        sort_by,
-        sort_order
+      const options: BookingQueryOptions = {
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
+        sort_by: req.query.sort_by as string || 'arrival_date',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc'
       };
 
       const result = await bookingService.getBookings(filters, { ...options, villageFilter: req.villageFilter });
 
       res.json({
         success: true,
-        data: result
+        data: result,
+        message: `Found ${result.total} bookings`
       });
     } catch (error) {
       console.error('Error getting bookings:', error);

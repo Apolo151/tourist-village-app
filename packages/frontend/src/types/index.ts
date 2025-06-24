@@ -7,6 +7,7 @@ export interface User {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: string;
   is_active: boolean;
+  responsible_village?: number;
   created_at: string;
   updated_at: string;
 }

@@ -151,6 +151,11 @@ export class EmailService {
       });
     }
 
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
     // Get total count for pagination
     const countQuery = db('emails as e')
       .leftJoin('apartments as a', 'e.apartment_id', 'a.id')
@@ -182,6 +187,11 @@ export class EmailService {
             .orWhere('owner.name', 'ilike', `%${searchTerm}%`)
             .orWhere('booking_user.name', 'ilike', `%${searchTerm}%`);
       });
+    }
+
+    // Apply village filter to count query if provided
+    if (villageFilter) {
+      countQuery.where('a.village_id', villageFilter);
     }
 
     const [{ count }] = await countQuery.count('e.id as count');

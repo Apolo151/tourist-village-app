@@ -187,7 +187,6 @@ export const filterByResponsibleVillage = () => {
 
     // Only apply filtering for admin users with responsible_village set
     if (req.user.role === 'admin' && req.user.responsible_village) {
-      // Add village filter to request for services to use
       req.villageFilter = req.user.responsible_village;
     }
 

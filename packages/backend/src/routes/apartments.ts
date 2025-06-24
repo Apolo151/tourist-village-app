@@ -56,10 +56,21 @@ apartmentsRouter.get(
 apartmentsRouter.get(
   '/village/:villageId',
   authenticateToken,
+  filterByResponsibleVillage(),
   ValidationMiddleware.validateIdParam,
   async (req: Request, res: Response) => {
     try {
       const villageId = parseInt(req.params.villageId);
+      
+      // Check village filter (for admin users with responsible_village)
+      if (req.villageFilter && villageId !== req.villageFilter) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+          message: 'You can only access apartments in your responsible village'
+        });
+      }
+      
       const apartments = await apartmentService.getApartmentsByVillage(villageId);
 
       res.json({
@@ -94,6 +105,7 @@ apartmentsRouter.get(
 apartmentsRouter.get(
   '/:id',
   authenticateToken,
+  filterByResponsibleVillage(),
   ValidationMiddleware.validateIdParam,
   async (req: Request, res: Response) => {
     try {
@@ -105,6 +117,15 @@ apartmentsRouter.get(
           success: false,
           error: 'Not found',
           message: 'Apartment not found'
+        });
+      }
+
+      // Check village filter (for admin users with responsible_village)
+      if (req.villageFilter && apartment.village_id !== req.villageFilter) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+          message: 'You can only access apartments in your responsible village'
         });
       }
 

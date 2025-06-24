@@ -113,7 +113,8 @@ export default function Settings() {
     password: '',
     phone_number: '',
     role: 'renter' as 'super_admin' | 'admin' | 'owner' | 'renter',
-    is_active: true
+    is_active: true,
+    responsible_village: undefined as number | undefined
   });
 
   const [newPaymentMethod, setNewPaymentMethod] = useState({
@@ -127,6 +128,10 @@ export default function Settings() {
     water_price: 0.75,
     phases: 1
   });
+
+  // Only show user management for super_admins
+  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   // Admin check
   useEffect(() => {
@@ -176,8 +181,21 @@ export default function Settings() {
   };
 
   const loadVillages = async () => {
-    const result = await villageService.getVillages({ limit: 100 });
-    setVillages(result.data);
+    try {
+      // Only load villages if user is admin or super_admin
+      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+        return;
+      }
+      
+      const result = await villageService.getVillages({ limit: 100 });
+      setVillages(result.data);
+    } catch (error) {
+      console.error('Failed to load villages:', error);
+      // Don't show error to user if they don't have permission
+      if (error instanceof Error && error.message.includes('401')) {
+        console.warn('User does not have permission to view villages');
+      }
+    }
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -185,7 +203,7 @@ export default function Settings() {
   };
 
   // User management handlers
-  const handleOpenAddUserDialog = () => {
+  const handleOpenAddUserDialog = async () => {
     setEditingUser(null);
     setNewUser({
       name: '',
@@ -193,12 +211,15 @@ export default function Settings() {
       password: '',
       phone_number: '',
       role: 'renter',
-      is_active: true
+      is_active: true,
+      responsible_village: undefined
     });
+    // Load villages for the dropdown
+    await loadVillages();
     setOpenUserDialog(true);
   };
 
-  const handleEditUser = (user: User) => {
+  const handleEditUser = async (user: User) => {
     setEditingUser(user);
     setNewUser({
       name: user.name,
@@ -206,8 +227,11 @@ export default function Settings() {
       password: '', // Don't pre-fill password
       phone_number: user.phone_number || '',
       role: user.role,
-      is_active: user.is_active
+      is_active: user.is_active,
+      responsible_village: user.responsible_village
     });
+    // Load villages for the dropdown
+    await loadVillages();
     setOpenUserDialog(true);
   };
 
@@ -238,8 +262,14 @@ export default function Settings() {
           email: newUser.email,
           phone_number: newUser.phone_number || undefined,
           role: newUser.role,
-          is_active: newUser.is_active
+          is_active: newUser.is_active,
+          responsible_village: newUser.responsible_village
         };
+        
+        // Include password only if provided
+        if (newUser.password) {
+          updateData.password = newUser.password;
+        }
         
         await userService.updateUser(editingUser.id, updateData);
         setSnackbarMessage('User updated successfully');
@@ -388,6 +418,14 @@ export default function Settings() {
     }));
   };
 
+  const handleResponsibleVillageChange = (event: SelectChangeEvent) => {
+    const value = event.target.value;
+    setNewUser(prev => ({
+      ...prev,
+      responsible_village: value === '' ? undefined : Number(value)
+    }));
+  };
+
   const handlePaymentMethodChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>, field: string) => {
     setNewPaymentMethod(prev => ({
       ...prev,
@@ -440,84 +478,151 @@ export default function Settings() {
           </TabPanel>
           
           {/* Users Management Tab */}
-          <TabPanel value={tabValue} index={1}>
-            <Box sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Manage Users</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={handleOpenAddUserDialog}
-                >
-                  Add User
-                </Button>
-              </Box>
-              
-              <Divider sx={{ mb: 3 }} />
-              
-              {loading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                  <CircularProgress />
+          {isSuperAdmin ? (
+            <TabPanel value={tabValue} index={1}>
+              <Box sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Manage Users</Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleOpenAddUserDialog}
+                  >
+                    Add User
+                  </Button>
                 </Box>
-              ) : (
-                <List>
-                  {users.map(user => (
-                    <ListItem key={user.id} divider>
-                      <ListItemText
-                        primary={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <Typography variant="subtitle1">{user.name}</Typography>
-                            <Chip 
-                              label={user.role} 
-                              size="small" 
-                              color={
-                                user.role === 'super_admin' ? 'error' :
-                                user.role === 'admin' ? 'primary' :
-                                user.role === 'owner' ? 'secondary' : 'default'
-                              }
-                            />
-                            {!user.is_active && (
-                              <Chip label="Inactive" size="small" color="error" variant="outlined" />
-                            )}
-                          </Box>
-                        }
-                        secondary={
-                          <Box>
-                            <Typography component="span" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <EmailIcon fontSize="small" />
-                              {user.email}
-                            </Typography>
-                            {user.phone_number && (
+                
+                <Divider sx={{ mb: 3 }} />
+                
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                    <CircularProgress />
+                  </Box>
+                ) : (
+                  <List>
+                    {users.map(user => (
+                      <ListItem key={user.id} divider>
+                        <ListItemText
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="subtitle1">{user.name}</Typography>
+                              <Chip 
+                                label={user.role} 
+                                size="small" 
+                                color={
+                                  user.role === 'super_admin' ? 'error' :
+                                  user.role === 'admin' ? 'primary' :
+                                  user.role === 'owner' ? 'secondary' : 'default'
+                                }
+                              />
+                              {!user.is_active && (
+                                <Chip label="Inactive" size="small" color="error" variant="outlined" />
+                              )}
+                            </Box>
+                          }
+                          secondary={
+                            <Box>
                               <Typography component="span" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                <PhoneIcon fontSize="small" />
-                                {user.phone_number}
+                                <EmailIcon fontSize="small" />
+                                {user.email}
                               </Typography>
-                            )}
-                            <Typography variant="caption" color="text.secondary">
-                              Created: {new Date(user.created_at).toLocaleDateString()}
-                              {user.last_login && ` | Last login: ${new Date(user.last_login).toLocaleDateString()}`}
-                            </Typography>
-                          </Box>
-                        }
-                      />
-                      <ListItemSecondaryAction>
-                        <Tooltip title="Edit User">
-                          <IconButton edge="end" onClick={() => handleEditUser(user)}>
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete User">
-                          <IconButton edge="end" onClick={() => handleDeleteUser(user.id)}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-            </Box>
-          </TabPanel>
+                              {user.phone_number && (
+                                <Typography component="span" variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                  <PhoneIcon fontSize="small" />
+                                  {user.phone_number}
+                                </Typography>
+                              )}
+                              <Typography variant="caption" color="text.secondary">
+                                Created: {new Date(user.created_at).toLocaleDateString()}
+                                {user.last_login && ` | Last login: ${new Date(user.last_login).toLocaleDateString()}`}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                        <ListItemSecondaryAction>
+                          <Tooltip title="Edit User">
+                            <IconButton edge="end" onClick={() => handleEditUser(user)}>
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete User">
+                            <IconButton edge="end" onClick={() => handleDeleteUser(user.id)}>
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    ))}
+                  </List>
+                )}
+              </Box>
+            </TabPanel>
+          ) : isAdmin ? (
+            // For admins, show only their own profile
+            <TabPanel value={tabValue} index={1}>
+              <Box sx={{ p: 3 }}>
+                <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
+                  <Paper sx={{ p: 3 }}>
+                    <Typography variant="h5" gutterBottom>My Profile</Typography>
+                    <List>
+                      <ListItem><ListItemText primary="Name" secondary={currentUser?.name} /></ListItem>
+                      <ListItem><ListItemText primary="Email" secondary={currentUser?.email} /></ListItem>
+                      <ListItem><ListItemText primary="Phone" secondary={currentUser?.phone_number || '-'} /></ListItem>
+                      <ListItem><ListItemText primary="Role" secondary={currentUser?.role} /></ListItem>
+                      {isAdmin && currentUser?.responsible_village && (
+                        <ListItem><ListItemText primary="Responsible Village" secondary={villages.find(v => v.id === currentUser.responsible_village)?.name || 'Unknown'} /></ListItem>
+                      )}
+                    </List>
+                    <Button variant="contained" onClick={async () => {
+                      setEditingUser(currentUser);
+                      setNewUser({
+                        name: currentUser?.name || '',
+                        email: currentUser?.email || '',
+                        password: '',
+                        phone_number: currentUser?.phone_number || '',
+                        role: currentUser?.role || 'admin',
+                        is_active: true,
+                        responsible_village: currentUser?.responsible_village
+                      });
+                      await loadVillages();
+                      setOpenUserDialog(true);
+                    }}>Edit Profile</Button>
+                  </Paper>
+                </Box>
+              </Box>
+            </TabPanel>
+          ) : (
+            // For renters/owners, show only their own profile
+            <TabPanel value={tabValue} index={1}>
+              <Box sx={{ p: 3 }}>
+                <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
+                  <Paper sx={{ p: 3 }}>
+                    <Typography variant="h5" gutterBottom>My Profile</Typography>
+                    <List>
+                      <ListItem><ListItemText primary="Name" secondary={currentUser?.name} /></ListItem>
+                      <ListItem><ListItemText primary="Email" secondary={currentUser?.email} /></ListItem>
+                      <ListItem><ListItemText primary="Phone" secondary={currentUser?.phone_number || '-'} /></ListItem>
+                      <ListItem><ListItemText primary="Role" secondary={currentUser?.role} /></ListItem>
+                    </List>
+                    <Button variant="contained" onClick={async () => {
+                      setEditingUser(currentUser);
+                      setNewUser({
+                        name: currentUser?.name || '',
+                        email: currentUser?.email || '',
+                        password: '',
+                        phone_number: currentUser?.phone_number || '',
+                        role: currentUser?.role || 'renter',
+                        is_active: true,
+                        responsible_village: currentUser?.responsible_village
+                      });
+                      await loadVillages();
+                      setOpenUserDialog(true);
+                    }}>Edit Profile</Button>
+                  </Paper>
+                </Box>
+              </Box>
+            </TabPanel>
+          )}
           
           {/* Payment Methods Tab */}
           <TabPanel value={tabValue} index={2}>
@@ -695,6 +800,17 @@ export default function Settings() {
                 required
               />
             )}
+            {editingUser && (
+              <TextField
+                label="New Password (leave blank to keep current)"
+                name="password"
+                type="password"
+                value={newUser.password}
+                onChange={handleUserChange}
+                fullWidth
+                helperText="Only fill this if you want to change the password"
+              />
+            )}
             <FormControl fullWidth>
               <InputLabel>Role</InputLabel>
               <Select
@@ -710,6 +826,25 @@ export default function Settings() {
                 )}
               </Select>
             </FormControl>
+            {/* Responsible Village (for admin only) */}
+            {isAdmin && (
+              <FormControl fullWidth>
+                <InputLabel>Responsible Village</InputLabel>
+                <Select
+                  name="responsible_village"
+                  value={newUser.responsible_village ? String(newUser.responsible_village) : ''}
+                  onChange={handleResponsibleVillageChange}
+                  label="Responsible Village"
+                >
+                  <MenuItem value="">
+                    <em>None</em>
+                  </MenuItem>
+                  {villages.map((village) => (
+                    <MenuItem key={village.id} value={String(village.id)}>{village.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            )}
             <FormControlLabel
               control={
                 <Switch
