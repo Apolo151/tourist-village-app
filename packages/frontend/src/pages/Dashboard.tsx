@@ -27,6 +27,7 @@ import { paymentService } from '../services/paymentService';
 import type { Apartment as ServiceApartment } from '../services/apartmentService';
 import type { Payment as ServicePayment } from '../services/paymentService';
 import type { Apartment } from '../types';
+import ExportButtons from '../components/ExportButtons';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -205,10 +206,10 @@ export default function Dashboard() {
             <Typography variant="h6" component="div">
               General Financial Report
             </Typography>
-            <Button variant="contained" onClick={handleExport}>
-              Export to PDF/Excel
-            </Button>
           </Box>
+          
+          {/* Export Buttons */}
+          <ExportButtons data={reportData} columns={["id","city","apartment","paymentMethod","balance","runningTotal"]} excelFileName="dashboard-report.xlsx" pdfFileName="dashboard-report.pdf" />
           
           <Box sx={{ display: 'flex', mb: 2 }}>
             <FormControl sx={{ m: 1, minWidth: 150 }}>

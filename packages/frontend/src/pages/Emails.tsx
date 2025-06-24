@@ -44,6 +44,7 @@ import type { Email, UIEmailType, BackendEmailType } from '../services/emailServ
 import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { format, parseISO } from 'date-fns';
+import ExportButtons from '../components/ExportButtons';
 
 export default function Emails() {
   const navigate = useNavigate();
@@ -312,6 +313,9 @@ export default function Emails() {
           </FormControl>
         </Box>
       </Paper>
+
+      {/* Export Buttons */}
+      <ExportButtons data={emails} columns={["id","apartment_id","booking_id","date","from","to","subject","type"]} excelFileName="emails.xlsx" pdfFileName="emails.pdf" />
 
       {/* Emails Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>

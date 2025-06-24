@@ -61,10 +61,11 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
   const [users, setUsers] = useState<User[]>([]);
   
   // Form data
-  const [formData, setFormData] = useState<Omit<CreateServiceRequestRequest, 'requester_id'>>({
+  const [formData, setFormData] = useState<Omit<CreateServiceRequestRequest, 'requester_id'> & { requester_id?: number }>({
     type_id: 0,
     apartment_id: apartmentId || 0,
     booking_id: bookingId,
+    requester_id: currentUser?.id,
     date_action: undefined,
     status: 'Created',
     who_pays: 'owner',
@@ -160,7 +161,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
     let parsedValue: any = value;
 
     // Parse numeric values
-    if (['type_id', 'apartment_id', 'booking_id', 'assignee_id'].includes(fieldName)) {
+    if (['type_id', 'apartment_id', 'booking_id', 'assignee_id', 'requester_id'].includes(fieldName)) {
       parsedValue = value ? parseInt(value) : undefined;
     }
 
@@ -202,8 +203,8 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       setError(null);
 
       // Validate required fields
-      if (!formData.type_id || !formData.apartment_id) {
-        setError('Please select both service type and apartment');
+      if (!formData.type_id || !formData.apartment_id || !formData.requester_id) {
+        setError('Please select service type, apartment, and requester');
         return;
       }
 
@@ -214,7 +215,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
 
       const requestData: CreateServiceRequestRequest = {
         ...formData,
-        requester_id: currentUser.id,
+        requester_id: formData.requester_id!,
         type_id: formData.type_id,
         apartment_id: formData.apartment_id
       };
@@ -248,6 +249,10 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
     return apartments.find(apt => apt.id === formData.apartment_id);
   };
 
+  const getSelectedRequester = () => {
+    return users.find(user => user.id === formData.requester_id);
+  };
+
   if (loading) {
     return (
       <Container maxWidth="md">
@@ -271,6 +276,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
 
   const selectedServiceType = getSelectedServiceType();
   const selectedApartment = getSelectedApartment();
+  const selectedRequester = getSelectedRequester();
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
@@ -290,7 +296,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
                 variant="contained"
                 startIcon={<SaveIcon />}
                 onClick={handleSubmit}
-                disabled={submitting || !formData.type_id || !formData.apartment_id}
+                disabled={submitting || !formData.type_id || !formData.apartment_id || !formData.requester_id}
               >
                 {submitting ? 'Creating...' : 'Create Request'}
               </Button>
@@ -468,6 +474,26 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
               </Grid>
 
               <Grid size={{xs: 12, sm: 6}}>
+                <FormControl fullWidth required>
+                  <InputLabel>Requester</InputLabel>
+                  <Select
+                    value={formData.requester_id?.toString() || ''}
+                    label="Requester"
+                    onChange={(e) => handleSelectChange(e, 'requester_id')}
+                  >
+                    <MenuItem value="">
+                      <em>Select a requester</em>
+                    </MenuItem>
+                    {users.map(user => (
+                      <MenuItem key={user.id} value={user.id.toString()}>
+                        {user.name} ({user.role})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth>
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -518,7 +544,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
           </Paper>
 
           {/* Summary */}
-          {formData.type_id && formData.apartment_id && (
+          {formData.type_id && formData.apartment_id && formData.requester_id && (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Request Summary</Typography>
@@ -539,6 +565,12 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
                     <Typography variant="subtitle2" color="text.secondary">Who Pays</Typography>
                     <Typography variant="body1">{formData.who_pays.charAt(0).toUpperCase() + formData.who_pays.slice(1)}</Typography>
                   </Box>
+                  {formData.requester_id && (
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary">Requester</Typography>
+                      <Typography variant="body1">{selectedRequester?.name} ({selectedRequester?.role})</Typography>
+                    </Box>
+                  )}
                   {formData.date_action && (
                     <Box>
                       <Typography variant="subtitle2" color="text.secondary">Service Date</Typography>

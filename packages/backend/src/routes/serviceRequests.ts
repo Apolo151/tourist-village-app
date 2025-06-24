@@ -34,16 +34,11 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       sort_order: req.query.sort_order as 'asc' | 'desc'
     };
 
-    // For non-admin users, filter to only show their own service requests or ones assigned to them
+    // For non-admin users, filter to only show service requests where they are the requester or assignee
     if (!['admin', 'super_admin'].includes(req.user!.role)) {
-      // Owners and renters can only see service requests they created or that are for their apartments
-      if (req.user!.role === 'owner') {
-        // Owner can see requests for their apartments or that they created
-        filters.requester_id = req.user!.id;
-      } else if (req.user!.role === 'renter') {
-        // Renter can see requests they created
-        filters.requester_id = req.user!.id;
-      }
+      // Non-admin users can see service requests where they are the requester or assignee
+      // This allows them to see requests they requested, even if they didn't create them
+      filters.requester_id = req.user!.id;
     }
 
     const result = await serviceRequestService.getServiceRequests(filters);
@@ -153,9 +148,8 @@ router.post('/',
       const createdBy = req.user!.id;
 
       // For non-admin users, ensure they can only create requests for themselves or their apartments
-      if (!['admin', 'super_admin'].includes(req.user!.role)) {
-        data.requester_id = req.user!.id; // Force requester to be the current user
-      }
+      // But allow them to select any requester (requester_id can be different from current user)
+      // The created_by field will always be the current user
 
       const serviceRequest = await serviceRequestService.createServiceRequest(data, createdBy);
 

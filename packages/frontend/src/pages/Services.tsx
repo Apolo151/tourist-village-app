@@ -53,6 +53,7 @@ import type { Apartment } from '../services/apartmentService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 import { format, parseISO } from 'date-fns';
+import ExportButtons from '../components/ExportButtons';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -312,6 +313,23 @@ export default function Services() {
   const formatDate = (dateString: string) => {
     return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
   };
+
+  // Data transformer for export
+  const transformServicesForExport = (servicesData: ServiceRequest[]) => {
+    return servicesData.map(service => ({
+      id: service.id,
+      apartment: service.apartment?.name || 'Unknown',
+      village: service.apartment?.village?.name || 'Unknown',
+      service_type: service.type?.name || 'Unknown',
+      notes: service.notes || 'No notes',
+      status: service.status,
+      date_action: service.date_action ? formatDate(service.date_action) : 'Not scheduled',
+      date_created: formatDate(service.date_created),
+      who_pays: service.who_pays === 'owner' ? 'Owner' : 
+                service.who_pays === 'renter' ? 'Renter' : 'Company',
+      requester: service.requester?.name || 'Unknown'
+    }));
+  };
   
   const showMessage = useCallback((message: string) => {
     setSnackbarMessage(message);
@@ -448,6 +466,9 @@ export default function Services() {
             )}
               </Box>
             </Paper>
+        
+        {/* Export Buttons */}
+        <ExportButtons data={transformServicesForExport(serviceRequests)} columns={["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"]} excelFileName="services.xlsx" pdfFileName="services.pdf" />
         
         {/* Service Types Tab */}
         <TabPanel value={tabValue} index={0}>

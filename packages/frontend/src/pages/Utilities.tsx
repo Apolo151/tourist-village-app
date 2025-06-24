@@ -43,6 +43,8 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
+import ExportButtons from '../components/ExportButtons';
+import { format, parseISO } from 'date-fns';
 
 const UTILITY_TYPES = [
   { value: 'water', label: 'Water' },
@@ -216,6 +218,32 @@ export default function Utilities() {
     };
   };
 
+  const formatDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), 'dd/MM/yyyy');
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Data transformer for export
+  const transformUtilitiesForExport = (utilitiesData: UtilityReading[]) => {
+    return utilitiesData.map(utility => ({
+      id: utility.id,
+      apartment: utility.apartment?.name || 'Unknown',
+      village: utility.apartment?.village?.name || 'Unknown',
+      water_start_reading: utility.water_start_reading || '',
+      water_end_reading: utility.water_end_reading || '',
+      electricity_start_reading: utility.electricity_start_reading || '',
+      electricity_end_reading: utility.electricity_end_reading || '',
+      start_date: formatDate(utility.start_date),
+      end_date: formatDate(utility.end_date),
+      who_pays: utility.who_pays,
+      booking_user: utility.booking?.user?.name || 'No booking',
+      created_by: utility.created_by_user?.name || 'Unknown'
+    }));
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -335,6 +363,9 @@ export default function Utilities() {
           ))}
         </Box>
       </Paper>
+
+      {/* Export Buttons */}
+      <ExportButtons data={transformUtilitiesForExport(utilityReadings)} columns={["id","apartment","village","water_start_reading","water_end_reading","electricity_start_reading","electricity_end_reading","start_date","end_date","who_pays","booking_user","created_by"]} excelFileName="utilities.xlsx" pdfFileName="utilities.pdf" />
 
       {/* Utility Readings Table */}
       <Paper sx={{ width: '100%', overflow: 'hidden' }}>

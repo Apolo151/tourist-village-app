@@ -45,6 +45,7 @@ import type { BookingFilters } from '../services/bookingService';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
 import type { Booking, Apartment, Village } from '../types';
+import ExportButtons from '../components/ExportButtons';
 
 // Booking status colors
 const statusColors: Record<string, 'info' | 'success' | 'default'> = {
@@ -309,7 +310,30 @@ export default function Bookings() {
   };
 
   const getUserTypeDisplay = (userType: string) => {
-    return userType === 'owner' ? 'Owner' : 'Renter';
+    switch (userType) {
+      case 'owner':
+        return 'Owner';
+      case 'renter':
+        return 'Renter';
+      default:
+        return userType;
+    }
+  };
+
+  // Data transformer for export
+  const transformBookingsForExport = (bookingsData: Booking[]) => {
+    return bookingsData.map(booking => ({
+      id: booking.id,
+      apartment: booking.apartment?.name || 'Unknown',
+      village: booking.apartment?.village?.name || 'Unknown',
+      user: booking.user?.name || 'Unknown',
+      user_type: getUserTypeDisplay(booking.user_type),
+      number_of_people: booking.number_of_people,
+      arrival_date: formatDate(booking.arrival_date),
+      leaving_date: formatDate(booking.leaving_date),
+      status: getStatusDisplayName(booking.status),
+      notes: booking.notes || ''
+    }));
   };
 
   if (loading && bookings.length === 0) {
@@ -490,6 +514,9 @@ export default function Bookings() {
             </Box>
           </Paper>
         )}
+
+        {/* Export Buttons */}
+        <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","user","user_type","number_of_people","arrival_date","leaving_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
 
         {/* Bookings Table */}
         <Paper>

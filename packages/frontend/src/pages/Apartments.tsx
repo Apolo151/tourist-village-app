@@ -46,6 +46,7 @@ import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
 import type { Apartment } from '../services/apartmentService';
 import type { Village } from '../services/villageService';
+import ExportButtons from '../components/ExportButtons';
 
 interface ApartmentWithBalance extends Apartment {
   balance?: {
@@ -300,8 +301,24 @@ export default function Apartments() {
 
   const getBalanceColor = (balance?: { EGP: number; GBP: number }) => {
     if (!balance) return 'default';
-    const total = balance.EGP + (balance.GBP * 50);
-    return total >= 0 ? 'success' : 'error';
+    const total = balance.EGP + balance.GBP;
+    return total > 0 ? 'success' : total < 0 ? 'error' : 'default';
+  };
+
+  // Data transformer for export
+  const transformApartmentsForExport = (apartmentsData: ApartmentWithBalance[]) => {
+    return apartmentsData.map(apartment => ({
+      id: apartment.id,
+      name: apartment.name,
+      village: apartment.village?.name || 'Unknown',
+      phase: `Phase ${apartment.phase}`,
+      owner: apartment.owner?.name || 'Unknown',
+      paying_status: apartment.paying_status === 'transfer' ? 'Payed By Transfer' : 
+                     apartment.paying_status === 'rent' ? 'Payed By Rent' : 'Non-Payer',
+      status: apartment.status || 'Unknown',
+      balance_EGP: apartment.balance?.EGP || 0,
+      balance_GBP: apartment.balance?.GBP || 0
+    }));
   };
 
   if (loading) {
@@ -435,6 +452,9 @@ export default function Apartments() {
             </Button>
           </Box>
         </Paper>
+
+        {/* Export Buttons */}
+        <ExportButtons data={transformApartmentsForExport(apartments)} columns={["id","name","village","phase","owner","paying_status","status","balance_EGP","balance_GBP"]} excelFileName="apartments.xlsx" pdfFileName="apartments.pdf" />
 
         <Paper>
           <TableContainer>

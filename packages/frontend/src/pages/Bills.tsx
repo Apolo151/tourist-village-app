@@ -40,12 +40,13 @@ import {
   TouchApp as TouchAppIcon,
   Delete as DeleteIcon
 } from '@mui/icons-material';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { billService, type BillSummaryItem, type BillTotals } from '../services/billService';
 import { villageService } from '../services/villageService';
 import type { Village } from '../types';
+import ExportButtons from '../components/ExportButtons';
 
 interface HighlightedBillSummary {
   ownerSummary: BillTotals & { userName: string };
@@ -180,8 +181,27 @@ export default function Bills() {
     navigate('/utility-readings/new');
   };
   
-  const handleExportData = () => {
-    console.log('Exporting data as PDF/Excel...');
+  const formatDate = (dateString: string) => {
+    try {
+      return format(parseISO(dateString), 'dd/MM/yyyy');
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Data transformer for export
+  const transformBillsForExport = (billsData: any[]) => {
+    return billsData.map(bill => ({
+      apartment: bill.apartment_name || 'Unknown',
+      village: bill.village_name || 'Unknown',
+      owner: bill.owner_name || 'Unknown',
+      total_money_spent_EGP: bill.total_money_spent?.EGP ?? 0,
+      total_money_spent_GBP: bill.total_money_spent?.GBP ?? 0,
+      total_money_requested_EGP: bill.total_money_requested?.EGP ?? 0,
+      total_money_requested_GBP: bill.total_money_requested?.GBP ?? 0,
+      net_money_EGP: bill.net_money?.EGP ?? 0,
+      net_money_GBP: bill.net_money?.GBP ?? 0
+    }));
   };
 
   if (loading) {
@@ -198,14 +218,6 @@ export default function Bills() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4">Bills</Typography>
           <Box>
-            <Button
-              variant="outlined"
-              startIcon={<FileDownloadIcon />}
-              onClick={handleExportData}
-              sx={{ mr: 1 }}
-            >
-              Export
-            </Button>
             <Button
               variant="contained"
               startIcon={<AddIcon />}
@@ -350,6 +362,9 @@ export default function Bills() {
             </Box>
           </Box>
         </Paper>
+        
+        {/* Export Buttons */}
+        <ExportButtons data={transformBillsForExport(billDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="bills.xlsx" pdfFileName="bills.pdf" />
         
         {/* Bills Table */}
         <TableContainer component={Paper}>

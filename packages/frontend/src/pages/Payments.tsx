@@ -50,6 +50,7 @@ import type { Booking } from '../services/bookingService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 import { format, parseISO } from 'date-fns';
+import ExportButtons from '../components/ExportButtons';
 
 export default function Payments() {
   const navigate = useNavigate();
@@ -253,13 +254,30 @@ export default function Payments() {
   
   const formatDate = (dateString: string) => {
     try {
-      return format(parseISO(dateString), 'MMM dd, yyyy');
+      return format(parseISO(dateString), 'dd/MM/yyyy HH:mm');
     } catch {
       return dateString;
     }
   };
   
-
+  // Data transformer for export
+  const transformPaymentsForExport = (paymentsData: Payment[]) => {
+    return paymentsData.map(payment => ({
+      id: payment.id,
+      date: formatDate(payment.date),
+      description: payment.description || 'No description',
+      amount: paymentService.formatAmount(payment.amount, payment.currency),
+      currency: payment.currency,
+      method: payment.payment_method?.name || 'Unknown',
+      user_type: payment.user_type === 'owner' ? 'Owner' : 'Renter',
+      apartment: payment.apartment?.name || 'Unknown',
+      village: payment.apartment?.village?.name || 'Unknown',
+      booking: payment.booking ? 
+        `${formatDate(payment.booking.arrival_date)} - ${formatDate(payment.booking.leaving_date)}` : 
+        'No booking',
+      created_by: payment.created_by_user?.name || 'Unknown'
+    }));
+  };
   
   // Check for success message from URL
   useEffect(() => {
@@ -435,6 +453,9 @@ export default function Payments() {
             )}
           </Box>
         </Paper>
+        
+        {/* Export Buttons */}
+        <ExportButtons data={transformPaymentsForExport(payments)} columns={["id","date","description","amount","currency","method","user_type","apartment","village","booking","created_by"]} excelFileName="payments.xlsx" pdfFileName="payments.pdf" />
         
         {/* Payments Table */}
         <TableContainer component={Paper}>
