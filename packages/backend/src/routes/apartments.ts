@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { ApartmentService } from '../services/apartmentService';
 import { ValidationMiddleware } from '../middleware/validation';
-import { authenticateToken, requireAdmin, requireOwnershipOrAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireOwnershipOrAdmin, filterByResponsibleVillage } from '../middleware/auth';
 import { ApartmentFilters } from '../types';
 
 export const apartmentsRouter = Router();
@@ -14,6 +14,7 @@ const apartmentService = new ApartmentService();
 apartmentsRouter.get(
   '/',
   authenticateToken,
+  filterByResponsibleVillage(),
   ValidationMiddleware.validateQueryParams,
   async (req: Request, res: Response) => {
     try {
@@ -29,7 +30,7 @@ apartmentsRouter.get(
         sort_order: (req.query.sort_order as 'asc' | 'desc') || 'asc'
       };
 
-      const result = await apartmentService.getApartments(filters);
+      const result = await apartmentService.getApartments(filters, req.villageFilter);
 
       res.json({
         success: true,
@@ -200,17 +201,9 @@ apartmentsRouter.put(
       console.error('Error updating apartment:', error);
       
       if (error instanceof Error) {
-        if (error.message === 'Apartment not found') {
-          return res.status(404).json({
-            success: false,
-            error: 'Not found',
-            message: error.message
-          });
-        }
-        
         if (error.message.includes('not found') || 
             error.message.includes('must be between') ||
-            error.message.includes('Invalid') ||
+            error.message.includes('required') ||
             error.message.includes('already exists')) {
           return res.status(400).json({
             success: false,
@@ -251,7 +244,7 @@ apartmentsRouter.delete(
       console.error('Error deleting apartment:', error);
       
       if (error instanceof Error) {
-        if (error.message === 'Apartment not found') {
+        if (error.message.includes('not found')) {
           return res.status(404).json({
             success: false,
             error: 'Not found',
@@ -259,10 +252,10 @@ apartmentsRouter.delete(
           });
         }
         
-        if (error.message.includes('Cannot delete apartment')) {
-          return res.status(409).json({
+        if (error.message.includes('Cannot delete')) {
+          return res.status(400).json({
             success: false,
-            error: 'Conflict',
+            error: 'Validation error',
             message: error.message
           });
         }
@@ -293,25 +286,23 @@ apartmentsRouter.get(
       res.json({
         success: true,
         data: summary,
-        message: 'Apartment financial summary retrieved successfully'
+        message: 'Financial summary retrieved successfully'
       });
     } catch (error) {
-      console.error('Error fetching apartment financial summary:', error);
+      console.error('Error fetching financial summary:', error);
       
-      if (error instanceof Error) {
-        if (error.message === 'Apartment not found') {
-          return res.status(404).json({
-            success: false,
-            error: 'Not found',
-            message: error.message
-          });
-        }
+      if (error instanceof Error && error.message.includes('not found')) {
+        return res.status(404).json({
+          success: false,
+          error: 'Not found',
+          message: error.message
+        });
       }
 
       res.status(500).json({
         success: false,
         error: 'Internal server error',
-        message: 'Failed to fetch apartment financial summary'
+        message: 'Failed to fetch financial summary'
       });
     }
   }
@@ -319,7 +310,7 @@ apartmentsRouter.get(
 
 /**
  * GET /api/apartments/:id/bookings
- * Get apartment bookings
+ * Get all bookings for an apartment
  */
 apartmentsRouter.get(
   '/:id/bookings',
@@ -338,10 +329,10 @@ apartmentsRouter.get(
     } catch (error) {
       console.error('Error fetching apartment bookings:', error);
       
-      if (error instanceof Error && error.message.includes('Invalid apartment ID')) {
-        return res.status(400).json({
+      if (error instanceof Error && error.message.includes('not found')) {
+        return res.status(404).json({
           success: false,
-          error: 'Validation error',
+          error: 'Not found',
           message: error.message
         });
       }
@@ -350,35 +341,6 @@ apartmentsRouter.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to fetch apartment bookings'
-      });
-    }
-  }
-);
-
-/**
- * GET /api/apartments/:id/status
- * Get apartment current status and booking
- */
-apartmentsRouter.get(
-  '/:id/status',
-  authenticateToken,
-  ValidationMiddleware.validateIdParam,
-  async (req: Request, res: Response) => {
-    try {
-      const id = parseInt(req.params.id);
-      const status = await apartmentService.getApartmentStatus(id);
-
-      res.json({
-        success: true,
-        data: status,
-        message: 'Apartment status retrieved successfully'
-      });
-    } catch (error) {
-      console.error('Error fetching apartment status:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        message: 'Failed to fetch apartment status'
       });
     }
   }
@@ -403,16 +365,14 @@ apartmentsRouter.get(
         message: 'Apartment statistics retrieved successfully'
       });
     } catch (error) {
-      console.error('Error fetching apartment statistics:', error);
+      console.error('Error fetching apartment stats:', error);
       
-      if (error instanceof Error) {
-        if (error.message === 'Apartment not found' || error.message.includes('Invalid apartment ID')) {
-          return res.status(404).json({
-            success: false,
-            error: 'Not found',
-            message: error.message
-          });
-        }
+      if (error instanceof Error && error.message.includes('not found')) {
+        return res.status(404).json({
+          success: false,
+          error: 'Not found',
+          message: error.message
+        });
       }
 
       res.status(500).json({

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { bookingService } from '../services/bookingService';
 import { ValidationMiddleware } from '../middleware/validation';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, filterByResponsibleVillage } from '../middleware/auth';
 import { CreateBookingRequest, UpdateBookingRequest } from '../types';
 
 const bookingsRouter = Router();
@@ -13,6 +13,7 @@ const bookingsRouter = Router();
 bookingsRouter.get(
   '/',
   authenticateToken,
+  filterByResponsibleVillage(),
   ValidationMiddleware.validateBookingQueryParams,
   async (req: Request, res: Response) => {
     try {
@@ -41,7 +42,7 @@ bookingsRouter.get(
         sort_order
       };
 
-      const result = await bookingService.getBookings(filters, options);
+      const result = await bookingService.getBookings(filters, { ...options, villageFilter: req.villageFilter });
 
       res.json({
         success: true,

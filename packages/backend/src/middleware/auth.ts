@@ -175,6 +175,27 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
+ * Middleware to filter data based on user's responsible village
+ * If user is admin with responsible_village set, only show data from that village
+ * If user is not admin or has no responsible_village, no filtering is applied
+ */
+export const filterByResponsibleVillage = () => {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return next();
+    }
+
+    // Only apply filtering for admin users with responsible_village set
+    if (req.user.role === 'admin' && req.user.responsible_village) {
+      // Add village filter to request for services to use
+      req.villageFilter = req.user.responsible_village;
+    }
+
+    next();
+  };
+};
+
+/**
  * Rate limiting helper for auth endpoints
  */
 export const createAuthRateLimit = () => {

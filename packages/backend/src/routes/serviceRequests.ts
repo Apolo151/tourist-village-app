@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { ServiceRequestService } from '../services/serviceRequestService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { ValidationMiddleware } from '../middleware/validation';
 import { ServiceRequestFilters, CreateServiceRequestRequest, UpdateServiceRequestRequest } from '../types';
 
@@ -12,7 +12,7 @@ const serviceRequestService = new ServiceRequestService();
  * @desc Get all service requests with filtering and pagination
  * @access Private (All authenticated users)
  */
-router.get('/', authenticateToken, async (req: Request, res: Response) => {
+router.get('/', authenticateToken, filterByResponsibleVillage(), async (req: Request, res: Response) => {
   try {
     const filters: ServiceRequestFilters = {
       type_id: req.query.type_id ? parseInt(req.query.type_id as string) : undefined,
@@ -41,7 +41,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response) => {
       filters.requester_id = req.user!.id;
     }
 
-    const result = await serviceRequestService.getServiceRequests(filters);
+    const result = await serviceRequestService.getServiceRequests(filters, req.villageFilter);
 
     res.json({
       success: true,

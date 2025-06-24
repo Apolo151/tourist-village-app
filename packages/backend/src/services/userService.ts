@@ -53,7 +53,7 @@ export class UserService {
     // Now add select to the main query
     let query = baseQuery.select([
       'id', 'name', 'email', 'phone_number', 'role', 
-      'last_login', 'is_active', 'created_at', 'updated_at'
+      'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
     ]);
 
     // Apply sorting
@@ -77,6 +77,7 @@ export class UserService {
       role: user.role,
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     }));
@@ -103,7 +104,7 @@ export class UserService {
     const user = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
       ])
       .where('id', id)
       .first();
@@ -120,6 +121,7 @@ export class UserService {
       role: user.role,
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -136,7 +138,7 @@ export class UserService {
     const user = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
       ])
       .where('email', email.toLowerCase().trim())
       .first();
@@ -153,6 +155,7 @@ export class UserService {
       role: user.role,
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -169,7 +172,7 @@ export class UserService {
     const user = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'password_hash', 'last_login', 'is_active', 
+        'password_hash', 'last_login', 'is_active', 'responsible_village',
         'refresh_token_hash', 'refresh_token_expires_at',
         'created_at', 'updated_at'
       ])
@@ -189,6 +192,7 @@ export class UserService {
       password_hash: user.password_hash,
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
       refresh_token_hash: user.refresh_token_hash || undefined,
       refresh_token_expires_at: user.refresh_token_expires_at ? new Date(user.refresh_token_expires_at) : undefined,
       created_at: new Date(user.created_at),
@@ -246,6 +250,7 @@ export class UserService {
           email: data.email.toLowerCase().trim(),
           phone_number: data.phone_number?.trim() || null,
           role: data.role,
+          responsible_village: data.responsible_village || null,
           password_hash: passwordHash,
           is_active: true,
           created_at: new Date(),
@@ -329,6 +334,10 @@ export class UserService {
 
     if (data.role !== undefined) {
       updateData.role = data.role;
+    }
+
+    if (data.responsible_village !== undefined) {
+      updateData.responsible_village = data.responsible_village || null;
     }
 
     try {
@@ -493,16 +502,22 @@ export class UserService {
     const users = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
       ])
       .where('role', role)
       .orderBy('name', 'asc');
 
     return users.map((user: any) => ({
-      ...user,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone_number: user.phone_number || undefined,
+      role: user.role,
+      last_login: user.last_login ? new Date(user.last_login) : undefined,
+      is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
       created_at: new Date(user.created_at),
-      updated_at: new Date(user.updated_at),
-      last_login: user.last_login ? new Date(user.last_login) : undefined
+      updated_at: new Date(user.updated_at)
     }));
   }
 

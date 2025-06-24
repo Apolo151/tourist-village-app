@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { EmailService } from '../services/emailService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { ValidationMiddleware } from '../middleware/validation';
 import { EmailFilters } from '../types';
+import { CreateEmailRequest, UpdateEmailRequest } from '../types';
 
 const router = Router();
 const emailService = new EmailService();

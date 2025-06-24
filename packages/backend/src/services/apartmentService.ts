@@ -19,7 +19,7 @@ export class ApartmentService {
   /**
    * Get all apartments with filtering, sorting, and pagination
    */
-  async getApartments(filters: ApartmentFilters): Promise<PaginatedResponse<Apartment>> {
+  async getApartments(filters: ApartmentFilters, villageFilter?: number): Promise<PaginatedResponse<Apartment>> {
     const {
       village_id,
       phase,
@@ -54,6 +54,12 @@ export class ApartmentService {
 
     // Build a separate count query without joins for better performance
     let countQuery = db('apartments as a');
+
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+      countQuery = countQuery.where('a.village_id', villageFilter);
+    }
 
     // Apply filters to both queries
     if (village_id) {
@@ -146,6 +152,7 @@ export class ApartmentService {
     const apartmentData = await db('apartments as a')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
       .leftJoin('users as u', 'a.owner_id', 'u.id')
+      .leftJoin('users as cb', 'a.created_by', 'cb.id')
       .select(
         'a.*',
         'v.name as village_name',
@@ -162,7 +169,14 @@ export class ApartmentService {
         'u.is_active as owner_is_active',
         'u.last_login as owner_last_login',
         'u.created_at as owner_created_at',
-        'u.updated_at as owner_updated_at'
+        'u.updated_at as owner_updated_at',
+        'cb.name as created_by_name',
+        'cb.email as created_by_email',
+        'cb.phone_number as created_by_phone',
+        'cb.role as created_by_role',
+        'cb.is_active as created_by_is_active',
+        'cb.created_at as created_by_created_at',
+        'cb.updated_at as created_by_updated_at'
       )
       .where('a.id', id)
       .first();
@@ -590,6 +604,16 @@ export class ApartmentService {
         last_login: data.owner_last_login ? new Date(data.owner_last_login) : undefined,
         created_at: new Date(data.owner_created_at || data.created_at),
         updated_at: new Date(data.owner_updated_at || data.updated_at)
+      } : undefined,
+      created_by_user: data.created_by_name ? {
+        id: data.created_by,
+        name: data.created_by_name,
+        email: data.created_by_email,
+        phone_number: data.created_by_phone || undefined,
+        role: data.created_by_role || 'admin',
+        is_active: Boolean(data.created_by_is_active),
+        created_at: new Date(data.created_by_created_at || data.created_at),
+        updated_at: new Date(data.created_by_updated_at || data.updated_at)
       } : undefined
     };
   }

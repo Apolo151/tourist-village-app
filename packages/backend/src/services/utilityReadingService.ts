@@ -15,7 +15,7 @@ export class UtilityReadingService {
   /**
    * Get all utility readings with filtering, sorting, and pagination
    */
-  async getUtilityReadings(filters: UtilityReadingFilters = {}): Promise<PaginatedResponse<UtilityReading & { 
+  async getUtilityReadings(filters: UtilityReadingFilters = {}, villageFilter?: number): Promise<PaginatedResponse<UtilityReading & { 
     apartment?: Apartment; 
     booking?: Booking;
     created_by_user?: PublicUser;
@@ -173,6 +173,11 @@ export class UtilityReadingService {
       });
     }
 
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
     // Get total count for pagination
     const countQuery = db('utility_readings as ur')
       .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
@@ -220,6 +225,11 @@ export class UtilityReadingService {
             .orWhere('owner.name', 'ilike', `%${searchTerm}%`)
             .orWhere('booking_user.name', 'ilike', `%${searchTerm}%`);
       });
+    }
+
+    // Apply village filter to count query if provided
+    if (villageFilter) {
+      countQuery.where('a.village_id', villageFilter);
     }
 
     const [{ count }] = await countQuery.count('ur.id as count');

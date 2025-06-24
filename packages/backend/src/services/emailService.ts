@@ -15,7 +15,7 @@ export class EmailService {
   /**
    * Get all emails with filtering, sorting, and pagination
    */
-  async getEmails(filters: EmailFilters = {}): Promise<PaginatedResponse<Email & { 
+  async getEmails(filters: EmailFilters = {}, villageFilter?: number): Promise<PaginatedResponse<Email & { 
     apartment?: Apartment; 
     booking?: Booking;
     created_by_user?: PublicUser;

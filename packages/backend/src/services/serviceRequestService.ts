@@ -16,7 +16,7 @@ export class ServiceRequestService {
   /**
    * Get all service requests with filtering, sorting, and pagination
    */
-  async getServiceRequests(filters: ServiceRequestFilters = {}): Promise<PaginatedResponse<ServiceRequest & { 
+  async getServiceRequests(filters: ServiceRequestFilters = {}, villageFilter?: number): Promise<PaginatedResponse<ServiceRequest & { 
     service_type?: ServiceType; 
     apartment?: Apartment; 
     booking?: Booking;
@@ -163,6 +163,11 @@ export class ServiceRequestService {
       });
     }
 
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
     // Get total count for pagination (create a separate count query to avoid GROUP BY issues)
     const countQuery = db('service_requests as sr')
       .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
@@ -195,6 +200,11 @@ export class ServiceRequestService {
             .orWhere('requester.name', 'ilike', `%${searchTerm}%`)
             .orWhere('assignee.name', 'ilike', `%${searchTerm}%`);
       });
+    }
+
+    // Apply village filter to count query if provided
+    if (villageFilter) {
+      countQuery.where('a.village_id', villageFilter);
     }
 
     const [{ count }] = await countQuery.count('sr.id as count');

@@ -20,6 +20,7 @@ export interface User {
   is_active: boolean;
   refresh_token_hash?: string;
   refresh_token_expires_at?: Date;
+  responsible_village?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -33,6 +34,7 @@ export interface PublicUser {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: Date;
   is_active: boolean;
+  responsible_village?: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -52,6 +54,7 @@ export interface Apartment {
   // Computed fields (not in DB)
   village?: Village;
   owner?: PublicUser;
+  created_by_user?: PublicUser;
   status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
   current_booking?: Booking;
 }
@@ -71,6 +74,7 @@ export interface Booking {
   updated_at: Date;
   user?: User;
   apartment?: Apartment;
+  created_by_user?: PublicUser;
 }
 
 export interface ServiceRequest {
@@ -228,6 +232,7 @@ export interface CreateUserRequest {
   email: string;
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  responsible_village?: number;
 }
 
 export interface UpdateUserRequest {
@@ -235,6 +240,7 @@ export interface UpdateUserRequest {
   email?: string;
   phone_number?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
+  responsible_village?: number;
 }
 
 // Auth-related types
@@ -277,6 +283,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: PublicUser;
+      villageFilter?: number;
     }
   }
 }

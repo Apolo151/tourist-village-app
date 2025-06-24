@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { UtilityReadingService } from '../services/utilityReadingService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { ValidationMiddleware } from '../middleware/validation';
-import { UtilityReadingFilters } from '../types';
+import { UtilityReadingFilters, CreateUtilityReadingRequest, UpdateUtilityReadingRequest } from '../types';
 
 const router = Router();
 const utilityReadingService = new UtilityReadingService();

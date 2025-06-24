@@ -16,7 +16,7 @@ export class PaymentService {
   /**
    * Get all payments with filtering, sorting, and pagination
    */
-  async getPayments(filters: PaymentFilters = {}): Promise<PaginatedResponse<Payment & { 
+  async getPayments(filters: PaymentFilters = {}, villageFilter?: number): Promise<PaginatedResponse<Payment & { 
     apartment?: Apartment; 
     booking?: Booking;
     payment_method?: PaymentMethod;
@@ -167,6 +167,11 @@ export class PaymentService {
       });
     }
 
+    // Apply village filter if provided (for admin users with responsible_village)
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
     // Get total count for pagination
     const countQuery = db('payments as p')
       .leftJoin('apartments as a', 'p.apartment_id', 'a.id')
@@ -199,6 +204,11 @@ export class PaymentService {
             .orWhere('pm.name', 'ilike', `%${searchTerm}%`)
             .orWhere('p.description', 'ilike', `%${searchTerm}%`);
       });
+    }
+
+    // Apply village filter to count query if provided
+    if (villageFilter) {
+      countQuery.where('a.village_id', villageFilter);
     }
 
     const [{ count }] = await countQuery.count('p.id as count');

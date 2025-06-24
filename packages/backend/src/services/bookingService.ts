@@ -51,7 +51,7 @@ export class BookingService {
    */
   async getBookings(
     filters: BookingFilters = {},
-    options: BookingQueryOptions = {}
+    options: BookingQueryOptions & { villageFilter?: number } = {}
   ): Promise<{
     bookings: Booking[];
     total: number;
@@ -59,7 +59,7 @@ export class BookingService {
     limit: number;
     total_pages: number;
   }> {
-    const { page = 1, limit = 10, sort_by = 'arrival_date', sort_order = 'desc' } = options;
+    const { page = 1, limit = 10, sort_by = 'arrival_date', sort_order = 'desc', villageFilter } = options;
     
     // Validate pagination
     if (page < 1) {
@@ -134,6 +134,10 @@ export class BookingService {
             .orWhere('v.name', 'ilike', `%${filters.search}%`)
             .orWhere('b.notes', 'ilike', `%${filters.search}%`);
       });
+    }
+
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
     }
 
     // Get total count for pagination
@@ -302,6 +306,16 @@ export class BookingService {
           created_at: new Date(), // Not fetched in this query
           updated_at: new Date() // Not fetched in this query
         } : undefined
+      } : undefined,
+      created_by_user: result.creator_name ? {
+        id: result.created_by,
+        name: result.creator_name,
+        email: '', // Not fetched in this query
+        phone_number: undefined,
+        role: 'admin', // Default assumption
+        is_active: true,
+        created_at: new Date(), // Not fetched in this query
+        updated_at: new Date() // Not fetched in this query
       } : undefined
     };
   }

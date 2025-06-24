@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { PaymentService } from '../services/paymentService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { ValidationMiddleware } from '../middleware/validation';
 import { PaymentFilters } from '../types';
 
@@ -14,6 +14,7 @@ const paymentService = new PaymentService();
 router.get(
   '/',
   authenticateToken,
+  filterByResponsibleVillage(),
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
@@ -52,7 +53,7 @@ router.get(
       }
       // Admins and super_admins can see all payments (no additional filtering)
 
-      const result = await paymentService.getPayments(filters);
+      const result = await paymentService.getPayments(filters, req.villageFilter);
 
       res.json({
         success: true,
