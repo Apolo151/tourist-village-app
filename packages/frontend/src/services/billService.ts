@@ -7,38 +7,42 @@ export interface BillSummaryItem {
   village_name: string;
   owner_name: string;
   owner_id: number;
-  total_money_spent: {
-    EGP: number;
-    GBP: number;
-  };
-  total_money_requested: {
-    EGP: number;
-    GBP: number;
-  };
-  net_money: {
-    EGP: number;
-    GBP: number;
-  };
+  total_money_spent: BillTotals;
+  total_money_requested: BillTotals;
+  net_money: BillTotals;
 }
 
 export interface BillTotals {
-  total_money_spent: {
-    EGP: number;
-    GBP: number;
+  EGP: number;
+  GBP: number;
+}
+
+export interface RenterSummary {
+  total_money_spent: BillTotals;
+  total_money_requested: BillTotals;
+  net_money: BillTotals;
+  userName: string;
+  userId: number;
+  bookingId?: number;
+  bookingDates?: {
+    arrival: string;
+    leaving: string;
   };
-  total_money_requested: {
-    EGP: number;
-    GBP: number;
-  };
-  net_money: {
-    EGP: number;
-    GBP: number;
-  };
+}
+
+export interface RenterSummaryResponse {
+  apartmentId: number;
+  apartmentName: string;
+  renterSummary: RenterSummary | null;
 }
 
 export interface BillSummaryResponse {
   summary: BillSummaryItem[];
-  totals: BillTotals;
+  totals: {
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+  };
 }
 
 export interface BillDetailItem {
@@ -92,8 +96,76 @@ class BillService {
   /**
    * Get previous years total for display
    */
-  async getPreviousYearsTotals(beforeYear: number): Promise<BillTotals> {
-    const response = await apiClient.get<ApiResponse<BillTotals>>('/bills/previous-years', { before_year: beforeYear });
+  async getPreviousYearsTotals(beforeYear: number): Promise<{
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+  }> {
+    const response = await apiClient.get<ApiResponse<{
+      total_money_spent: BillTotals;
+      total_money_requested: BillTotals;
+      net_money: BillTotals;
+    }>>('/bills/previous-years', { before_year: beforeYear });
+    return response.data!;
+  }
+
+  /**
+   * Get renter summary for a specific apartment
+   */
+  async getRenterSummary(apartmentId: number): Promise<RenterSummaryResponse> {
+    const response = await apiClient.get<ApiResponse<RenterSummaryResponse>>(`/bills/renter-summary/${apartmentId}`);
+    return response.data!;
+  }
+
+  /**
+   * Get detailed bill information for a specific apartment
+   */
+  async getApartmentDetails(apartmentId: number): Promise<{
+    apartment: {
+      id: number;
+      name: string;
+    };
+    bills: Array<{
+      id: string;
+      type: 'Payment' | 'Service Request' | 'Utility Reading';
+      description: string;
+      amount: number;
+      currency: 'EGP' | 'GBP';
+      date: string;
+      booking_id?: number;
+      booking_arrival_date?: string;
+      person_name?: string;
+      created_at: string;
+    }>;
+    totals: {
+      total_money_spent: BillTotals;
+      total_money_requested: BillTotals;
+      net_money: BillTotals;
+    };
+  }> {
+    const response = await apiClient.get<ApiResponse<{
+      apartment: {
+        id: number;
+        name: string;
+      };
+      bills: Array<{
+        id: string;
+        type: 'Payment' | 'Service Request' | 'Utility Reading';
+        description: string;
+        amount: number;
+        currency: 'EGP' | 'GBP';
+        date: string;
+        booking_id?: number;
+        booking_arrival_date?: string;
+        person_name?: string;
+        created_at: string;
+      }>;
+      totals: {
+        total_money_spent: BillTotals;
+        total_money_requested: BillTotals;
+        net_money: BillTotals;
+      };
+    }>>(`/bills/apartment/${apartmentId}`);
     return response.data!;
   }
 }

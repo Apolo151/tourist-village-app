@@ -33,24 +33,13 @@ class ApiError extends Error {
   }
 }
 
-// Token refresh handler interface
-interface TokenRefreshHandler {
-  onTokenRefresh: () => Promise<void>;
-  onTokenExpired: () => void;
-}
-
 // Base API client
 class ApiClient {
-  private refreshHandler: TokenRefreshHandler | null = null;
   private isRefreshing = false;
   private failedQueue: Array<{
     resolve: (value: any) => void;
     reject: (error: any) => void;
   }> = [];
-
-  setTokenRefreshHandler(handler: TokenRefreshHandler) {
-    this.refreshHandler = handler;
-  }
 
   private getAuthToken(): string | null {
     return localStorage.getItem('access_token');
@@ -96,11 +85,6 @@ class ApiClient {
         localStorage.setItem('refresh_token', data.data.refresh_token);
         localStorage.setItem('user', JSON.stringify(data.data.user));
 
-        // Notify refresh handler
-        if (this.refreshHandler) {
-          await this.refreshHandler.onTokenRefresh();
-        }
-
         // Process failed queue
         this.failedQueue.forEach(({ resolve }) => resolve(data.data));
         this.failedQueue = [];
@@ -116,10 +100,6 @@ class ApiClient {
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user');
-
-      if (this.refreshHandler) {
-        this.refreshHandler.onTokenExpired();
-      }
 
       throw error;
     } finally {
@@ -203,28 +183,6 @@ class ApiClient {
         error instanceof Error ? error.message : 'Network error',
         0
       );
-    }
-  }
-
-  // Validate current token with server
-  async validateToken(): Promise<boolean> {
-    const token = this.getAuthToken();
-    if (!token) return false;
-
-    try {
-      await this.get('/auth/me');
-      return true;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        // Try to refresh token
-        try {
-          await this.refreshTokens();
-          return true;
-        } catch (refreshError) {
-          return false;
-        }
-      }
-      return false;
     }
   }
 

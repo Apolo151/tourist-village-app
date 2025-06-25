@@ -18,7 +18,6 @@ import {
   TableRow,
   Chip,
   Alert,
-  IconButton,
   Tooltip,
   CircularProgress,
   Container,
@@ -26,7 +25,12 @@ import {
   CardContent,
   Grid,
   Pagination,
-  Stack
+  Stack,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -36,21 +40,55 @@ import {
   Add as AddIcon, 
   FilterList as FilterListIcon,
   FileDownload as FileDownloadIcon,
-  Assignment as AssignmentIcon,
   TouchApp as TouchAppIcon,
-  Delete as DeleteIcon
+  Visibility as VisibilityIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { billService, type BillSummaryItem, type BillTotals } from '../services/billService';
+import { billService, type BillSummaryItem, type BillTotals, type RenterSummaryResponse } from '../services/billService';
 import { villageService } from '../services/villageService';
 import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
 
 interface HighlightedBillSummary {
-  ownerSummary: BillTotals & { userName: string };
-  renterSummary?: BillTotals & { userName: string };
+  ownerSummary: {
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+    userName: string;
+  };
+  renterSummary?: {
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+    userName: string;
+  };
+}
+
+interface ApartmentBillDetails {
+  apartment: {
+    id: number;
+    name: string;
+  };
+  bills: Array<{
+    id: string;
+    type: 'Payment' | 'Service Request' | 'Utility Reading';
+    description: string;
+    amount: number;
+    currency: 'EGP' | 'GBP';
+    date: string;
+    booking_id?: number;
+    booking_arrival_date?: string;
+    person_name?: string;
+    created_at: string;
+  }>;
+  totals: {
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+  };
 }
 
 export default function Bills() {
@@ -59,7 +97,11 @@ export default function Bills() {
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
   const [billDisplayData, setBillDisplayData] = useState<BillSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
-  const [previousYearTotals, setPreviousYearTotals] = useState<BillTotals | null>(null);
+  const [previousYearTotals, setPreviousYearTotals] = useState<{
+    total_money_spent: BillTotals;
+    total_money_requested: BillTotals;
+    net_money: BillTotals;
+  } | null>(null);
   const [currentYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | null>(new Date(currentYear, 0, 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date(currentYear, 11, 31));
@@ -71,23 +113,55 @@ export default function Bills() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
+  // New state for detailed bill information
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [detailedBillData, setDetailedBillData] = useState<ApartmentBillDetails | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
   // Handle bill highlighting
-  const handleHighlightBill = (apartmentId: number) => {
+  const handleHighlightBill = async (apartmentId: number) => {
     const bill = billDisplayData.find(b => b.apartment_id === apartmentId);
     if (!bill) return;
 
     setHighlightedBill(apartmentId);
     
-    const summary: HighlightedBillSummary = {
-      ownerSummary: {
-        total_money_spent: bill.total_money_spent,
-        total_money_requested: bill.total_money_requested,
-        net_money: bill.net_money,
-        userName: bill.owner_name
-      },
-    };
+    try {
+      // Fetch renter summary for this apartment
+      const renterResponse = await billService.getRenterSummary(apartmentId);
+      
+      const summary: HighlightedBillSummary = {
+        ownerSummary: {
+          total_money_spent: bill.total_money_spent,
+          total_money_requested: bill.total_money_requested,
+          net_money: bill.net_money,
+          userName: bill.owner_name
+        },
+      };
 
-    setHighlightedBillSummary(summary);
+      // Add renter summary if available
+      if (renterResponse.renterSummary) {
+        summary.renterSummary = {
+          total_money_spent: renterResponse.renterSummary.total_money_spent,
+          total_money_requested: renterResponse.renterSummary.total_money_requested,
+          net_money: renterResponse.renterSummary.net_money,
+          userName: renterResponse.renterSummary.userName
+        };
+      }
+
+      setHighlightedBillSummary(summary);
+    } catch (error) {
+      console.error('Error fetching renter summary:', error);
+      // Still show owner summary even if renter fetch fails
+      const summary: HighlightedBillSummary = {
+        ownerSummary: {
+          total_money_spent: bill.total_money_spent,
+          total_money_requested: bill.total_money_requested,
+          net_money: bill.net_money,
+          userName: bill.owner_name
+        },
+      };
+      setHighlightedBillSummary(summary);
+    }
   };
 
   // Load bill data from API
@@ -165,10 +239,6 @@ export default function Bills() {
     setEndDate(date);
   };
   
-  const handleViewBillDetails = (apartmentId: number) => {
-    navigate(`/apartments/${apartmentId}/bills`);
-  };
-  
   const handleAddPayment = () => {
     navigate('/payments/new');
   };
@@ -179,6 +249,47 @@ export default function Bills() {
 
   const handleAddUtilityReading = () => {
     navigate('/utility-readings/new');
+  };
+  
+  const handleViewDetails = async (apartmentId: number) => {
+    setDetailsLoading(true);
+    try {
+      const response = await billService.getApartmentDetails(apartmentId);
+      
+      if (!response || !response.apartment) {
+        throw new Error('Invalid response structure from API');
+      }
+      
+      // Transform the response data to match the expected ApartmentBillDetails type
+      const transformedData: ApartmentBillDetails = {
+        apartment: response.apartment,
+        bills: response.bills.map((bill: any) => ({
+          ...bill,
+          id: String(bill.id),
+          type:
+            bill.type === 'payment'
+              ? 'Payment'
+              : bill.type === 'service_request'
+              ? 'Service Request'
+              : bill.type === 'utility_reading'
+              ? 'Utility Reading'
+              : bill.type,
+        })),
+        totals: response.totals
+      };
+      setDetailedBillData(transformedData);
+      setDetailsDialogOpen(true);
+    } catch (error: any) {
+      console.error('Error fetching apartment details:', error);
+      setError('Failed to load apartment details');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const handleCloseDetails = () => {
+    setDetailsDialogOpen(false);
+    setDetailedBillData(null);
   };
   
   const formatDate = (dateString: string) => {
@@ -377,7 +488,7 @@ export default function Bills() {
                 <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
                 <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
                 <TableCell align="right">Net Money (EGP/GBP)</TableCell>
-                <TableCell>Actions</TableCell>
+                <TableCell align="center">Details</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -500,20 +611,17 @@ export default function Bills() {
                       {bill.net_money.GBP > 0 && `${bill.net_money.GBP.toLocaleString()} GBP`}
                       {bill.net_money.EGP === 0 && bill.net_money.GBP === 0 && '-'}
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-                        <Tooltip title="View Bill Details">
-                          <IconButton 
-                            size="small" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewBillDetails(bill.apartment_id);
-                            }}
-                          >
-                            <AssignmentIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
+                    <TableCell align="center">
+                      <Tooltip title="View detailed transactions">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleViewDetails(bill.apartment_id)}
+                          disabled={detailsLoading}
+                          color="primary"
+                        >
+                          <VisibilityIcon />
+                        </IconButton>
+                      </Tooltip>
                     </TableCell>
                   </TableRow>
                 ))
@@ -525,7 +633,132 @@ export default function Bills() {
             </TableBody>
           </Table>
         </TableContainer>
+
+        {/* Details Dialog */}
+        <Dialog 
+          open={detailsDialogOpen} 
+          onClose={handleCloseDetails}
+          maxWidth="lg"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">
+              {detailedBillData ? `Bill Details - ${detailedBillData.apartment.name}` : 'Bill Details'}
+            </Typography>
+            <IconButton onClick={handleCloseDetails} size="small">
+              <CloseIcon />
+            </IconButton>
+          </DialogTitle>
+          
+          <DialogContent dividers>
+            {detailsLoading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : detailedBillData ? (
+              <Box>
+                {/* Totals Summary */}
+                <Paper sx={{ p: 2, mb: 3, backgroundColor: 'background.default' }}>
+                  <Typography variant="h6" gutterBottom>Financial Summary</Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                    <Box>
+                      <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
+                      <Typography>
+                        {detailedBillData.totals.total_money_spent.EGP > 0 && `${detailedBillData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
+                        {detailedBillData.totals.total_money_spent.EGP > 0 && detailedBillData.totals.total_money_spent.GBP > 0 && ' / '}
+                        {detailedBillData.totals.total_money_spent.GBP > 0 && `${detailedBillData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
+                        {detailedBillData.totals.total_money_spent.EGP === 0 && detailedBillData.totals.total_money_spent.GBP === 0 && '-'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color="error.main">Money Requested</Typography>
+                      <Typography>
+                        {detailedBillData.totals.total_money_requested.EGP > 0 && `${detailedBillData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
+                        {detailedBillData.totals.total_money_requested.EGP > 0 && detailedBillData.totals.total_money_requested.GBP > 0 && ' / '}
+                        {detailedBillData.totals.total_money_requested.GBP > 0 && `${detailedBillData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
+                        {detailedBillData.totals.total_money_requested.EGP === 0 && detailedBillData.totals.total_money_requested.GBP === 0 && '-'}
+                      </Typography>
+                    </Box>
+                    <Box>
+                      <Typography variant="subtitle2" color={detailedBillData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
+                      <Typography>
+                        {detailedBillData.totals.net_money.EGP !== 0 && `${detailedBillData.totals.net_money.EGP.toLocaleString()} EGP`}
+                        {detailedBillData.totals.net_money.EGP !== 0 && detailedBillData.totals.net_money.GBP !== 0 && ' / '}
+                        {detailedBillData.totals.net_money.GBP !== 0 && `${detailedBillData.totals.net_money.GBP.toLocaleString()} GBP`}
+                        {detailedBillData.totals.net_money.EGP === 0 && detailedBillData.totals.net_money.GBP === 0 && '-'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+
+                {/* Detailed Transactions */}
+                <Typography variant="h6" gutterBottom>Transaction Details</Typography>
+                {detailedBillData.bills.length > 0 ? (
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Type</TableCell>
+                          <TableCell>Description</TableCell>
+                          <TableCell>Date</TableCell>
+                          <TableCell align="right">Amount</TableCell>
+                          <TableCell>Person</TableCell>
+                          <TableCell>Booking</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {detailedBillData.bills.map((bill) => (
+                          <TableRow key={bill.id}>
+                            <TableCell>
+                              <Chip 
+                                label={bill.type}
+                                color={
+                                  bill.type === 'Payment' ? 'success' :
+                                  bill.type === 'Service Request' ? 'warning' : 'info'
+                                }
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{bill.description}</TableCell>
+                            <TableCell>{formatDate(bill.date)}</TableCell>
+                            <TableCell align="right">
+                              <Typography 
+                                color={bill.type === 'Payment' ? 'success.main' : 'error.main'}
+                                fontWeight="medium"
+                              >
+                                {bill.type === 'Payment' ? '+' : '-'}{bill.amount.toLocaleString()} {bill.currency}
+                              </Typography>
+                            </TableCell>
+                            <TableCell>{bill.person_name || '-'}</TableCell>
+                            <TableCell>
+                              {bill.booking_id ? `Booking #${bill.booking_id}` : '-'}
+                              {bill.booking_arrival_date && (
+                                <Typography variant="caption" display="block">
+                                  {formatDate(bill.booking_arrival_date)}
+                                </Typography>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                ) : (
+                  <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography color="text.secondary">No transactions found for this apartment.</Typography>
+                  </Paper>
+                )}
+              </Box>
+            ) : (
+              <Typography>Failed to load details</Typography>
+            )}
+          </DialogContent>
+          
+          <DialogActions>
+            <Button onClick={handleCloseDetails}>Close</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </LocalizationProvider>
   );
-} 
+}

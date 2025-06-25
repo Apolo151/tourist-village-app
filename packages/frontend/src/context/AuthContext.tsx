@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { authService } from '../services/authService';
-import { apiClient } from '../services/api';
 import type { User } from '../services/authService';
 
 interface AuthContextType {
@@ -17,73 +16,49 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Set up token refresh handler
-  useEffect(() => {
-    apiClient.setTokenRefreshHandler({
-      onTokenRefresh: async () => {
-        // Token was refreshed, update user data
-        try {
-          const user = authService.getCurrentUserFromStorage();
-          if (user) {
-            setCurrentUser(user);
-          }
-        } catch (error) {
-          console.error('Failed to update user after token refresh:', error);
-        }
-      },
-      onTokenExpired: () => {
-        // Token expired and refresh failed, logout user
-        console.log('Authentication expired, logging out user');
-        setCurrentUser(null);
-      }
-    });
-  }, []);
+  const initializationRef = useRef<boolean>(false);
 
   useEffect(() => {
+    // Prevent double initialization in React 18 Strict Mode
+    if (initializationRef.current) {
+      return;
+    }
+    initializationRef.current = true;
+
     // Check if user is already logged in on app start
     const initializeAuth = async () => {
       try {
         setLoading(true);
         
-        // Check if we have tokens
         if (!authService.isAuthenticated()) {
           setLoading(false);
           return;
         }
 
-        // First, try to get user from storage (faster)
-        const storedUser = authService.getCurrentUserFromStorage();
-        if (storedUser) {
-          setCurrentUser(storedUser);
-        }
+        const user = await authService.getCurrentUser();
+        setCurrentUser(user);
 
-        // Then validate the token with the server
-        const isValid = await apiClient.validateToken();
-        if (isValid) {
-          // Token is valid, get fresh user data
+      } catch (error: any) {
+        console.error('Auth initialization failed:', error);
+        
+        // Only clear tokens if it's an authentication error (401/403)
+        // Network errors or server errors should not log the user out
+        if (error?.status === 401 || error?.status === 403) {
           try {
-            const freshUser = await authService.getCurrentUser();
-            setCurrentUser(freshUser);
-          } catch (error) {
-            // If we can't get fresh user data but token is valid, 
-            // keep the stored user
-            console.warn('Failed to get fresh user data:', error);
-            if (!storedUser) {
-              // No stored user and can't get fresh data, logout
-              await authService.logout();
-              setCurrentUser(null);
-            }
+            await authService.logout();
+          } catch (logoutError) {
+            console.error('Error during cleanup logout:', logoutError);
           }
         } else {
-          // Token is invalid, clear everything
-          await authService.logout();
-          setCurrentUser(null);
+          // For non-auth errors (network issues, server down, etc), 
+          // try to use stored user data if available
+          const storedUser = authService.getCurrentUserFromStorage();
+          if (storedUser) {
+            setCurrentUser(storedUser);
+            return; // Don't call finally yet, we've succeeded
+          }
         }
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-        // Clear any invalid tokens
-        await authService.logout();
+        
         setCurrentUser(null);
       } finally {
         setLoading(false);
@@ -91,6 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeAuth();
+
+    // Cleanup function for development hot reloads
+    return () => {
+      initializationRef.current = false;
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {

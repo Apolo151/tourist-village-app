@@ -1,29 +1,58 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Paper, TextField, Typography, Alert } from '@mui/material';
+import { Box, Button, Paper, TextField, Typography, Alert, CircularProgress } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, loading, navigate]);
+
+  // Show loading while checking auth status
+  if (loading) {
+    return (
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
     
     try {
       const success = await login(email, password);
+      
       if (success) {
-        navigate('/');
+        // Use replace to prevent going back to login page
+        navigate('/', { replace: true });
       } else {
         setError('Invalid email or password');
       }
     } catch (err) {
+      console.error('Login error:', err);
       setError('An error occurred during login');
-      console.error(err);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -92,6 +121,7 @@ export default function Login() {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              disabled={isSubmitting}
             />
             <TextField
               margin="normal"
@@ -104,19 +134,21 @@ export default function Login() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isSubmitting}
             />
             <Button
               type="submit"
               fullWidth
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
+              disabled={isSubmitting}
             >
-              Sign In
+              {isSubmitting ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>
           </Box>
           
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
-            Demo Login: admin@example.com / any password
+            Demo Login: admin@touristvillage.com / SuperAdmin
           </Typography>
         </Paper>
       </Box>

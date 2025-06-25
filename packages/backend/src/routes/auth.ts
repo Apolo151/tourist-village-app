@@ -8,7 +8,7 @@ export const authRouter = Router();
 const authService = new AuthService();
 
 // Apply rate limiting to auth endpoints
-const authRateLimit = createAuthRateLimit();
+// const authRateLimit = createAuthRateLimit();
 
 /**
  * POST /api/auth/register
@@ -16,7 +16,7 @@ const authRateLimit = createAuthRateLimit();
  */
 authRouter.post(
   '/register',
-  authRateLimit,
+  // authRateLimit,
   ValidationMiddleware.validateRegister,
   async (req: Request, res: Response) => {
     try {
@@ -65,7 +65,7 @@ authRouter.post(
  */
 authRouter.post(
   '/login',
-  authRateLimit,
+  // authRateLimit,
   ValidationMiddleware.validateLogin,
   async (req: Request, res: Response) => {
     try {

@@ -24,6 +24,8 @@ router.get(
         .leftJoin('payments as p', 'a.id', 'p.apartment_id')
         .leftJoin('service_requests as sr', 'a.id', 'sr.apartment_id')
         .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+        // Temporarily remove utility readings join to isolate issue
+        // .leftJoin('utility_readings as ur', 'a.id', 'ur.apartment_id')
         .select(
           'a.id as apartment_id',
           'a.name as apartment_name',
@@ -34,6 +36,9 @@ router.get(
           db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_payments_gbp"),
           db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_service_requests_egp"),
           db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp")
+          // Temporarily remove utility readings from select
+          // db.raw("COALESCE(SUM(CASE WHEN ur.currency = 'EGP' THEN ur.cost ELSE 0 END), 0) as total_utility_readings_egp"),
+          // db.raw("COALESCE(SUM(CASE WHEN ur.currency = 'GBP' THEN ur.cost ELSE 0 END), 0) as total_utility_readings_gbp")
         )
         .groupBy('a.id', 'a.name', 'v.name', 'owner.name', 'owner.id');
 
@@ -78,26 +83,30 @@ router.get(
         }
       }
 
-      // Apply date filters to payments and service requests
-      if (year) {
-        query = query.where(function() {
-          this.whereRaw("EXTRACT(YEAR FROM p.date) = ?", [year])
-              .orWhereRaw("EXTRACT(YEAR FROM sr.date_created) = ?", [year]);
-        });
-      } else if (date_from || date_to) {
-        if (date_from) {
-          query = query.where(function() {
-            this.where('p.date', '>=', date_from)
-                .orWhere('sr.date_created', '>=', date_from);
-          });
-        }
-        if (date_to) {
-          query = query.where(function() {
-            this.where('p.date', '<=', date_to)
-                .orWhere('sr.date_created', '<=', date_to);
-          });
-        }
-      }
+      // Apply date filters to payments, service requests, and utility readings
+      // Temporarily simplified - remove complex OR conditions that may cause issues with LEFT JOINs
+      // if (year) {
+      //   query = query.where(function() {
+      //     this.whereRaw("EXTRACT(YEAR FROM p.date) = ?", [year])
+      //         .orWhereRaw("EXTRACT(YEAR FROM sr.date_created) = ?", [year])
+      //         .orWhereRaw("EXTRACT(YEAR FROM ur.date_created) = ?", [year]);
+      //   });
+      // } else if (date_from || date_to) {
+      //   if (date_from) {
+      //     query = query.where(function() {
+      //       this.where('p.date', '>=', date_from)
+      //           .orWhere('sr.date_created', '>=', date_from)
+      //           .orWhere('ur.date_created', '>=', date_from);
+      //     });
+      //   }
+      //   if (date_to) {
+      //     query = query.where(function() {
+      //       this.where('p.date', '<=', date_to)
+      //           .orWhere('sr.date_created', '<=', date_to)
+      //           .orWhere('ur.date_created', '<=', date_to);
+      //     });
+      //   }
+      // }
 
       const results = await query;
 
@@ -107,6 +116,9 @@ router.get(
         const paymentsGBP = parseFloat(row.total_payments_gbp) || 0;
         const requestsEGP = parseFloat(row.total_service_requests_egp) || 0;
         const requestsGBP = parseFloat(row.total_service_requests_gbp) || 0;
+        // Temporarily remove utility calculations
+        // const utilityEGP = parseFloat(row.total_utility_readings_egp) || 0;
+        // const utilityGBP = parseFloat(row.total_utility_readings_gbp) || 0;
 
         return {
           apartment_id: row.apartment_id,
@@ -119,12 +131,12 @@ router.get(
             GBP: paymentsGBP
           },
           total_money_requested: {
-            EGP: requestsEGP,
-            GBP: requestsGBP
+            EGP: requestsEGP, // + utilityEGP,
+            GBP: requestsGBP  // + utilityGBP
           },
           net_money: {
-            EGP: requestsEGP - paymentsEGP,
-            GBP: requestsGBP - paymentsGBP
+            EGP: requestsEGP - paymentsEGP, // (requestsEGP + utilityEGP) - paymentsEGP,
+            GBP: requestsGBP - paymentsGBP  // (requestsGBP + utilityGBP) - paymentsGBP
           }
         };
       });
@@ -273,6 +285,18 @@ router.get(
         .where('sr.apartment_id', apartmentId)
         .orderBy('sr.date_created', 'desc');
 
+      // Get all utility readings for this apartment
+      const utilityReadings = await db('utility_readings as ur')
+        .leftJoin('bookings as b', 'ur.booking_id', 'b.id')
+        .leftJoin('users as u', 'b.user_id', 'u.id')
+        .select(
+          'ur.*',
+          'b.arrival_date as booking_arrival_date',
+          'u.name as person_name'
+        )
+        .where('ur.apartment_id', apartmentId)
+        .orderBy('ur.created_at', 'desc');
+
       // Combine and format bills
       const bills = [
         ...payments.map(p => ({
@@ -298,6 +322,18 @@ router.get(
           booking_arrival_date: sr.booking_arrival_date,
           person_name: sr.person_name,
           created_at: sr.created_at
+        })),
+        ...utilityReadings.map(ur => ({
+          id: `utility_${ur.id}`,
+          type: 'Utility Reading',
+          description: `Utility reading from ${ur.start_date} to ${ur.end_date} (${ur.who_pays} pays)`,
+          amount: 0, // No cost field in current schema
+          currency: 'EGP', // Default currency since no cost
+          date: ur.created_at,
+          booking_id: ur.booking_id,
+          booking_arrival_date: ur.booking_arrival_date,
+          person_name: ur.person_name,
+          created_at: ur.created_at
         }))
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -645,6 +681,189 @@ router.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to fetch previous years totals'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/bills/renter-summary/:apartmentId
+ * Get renter summary for a specific apartment bill
+ */
+router.get(
+  '/renter-summary/:apartmentId',
+  authenticateToken,
+  filterByResponsibleVillage(),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const apartmentId = parseInt(req.params.apartmentId);
+
+      if (isNaN(apartmentId) || apartmentId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid ID',
+          message: 'Apartment ID must be a positive number'
+        });
+      }
+
+      // Check if apartment exists and get basic info
+      const apartment = await db('apartments')
+        .where('id', apartmentId)
+        .first();
+
+      if (!apartment) {
+        return res.status(404).json({
+          success: false,
+          error: 'Not found',
+          message: 'Apartment not found'
+        });
+      }
+
+      // Check village filter (for admin users with responsible_village)
+      if (req.villageFilter && apartment.village_id !== req.villageFilter) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+          message: 'You can only access bills for apartments in your responsible village'
+        });
+      }
+
+      // Check if there are any active/recent bookings for this apartment
+      const recentBooking = await db('bookings as b')
+        .leftJoin('users as u', 'b.user_id', 'u.id')
+        .select('b.*', 'u.name as renter_name', 'u.id as renter_id')
+        .where('b.apartment_id', apartmentId)
+        .where('b.user_type', 'renter')
+        .orderBy('b.arrival_date', 'desc')
+        .first();
+
+      let renterSummary = null;
+
+      if (recentBooking) {
+        // Get bills summary for this specific booking
+        const bookingPayments = await db('payments as p')
+          .select(
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
+          )
+          .where('p.apartment_id', apartmentId)
+          .where('p.booking_id', recentBooking.id)
+          .first();
+
+        const bookingServiceRequests = await db('service_requests as sr')
+          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+          .select(
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+          )
+          .where('sr.apartment_id', apartmentId)
+          .where('sr.booking_id', recentBooking.id)
+          .first();
+
+        const paymentsEGP = parseFloat(bookingPayments?.total_egp || '0');
+        const paymentsGBP = parseFloat(bookingPayments?.total_gbp || '0');
+        const requestsEGP = parseFloat(bookingServiceRequests?.total_egp || '0');
+        const requestsGBP = parseFloat(bookingServiceRequests?.total_gbp || '0');
+
+        renterSummary = {
+          userName: recentBooking.renter_name,
+          userId: recentBooking.renter_id,
+          bookingId: recentBooking.id,
+          bookingDates: {
+            arrival: recentBooking.arrival_date,
+            leaving: recentBooking.leaving_date
+          },
+          total_money_spent: {
+            EGP: paymentsEGP,
+            GBP: paymentsGBP
+          },
+          total_money_requested: {
+            EGP: requestsEGP,
+            GBP: requestsGBP
+          },
+          net_money: {
+            EGP: requestsEGP - paymentsEGP,
+            GBP: requestsGBP - paymentsGBP
+          }
+        };
+      } else {
+        // Check if there are any renter bills for this apartment (not booking-specific)
+        const allRenterPayments = await db('payments as p')
+          .leftJoin('bookings as b', 'p.booking_id', 'b.id')
+          .leftJoin('users as u', 'p.created_by', 'u.id')
+          .select(
+            'u.name as renter_name',
+            'u.id as renter_id',
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
+          )
+          .where('p.apartment_id', apartmentId)
+          .whereNotNull('u.id')
+          .where('u.role', 'renter')
+          .groupBy('u.id', 'u.name')
+          .orderByRaw('SUM(p.amount) DESC')
+          .first();
+
+        const allRenterServiceRequests = await db('service_requests as sr')
+          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+          .leftJoin('users as u', 'sr.requester_id', 'u.id')
+          .select(
+            'u.name as renter_name',
+            'u.id as renter_id',
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+          )
+          .where('sr.apartment_id', apartmentId)
+          .whereNotNull('u.id')
+          .where('u.role', 'renter')
+          .groupBy('u.id', 'u.name')
+          .orderByRaw('SUM(st.cost) DESC')
+          .first();
+
+        if (allRenterPayments || allRenterServiceRequests) {
+          const renterName = allRenterPayments?.renter_name || allRenterServiceRequests?.renter_name;
+          const renterId = allRenterPayments?.renter_id || allRenterServiceRequests?.renter_id;
+          const paymentsEGP = parseFloat(allRenterPayments?.total_egp || '0');
+          const paymentsGBP = parseFloat(allRenterPayments?.total_gbp || '0');
+          const requestsEGP = parseFloat(allRenterServiceRequests?.total_egp || '0');
+          const requestsGBP = parseFloat(allRenterServiceRequests?.total_gbp || '0');
+
+          renterSummary = {
+            userName: renterName,
+            userId: renterId,
+            bookingId: null,
+            bookingDates: null,
+            total_money_spent: {
+              EGP: paymentsEGP,
+              GBP: paymentsGBP
+            },
+            total_money_requested: {
+              EGP: requestsEGP,
+              GBP: requestsGBP
+            },
+            net_money: {
+              EGP: requestsEGP - paymentsEGP,
+              GBP: requestsGBP - paymentsGBP
+            }
+          };
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          apartmentId,
+          apartmentName: apartment.name,
+          renterSummary
+        }
+      });
+    } catch (error: any) {
+      console.error('Error fetching renter summary:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to fetch renter summary'
       });
     }
   }
