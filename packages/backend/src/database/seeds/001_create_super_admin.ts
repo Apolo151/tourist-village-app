@@ -13,7 +13,7 @@ export async function seed(knex: Knex): Promise<void> {
   }
 
   // Hash the default password
-  const defaultPassword = 'SuperAdmin';
+  const defaultPassword = 'superadmin';
   const passwordHash = await bcrypt.hash(defaultPassword, 12);
 
   // Insert the super admin user
@@ -30,6 +30,6 @@ export async function seed(knex: Knex): Promise<void> {
 
   console.log('🔑 Super admin user created successfully!');
   console.log('📧 Email: admin@touristvillage.com');
-  console.log('🔒 Password: SuperAdmin');
+  console.log('🔒 Password: superadmin');
   console.log('⚠️  IMPORTANT: Change this password immediately after first login!');
 } 
