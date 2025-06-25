@@ -1650,9 +1650,8 @@ export class ValidationMiddleware {
         errors.push({ field: 'description', message: 'Description must be less than 500 characters' });
       }
     }
-
     if (errors.length > 0) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         error: 'Validation failed',
         details: errors
