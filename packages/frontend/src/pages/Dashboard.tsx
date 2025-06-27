@@ -17,7 +17,8 @@ import {
   Select,
   MenuItem,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Container
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { Bar } from 'react-chartjs-2';
@@ -152,142 +153,144 @@ export default function Dashboard() {
   }
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Typography variant="h4" gutterBottom>
-        Dashboard
-      </Typography>
-      
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-      
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        {/* Summary Cards */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-          <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Total Apartments
-              </Typography>
-              <Typography variant="h4">
-                {totalApartments}
-              </Typography>
-            </CardContent>
-          </Card>
-          
-          <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Total Income
-              </Typography>
-              <Typography variant="h4">
-                {totalIncome.toLocaleString()} EGP
-              </Typography>
-            </CardContent>
-          </Card>
-          
-          <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-            <CardContent>
-              <Typography color="text.secondary" gutterBottom>
-                Total Payments
-              </Typography>
-              <Typography variant="h4">
-                {payments.length}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Box>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Dashboard
+        </Typography>
         
-        {/* Financial Report */}
-        <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" component="div">
-              General Financial Report
-            </Typography>
-          </Box>
-          
-          {/* Export Buttons */}
-          <ExportButtons data={reportData} columns={["id","city","apartment","paymentMethod","balance","runningTotal"]} excelFileName="dashboard-report.xlsx" pdfFileName="dashboard-report.pdf" />
-          
-          <Box sx={{ display: 'flex', mb: 2 }}>
-            <FormControl sx={{ m: 1, minWidth: 150 }}>
-              <InputLabel>Village</InputLabel>
-              <Select
-                value={city}
-                label="Village"
-                onChange={handleCityChange}
-              >
-                <MenuItem value="">
-                  <em>All</em>
-                </MenuItem>
-                {cities.map(cityName => (
-                  <MenuItem key={cityName} value={cityName}>{cityName}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl sx={{ m: 1, minWidth: 150 }}>
-              <InputLabel>Payment Method</InputLabel>
-              <Select
-                value={paymentMethod}
-                label="Payment Method"
-                onChange={handlePaymentMethodChange}
-              >
-                <MenuItem value="">
-                  <em>All</em>
-                </MenuItem>
-                {paymentMethods.map(method => (
-                  <MenuItem key={method} value={method}>{method}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Box>
-          
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Village</TableCell>
-                  <TableCell>Apartment</TableCell>
-                  <TableCell>Payment Method</TableCell>
-                  <TableCell align="right">Balance</TableCell>
-                  <TableCell align="right">Running Total</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {reportData.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.city}</TableCell>
-                    <TableCell>{row.apartment}</TableCell>
-                    <TableCell>{row.paymentMethod}</TableCell>
-                    <TableCell align="right">{row.balance.toLocaleString()} EGP</TableCell>
-                    <TableCell align="right">{row.runningTotal.toLocaleString()} EGP</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
         
-        {/* Chart */}
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Recent Payments by Apartment
-          </Typography>
-          <Box sx={{ height: 300 }}>
-            {reportData.length > 0 ? (
-              <Bar options={{ responsive: true, maintainAspectRatio: false }} data={chartData} />
-            ) : (
-              <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                <Typography color="text.secondary">
-                  No payment data available for chart
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          {/* Summary Cards */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Total Apartments
                 </Typography>
-              </Box>
-            )}
+                <Typography variant="h4">
+                  {totalApartments}
+                </Typography>
+              </CardContent>
+            </Card>
+            
+            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Total Income
+                </Typography>
+                <Typography variant="h4">
+                  {totalIncome.toLocaleString()} EGP
+                </Typography>
+              </CardContent>
+            </Card>
+            
+            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
+              <CardContent>
+                <Typography color="text.secondary" gutterBottom>
+                  Total Payments
+                </Typography>
+                <Typography variant="h4">
+                  {payments.length}
+                </Typography>
+              </CardContent>
+            </Card>
           </Box>
-        </Paper>
+          
+          {/* Financial Report */}
+          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+              <Typography variant="h6" component="div">
+                General Financial Report
+              </Typography>
+            </Box>
+            
+            {/* Export Buttons */}
+            <ExportButtons data={reportData} columns={["id","city","apartment","paymentMethod","balance","runningTotal"]} excelFileName="dashboard-report.xlsx" pdfFileName="dashboard-report.pdf" />
+            
+            <Box sx={{ display: 'flex', mb: 2 }}>
+              <FormControl sx={{ m: 1, minWidth: 150 }}>
+                <InputLabel>Village</InputLabel>
+                <Select
+                  value={city}
+                  label="Village"
+                  onChange={handleCityChange}
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  {cities.map(cityName => (
+                    <MenuItem key={cityName} value={cityName}>{cityName}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl sx={{ m: 1, minWidth: 150 }}>
+                <InputLabel>Payment Method</InputLabel>
+                <Select
+                  value={paymentMethod}
+                  label="Payment Method"
+                  onChange={handlePaymentMethodChange}
+                >
+                  <MenuItem value="">
+                    <em>All</em>
+                  </MenuItem>
+                  {paymentMethods.map(method => (
+                    <MenuItem key={method} value={method}>{method}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+            
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Village</TableCell>
+                    <TableCell>Apartment</TableCell>
+                    <TableCell>Payment Method</TableCell>
+                    <TableCell align="right">Balance</TableCell>
+                    <TableCell align="right">Running Total</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {reportData.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>{row.city}</TableCell>
+                      <TableCell>{row.apartment}</TableCell>
+                      <TableCell>{row.paymentMethod}</TableCell>
+                      <TableCell align="right">{row.balance.toLocaleString()} EGP</TableCell>
+                      <TableCell align="right">{row.runningTotal.toLocaleString()} EGP</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+          
+          {/* Chart */}
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Recent Payments by Apartment
+            </Typography>
+            <Box sx={{ height: 300 }}>
+              {reportData.length > 0 ? (
+                <Bar options={{ responsive: true, maintainAspectRatio: false }} data={chartData} />
+              ) : (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <Typography color="text.secondary">
+                    No payment data available for chart
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        </Box>
       </Box>
-    </Box>
+    </Container>
   );
 } 

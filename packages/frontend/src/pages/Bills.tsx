@@ -325,440 +325,442 @@ export default function Bills() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Bills</Typography>
-          <Box>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddPayment}
-              sx={{ mr: 1 }}
-            >
-              Add Payment
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddServiceRequest}
-              sx={{ mr: 1 }}
-            >
-              Add Service Request
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleAddUtilityReading}
-            >
-              Add Utility Reading
-            </Button>
-          </Box>
-        </Box>
-
-        {/* Error Display */}
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-        
-        {/* Previous Year Summary */}
-        {previousYearTotals && (
-        <Alert severity="info" sx={{ mb: 3 }}>
-          <Typography variant="body1">
-            Running Total for Previous Years: 
-              <strong> {previousYearTotals.total_money_spent.EGP.toFixed(2)} EGP</strong> and 
-              <strong> {previousYearTotals.total_money_spent.GBP.toFixed(2)} GBP</strong>
-          </Typography>
-        </Alert>
-        )}
-
-        {/* Highlighted Bill Summary */}
-        {highlightedBillSummary && (
-          <Paper sx={{ p: 2, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Selected Apartment Summary</Typography>
-            <Box sx={{ display: 'flex', gap: 4 }}>
-              <Box>
-                <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
-                <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
-                <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
-                <Typography>Net Money: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
-              </Box>
-              {highlightedBillSummary.renterSummary && (
-                <Box>
-                  <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
-                  <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
-                  <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
-                  <Typography>Net Money: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
-                </Box>
-              )}
+      <Container maxWidth="xl">
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4">Financial Reports</Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddPayment}
+                sx={{ mr: 1 }}
+              >
+                Add Payment
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddServiceRequest}
+                sx={{ mr: 1 }}
+              >
+                Add Service Request
+              </Button>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddUtilityReading}
+              >
+                Add Utility Reading
+              </Button>
             </Box>
-          </Paper>
-        )}
-        
-        {/* Filters */}
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            <FilterListIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-            Filters
-          </Typography>
+          </Box>
+
+          {/* Error Display */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
           
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <Box sx={{ flex: '1 1 200px', minWidth: '200px' }}>
-              <TextField
-                label="Search"
-                variant="outlined"
-                size="small"
-                fullWidth
-                value={searchTerm}
-                onChange={handleSearchChange}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-            
-            <Box sx={{ flex: '1 1 200px', minWidth: '150px' }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Village</InputLabel>
-                <Select
-                  value={villageFilter}
-                  label="Village"
-                  onChange={handleVillageFilterChange}
-                >
-                  <MenuItem value="">All Villages</MenuItem>
-                  {villages.map(village => (
-                    <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            
-            <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>User Type</InputLabel>
-                <Select
-                  value={userTypeFilter}
-                  label="User Type"
-                  onChange={handleUserTypeFilterChange}
-                >
-                  <MenuItem value="">All Users</MenuItem>
-                  <MenuItem value="owner">Owner</MenuItem>
-                  <MenuItem value="renter">Renter</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            
-            <Box sx={{ flex: '1 1 300px', minWidth: '260px' }}>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <DatePicker
-                  label="From"
-                  value={startDate}
-                  onChange={handleStartDateChange}
-                  slotProps={{ textField: { size: 'small' } }}
-                  format="MM/dd/yyyy"
-                />
-                <DatePicker
-                  label="To"
-                  value={endDate}
-                  onChange={handleEndDateChange}
-                  slotProps={{ textField: { size: 'small' } }}
-                  format="MM/dd/yyyy"
-                />
-              </Box>
-            </Box>
-          </Box>
-        </Paper>
-        
-        {/* Export Buttons */}
-        <ExportButtons data={transformBillsForExport(billDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="bills.xlsx" pdfFileName="bills.pdf" />
-        
-        {/* Bills Table */}
-        <TableContainer component={Paper}>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Village</TableCell>
-                <TableCell>Apartment</TableCell>
-                <TableCell>User Name</TableCell>
-                <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
-                <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
-                <TableCell align="right">Net Money (EGP/GBP)</TableCell>
-                <TableCell align="center">Details</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {billDisplayData.length > 0 ? (
-                billDisplayData.map((bill) => (
-                  <TableRow 
-                    key={bill.apartment_id}
-                    selected={bill.apartment_id === highlightedBill}
-                  >
-                    <TableCell>{bill.village_name}</TableCell>
-                    <TableCell>{bill.apartment_name}</TableCell>
-                    <TableCell>
-                      <Tooltip title="Click to view financial summary for this apartment" arrow>
-                        <Box 
-                          component="button"
-                          sx={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: 0.5,
-                            cursor: 'pointer',
-                            border: 'none',
-                            background: 'transparent',
-                            padding: '8px 12px',
-                            borderRadius: 2,
-                            transition: 'all 0.2s ease-in-out',
-                            textAlign: 'left',
-                            width: '100%',
-                            minHeight: '40px',
-                            '&:hover': {
-                              backgroundColor: 'primary.light',
-                              color: 'primary.contrastText',
-                              transform: 'translateY(-1px)',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                              '& .click-icon': {
-                                opacity: 1,
-                                transform: 'scale(1.1)'
-                              },
-                              '& .user-name': {
-                                color: 'primary.contrastText'
-                              },
-                              '& .MuiChip-root': {
-                                backgroundColor: 'rgba(255,255,255,0.2)',
-                                color: 'primary.contrastText',
-                                borderColor: 'rgba(255,255,255,0.3)'
-                              }
-                            },
-                            '&:active': {
-                              transform: 'translateY(0px)',
-                              boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
-                            },
-                            ...(bill.apartment_id === highlightedBill && {
-                              backgroundColor: 'primary.main',
-                              color: 'primary.contrastText',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                              '& .user-name': {
-                                color: 'primary.contrastText'
-                              },
-                              '& .MuiChip-root': {
-                                backgroundColor: 'rgba(255,255,255,0.2)',
-                                color: 'primary.contrastText',
-                                borderColor: 'rgba(255,255,255,0.3)'
-                              }
-                            })
-                          }}
-                          onClick={() => handleHighlightBill(bill.apartment_id)}
-                        >
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
-                            <Typography 
-                              className="user-name"
-                              variant="body2" 
-                              sx={{ 
-                                fontWeight: 500,
-                                color: 'text.primary'
-                              }}
-                            >
-                              {bill.owner_name}
-                            </Typography>
-                            <Chip 
-                              label="Owner" 
-                              color="primary"
-                              size="small"
-                              variant="outlined"
-                              sx={{ 
-                                height: '20px', 
-                                fontSize: '0.65rem'
-                              }}
-                            />
-                          </Box>
-                          <TouchAppIcon 
-                            className="click-icon"
-                            sx={{ 
-                              fontSize: '16px',
-                              opacity: 0.6,
-                              color: 'text.secondary',
-                              transition: 'all 0.2s ease-in-out',
-                              ...(bill.apartment_id === highlightedBill && {
-                                opacity: 1,
-                                color: 'primary.contrastText'
-                              })
-                            }} 
-                          />
-                        </Box>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell align="right">
-                      {bill.total_money_spent.EGP > 0 && `${bill.total_money_spent.EGP.toLocaleString()} EGP`}
-                      {bill.total_money_spent.EGP > 0 && bill.total_money_spent.GBP > 0 && ' / '}
-                      {bill.total_money_spent.GBP > 0 && `${bill.total_money_spent.GBP.toLocaleString()} GBP`}
-                      {bill.total_money_spent.EGP === 0 && bill.total_money_spent.GBP === 0 && '-'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {bill.total_money_requested.EGP > 0 && `${bill.total_money_requested.EGP.toLocaleString()} EGP`}
-                      {bill.total_money_requested.EGP > 0 && bill.total_money_requested.GBP > 0 && ' / '}
-                      {bill.total_money_requested.GBP > 0 && `${bill.total_money_requested.GBP.toLocaleString()} GBP`}
-                      {bill.total_money_requested.EGP === 0 && bill.total_money_requested.GBP === 0 && '-'}
-                    </TableCell>
-                    <TableCell align="right">
-                      {bill.net_money.EGP > 0 && `${bill.net_money.EGP.toLocaleString()} EGP`}
-                      {bill.net_money.EGP > 0 && bill.net_money.GBP > 0 && ' / '}
-                      {bill.net_money.GBP > 0 && `${bill.net_money.GBP.toLocaleString()} GBP`}
-                      {bill.net_money.EGP === 0 && bill.net_money.GBP === 0 && '-'}
-                    </TableCell>
-                    <TableCell align="center">
-                      <Tooltip title="View detailed transactions">
-                        <IconButton
-                          size="small"
-                          onClick={() => handleViewDetails(bill.apartment_id)}
-                          disabled={detailsLoading}
-                          color="primary"
-                        >
-                          <VisibilityIcon />
-                        </IconButton>
-                      </Tooltip>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={7} align="center">No bills found matching your criteria.</TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        {/* Details Dialog */}
-        <Dialog 
-          open={detailsDialogOpen} 
-          onClose={handleCloseDetails}
-          maxWidth="lg"
-          fullWidth
-        >
-          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">
-              {detailedBillData ? `Bill Details - ${detailedBillData.apartment.name}` : 'Bill Details'}
+          {/* Previous Year Summary */}
+          {previousYearTotals && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            <Typography variant="body1">
+              Running Total for Previous Years: 
+                <strong> {previousYearTotals.total_money_spent.EGP.toFixed(2)} EGP</strong> and 
+                <strong> {previousYearTotals.total_money_spent.GBP.toFixed(2)} GBP</strong>
             </Typography>
-            <IconButton onClick={handleCloseDetails} size="small">
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          
-          <DialogContent dividers>
-            {detailsLoading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : detailedBillData ? (
-              <Box>
-                {/* Totals Summary */}
-                <Paper sx={{ p: 2, mb: 3, backgroundColor: 'background.default' }}>
-                  <Typography variant="h6" gutterBottom>Financial Summary</Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                    <Box>
-                      <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
-                      <Typography>
-                        {detailedBillData.totals.total_money_spent.EGP > 0 && `${detailedBillData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
-                        {detailedBillData.totals.total_money_spent.EGP > 0 && detailedBillData.totals.total_money_spent.GBP > 0 && ' / '}
-                        {detailedBillData.totals.total_money_spent.GBP > 0 && `${detailedBillData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
-                        {detailedBillData.totals.total_money_spent.EGP === 0 && detailedBillData.totals.total_money_spent.GBP === 0 && '-'}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="subtitle2" color="error.main">Money Requested</Typography>
-                      <Typography>
-                        {detailedBillData.totals.total_money_requested.EGP > 0 && `${detailedBillData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
-                        {detailedBillData.totals.total_money_requested.EGP > 0 && detailedBillData.totals.total_money_requested.GBP > 0 && ' / '}
-                        {detailedBillData.totals.total_money_requested.GBP > 0 && `${detailedBillData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
-                        {detailedBillData.totals.total_money_requested.EGP === 0 && detailedBillData.totals.total_money_requested.GBP === 0 && '-'}
-                      </Typography>
-                    </Box>
-                    <Box>
-                      <Typography variant="subtitle2" color={detailedBillData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
-                      <Typography>
-                        {detailedBillData.totals.net_money.EGP !== 0 && `${detailedBillData.totals.net_money.EGP.toLocaleString()} EGP`}
-                        {detailedBillData.totals.net_money.EGP !== 0 && detailedBillData.totals.net_money.GBP !== 0 && ' / '}
-                        {detailedBillData.totals.net_money.GBP !== 0 && `${detailedBillData.totals.net_money.GBP.toLocaleString()} GBP`}
-                        {detailedBillData.totals.net_money.EGP === 0 && detailedBillData.totals.net_money.GBP === 0 && '-'}
-                      </Typography>
-                    </Box>
-                  </Box>
-                </Paper>
+          </Alert>
+          )}
 
-                {/* Detailed Transactions */}
-                <Typography variant="h6" gutterBottom>Transaction Details</Typography>
-                {detailedBillData.bills.length > 0 ? (
-                  <TableContainer component={Paper}>
-                    <Table size="small">
-                      <TableHead>
-                        <TableRow>
-                          <TableCell>Type</TableCell>
-                          <TableCell>Description</TableCell>
-                          <TableCell>Date</TableCell>
-                          <TableCell align="right">Amount</TableCell>
-                          <TableCell>Person</TableCell>
-                          <TableCell>Booking</TableCell>
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {detailedBillData.bills.map((bill) => (
-                          <TableRow key={bill.id}>
-                            <TableCell>
-                              <Chip 
-                                label={bill.type}
-                                color={
-                                  bill.type === 'Payment' ? 'success' :
-                                  bill.type === 'Service Request' ? 'warning' : 'info'
-                                }
-                                size="small"
-                              />
-                            </TableCell>
-                            <TableCell>{bill.description}</TableCell>
-                            <TableCell>{formatDate(bill.date)}</TableCell>
-                            <TableCell align="right">
-                              <Typography 
-                                color={bill.type === 'Payment' ? 'success.main' : 'error.main'}
-                                fontWeight="medium"
-                              >
-                                {bill.type === 'Payment' ? '+' : '-'}{bill.amount.toLocaleString()} {bill.currency}
-                              </Typography>
-                            </TableCell>
-                            <TableCell>{bill.person_name || '-'}</TableCell>
-                            <TableCell>
-                              {bill.booking_id ? `Booking #${bill.booking_id}` : '-'}
-                              {bill.booking_arrival_date && (
-                                <Typography variant="caption" display="block">
-                                  {formatDate(bill.booking_arrival_date)}
-                                </Typography>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                ) : (
-                  <Paper sx={{ p: 3, textAlign: 'center' }}>
-                    <Typography color="text.secondary">No transactions found for this apartment.</Typography>
-                  </Paper>
+          {/* Highlighted Bill Summary */}
+          {highlightedBillSummary && (
+            <Paper sx={{ p: 2, mb: 3 }}>
+              <Typography variant="h6" gutterBottom>Selected Apartment Summary</Typography>
+              <Box sx={{ display: 'flex', gap: 4 }}>
+                <Box>
+                  <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
+                  <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
+                  <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
+                  <Typography>Net Money: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
+                </Box>
+                {highlightedBillSummary.renterSummary && (
+                  <Box>
+                    <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
+                    <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
+                    <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
+                    <Typography>Net Money: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
+                  </Box>
                 )}
               </Box>
-            ) : (
-              <Typography>Failed to load details</Typography>
-            )}
-          </DialogContent>
+            </Paper>
+          )}
           
-          <DialogActions>
-            <Button onClick={handleCloseDetails}>Close</Button>
-          </DialogActions>
-        </Dialog>
-      </Box>
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              <FilterListIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+              Filters
+            </Typography>
+            
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flex: '1 1 200px', minWidth: '200px' }}>
+                <TextField
+                  label="Search"
+                  variant="outlined"
+                  size="small"
+                  fullWidth
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+              
+              <Box sx={{ flex: '1 1 200px', minWidth: '150px' }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>Village</InputLabel>
+                  <Select
+                    value={villageFilter}
+                    label="Village"
+                    onChange={handleVillageFilterChange}
+                  >
+                    <MenuItem value="">All Villages</MenuItem>
+                    {villages.map(village => (
+                      <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+              
+              <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
+                <FormControl fullWidth size="small">
+                  <InputLabel>User Type</InputLabel>
+                  <Select
+                    value={userTypeFilter}
+                    label="User Type"
+                    onChange={handleUserTypeFilterChange}
+                  >
+                    <MenuItem value="">All Users</MenuItem>
+                    <MenuItem value="owner">Owner</MenuItem>
+                    <MenuItem value="renter">Renter</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+              
+              <Box sx={{ flex: '1 1 300px', minWidth: '260px' }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <DatePicker
+                    label="From"
+                    value={startDate}
+                    onChange={handleStartDateChange}
+                    slotProps={{ textField: { size: 'small' } }}
+                    format="MM/dd/yyyy"
+                  />
+                  <DatePicker
+                    label="To"
+                    value={endDate}
+                    onChange={handleEndDateChange}
+                    slotProps={{ textField: { size: 'small' } }}
+                    format="MM/dd/yyyy"
+                  />
+                </Box>
+              </Box>
+            </Box>
+          </Paper>
+          
+          {/* Export Buttons */}
+          <ExportButtons data={transformBillsForExport(billDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="bills.xlsx" pdfFileName="bills.pdf" />
+          
+          {/* Bills Table */}
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Village</TableCell>
+                  <TableCell>Apartment</TableCell>
+                  <TableCell>User Name</TableCell>
+                  <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
+                  <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
+                  <TableCell align="right">Net Money (EGP/GBP)</TableCell>
+                  <TableCell align="center">Details</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {billDisplayData.length > 0 ? (
+                  billDisplayData.map((bill) => (
+                    <TableRow 
+                      key={bill.apartment_id}
+                      selected={bill.apartment_id === highlightedBill}
+                    >
+                      <TableCell>{bill.village_name}</TableCell>
+                      <TableCell>{bill.apartment_name}</TableCell>
+                      <TableCell>
+                        <Tooltip title="Click to view financial summary for this apartment" arrow>
+                          <Box 
+                            component="button"
+                            sx={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: 0.5,
+                              cursor: 'pointer',
+                              border: 'none',
+                              background: 'transparent',
+                              padding: '8px 12px',
+                              borderRadius: 2,
+                              transition: 'all 0.2s ease-in-out',
+                              textAlign: 'left',
+                              width: '100%',
+                              minHeight: '40px',
+                              '&:hover': {
+                                backgroundColor: 'primary.light',
+                                color: 'primary.contrastText',
+                                transform: 'translateY(-1px)',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                '& .click-icon': {
+                                  opacity: 1,
+                                  transform: 'scale(1.1)'
+                                },
+                                '& .user-name': {
+                                  color: 'primary.contrastText'
+                                },
+                                '& .MuiChip-root': {
+                                  backgroundColor: 'rgba(255,255,255,0.2)',
+                                  color: 'primary.contrastText',
+                                  borderColor: 'rgba(255,255,255,0.3)'
+                                }
+                              },
+                              '&:active': {
+                                transform: 'translateY(0px)',
+                                boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
+                              },
+                              ...(bill.apartment_id === highlightedBill && {
+                                backgroundColor: 'primary.main',
+                                color: 'primary.contrastText',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                                '& .user-name': {
+                                  color: 'primary.contrastText'
+                                },
+                                '& .MuiChip-root': {
+                                  backgroundColor: 'rgba(255,255,255,0.2)',
+                                  color: 'primary.contrastText',
+                                  borderColor: 'rgba(255,255,255,0.3)'
+                                }
+                              })
+                            }}
+                            onClick={() => handleHighlightBill(bill.apartment_id)}
+                          >
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
+                              <Typography 
+                                className="user-name"
+                                variant="body2" 
+                                sx={{ 
+                                  fontWeight: 500,
+                                  color: 'text.primary'
+                                }}
+                              >
+                                {bill.owner_name}
+                              </Typography>
+                              <Chip 
+                                label="Owner" 
+                                color="primary"
+                                size="small"
+                                variant="outlined"
+                                sx={{ 
+                                  height: '20px', 
+                                  fontSize: '0.65rem'
+                                }}
+                              />
+                            </Box>
+                            <TouchAppIcon 
+                              className="click-icon"
+                              sx={{ 
+                                fontSize: '16px',
+                                opacity: 0.6,
+                                color: 'text.secondary',
+                                transition: 'all 0.2s ease-in-out',
+                                ...(bill.apartment_id === highlightedBill && {
+                                  opacity: 1,
+                                  color: 'primary.contrastText'
+                                })
+                              }} 
+                            />
+                          </Box>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell align="right">
+                        {bill.total_money_spent.EGP > 0 && `${bill.total_money_spent.EGP.toLocaleString()} EGP`}
+                        {bill.total_money_spent.EGP > 0 && bill.total_money_spent.GBP > 0 && ' / '}
+                        {bill.total_money_spent.GBP > 0 && `${bill.total_money_spent.GBP.toLocaleString()} GBP`}
+                        {bill.total_money_spent.EGP === 0 && bill.total_money_spent.GBP === 0 && '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {bill.total_money_requested.EGP > 0 && `${bill.total_money_requested.EGP.toLocaleString()} EGP`}
+                        {bill.total_money_requested.EGP > 0 && bill.total_money_requested.GBP > 0 && ' / '}
+                        {bill.total_money_requested.GBP > 0 && `${bill.total_money_requested.GBP.toLocaleString()} GBP`}
+                        {bill.total_money_requested.EGP === 0 && bill.total_money_requested.GBP === 0 && '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {bill.net_money.EGP > 0 && `${bill.net_money.EGP.toLocaleString()} EGP`}
+                        {bill.net_money.EGP > 0 && bill.net_money.GBP > 0 && ' / '}
+                        {bill.net_money.GBP > 0 && `${bill.net_money.GBP.toLocaleString()} GBP`}
+                        {bill.net_money.EGP === 0 && bill.net_money.GBP === 0 && '-'}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="View detailed transactions">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleViewDetails(bill.apartment_id)}
+                            disabled={detailsLoading}
+                            color="primary"
+                          >
+                            <VisibilityIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">No bills found matching your criteria.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+
+          {/* Details Dialog */}
+          <Dialog 
+            open={detailsDialogOpen} 
+            onClose={handleCloseDetails}
+            maxWidth="lg"
+            fullWidth
+          >
+            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="h6">
+                {detailedBillData ? `Bill Details - ${detailedBillData.apartment.name}` : 'Bill Details'}
+              </Typography>
+              <IconButton onClick={handleCloseDetails} size="small">
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            
+            <DialogContent dividers>
+              {detailsLoading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : detailedBillData ? (
+                <Box>
+                  {/* Totals Summary */}
+                  <Paper sx={{ p: 2, mb: 3, backgroundColor: 'background.default' }}>
+                    <Typography variant="h6" gutterBottom>Financial Summary</Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+                      <Box>
+                        <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
+                        <Typography>
+                          {detailedBillData.totals.total_money_spent.EGP > 0 && `${detailedBillData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
+                          {detailedBillData.totals.total_money_spent.EGP > 0 && detailedBillData.totals.total_money_spent.GBP > 0 && ' / '}
+                          {detailedBillData.totals.total_money_spent.GBP > 0 && `${detailedBillData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
+                          {detailedBillData.totals.total_money_spent.EGP === 0 && detailedBillData.totals.total_money_spent.GBP === 0 && '-'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color="error.main">Money Requested</Typography>
+                        <Typography>
+                          {detailedBillData.totals.total_money_requested.EGP > 0 && `${detailedBillData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
+                          {detailedBillData.totals.total_money_requested.EGP > 0 && detailedBillData.totals.total_money_requested.GBP > 0 && ' / '}
+                          {detailedBillData.totals.total_money_requested.GBP > 0 && `${detailedBillData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
+                          {detailedBillData.totals.total_money_requested.EGP === 0 && detailedBillData.totals.total_money_requested.GBP === 0 && '-'}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle2" color={detailedBillData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
+                        <Typography>
+                          {detailedBillData.totals.net_money.EGP !== 0 && `${detailedBillData.totals.net_money.EGP.toLocaleString()} EGP`}
+                          {detailedBillData.totals.net_money.EGP !== 0 && detailedBillData.totals.net_money.GBP !== 0 && ' / '}
+                          {detailedBillData.totals.net_money.GBP !== 0 && `${detailedBillData.totals.net_money.GBP.toLocaleString()} GBP`}
+                          {detailedBillData.totals.net_money.EGP === 0 && detailedBillData.totals.net_money.GBP === 0 && '-'}
+                        </Typography>
+                      </Box>
+                    </Box>
+                  </Paper>
+
+                  {/* Detailed Transactions */}
+                  <Typography variant="h6" gutterBottom>Transaction Details</Typography>
+                  {detailedBillData.bills.length > 0 ? (
+                    <TableContainer component={Paper}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Type</TableCell>
+                            <TableCell>Description</TableCell>
+                            <TableCell>Date</TableCell>
+                            <TableCell align="right">Amount</TableCell>
+                            <TableCell>Person</TableCell>
+                            <TableCell>Booking</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {detailedBillData.bills.map((bill) => (
+                            <TableRow key={bill.id}>
+                              <TableCell>
+                                <Chip 
+                                  label={bill.type}
+                                  color={
+                                    bill.type === 'Payment' ? 'success' :
+                                    bill.type === 'Service Request' ? 'warning' : 'info'
+                                  }
+                                  size="small"
+                                />
+                              </TableCell>
+                              <TableCell>{bill.description}</TableCell>
+                              <TableCell>{formatDate(bill.date)}</TableCell>
+                              <TableCell align="right">
+                                <Typography 
+                                  color={bill.type === 'Payment' ? 'success.main' : 'error.main'}
+                                  fontWeight="medium"
+                                >
+                                  {bill.type === 'Payment' ? '+' : '-'}{bill.amount.toLocaleString()} {bill.currency}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>{bill.person_name || '-'}</TableCell>
+                              <TableCell>
+                                {bill.booking_id ? `Booking #${bill.booking_id}` : '-'}
+                                {bill.booking_arrival_date && (
+                                  <Typography variant="caption" display="block">
+                                    {formatDate(bill.booking_arrival_date)}
+                                  </Typography>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  ) : (
+                    <Paper sx={{ p: 3, textAlign: 'center' }}>
+                      <Typography color="text.secondary">No transactions found for this apartment.</Typography>
+                    </Paper>
+                  )}
+                </Box>
+              ) : (
+                <Typography>Failed to load details</Typography>
+              )}
+            </DialogContent>
+            
+            <DialogActions>
+              <Button onClick={handleCloseDetails}>Close</Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      </Container>
     </LocalizationProvider>
   );
 }

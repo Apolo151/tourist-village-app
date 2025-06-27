@@ -50,12 +50,17 @@ export default function CreateServiceType() {
   const isNew = id === 'new' || !id;
   
   // Form data
-  const [formData, setFormData] = useState<CreateServiceTypeRequest>({
+  const [formData, setFormData] = useState<{
+    name: string;
+    cost: number | string;
+    currency: 'EGP' | 'GBP';
+    description: string;
+    default_assignee_id?: number;
+  }>({
     name: '',
     cost: 0,
     currency: 'EGP',
     description: '',
-    default_assignee_id: undefined
   });
 
   // Check if user is admin
@@ -115,7 +120,7 @@ export default function CreateServiceType() {
     const { name, value } = event.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'cost' ? parseFloat(value) || 0 : value
+      [name]: name === 'cost' ? (value === '' ? 0 : parseFloat(value)) : value
     }));
   };
 
@@ -134,7 +139,7 @@ export default function CreateServiceType() {
       return 'Service name is required';
     }
 
-    if (formData.cost <= 0) {
+    if (Number(formData.cost) <= 0) {
       return 'Cost must be greater than 0';
     }
 
@@ -163,13 +168,16 @@ export default function CreateServiceType() {
 
       if (isNew) {
         // Create new service type
-        await serviceRequestService.createServiceType(formData);
+        await serviceRequestService.createServiceType({
+          ...formData,
+          cost: Number(formData.cost)
+        });
         navigate('/services?tab=0&success=Service%20type%20created%20successfully');
       } else if (id) {
         // Update existing service type
         const updateData: UpdateServiceTypeRequest = {
           name: formData.name,
-          cost: formData.cost,
+          cost: Number(formData.cost),
           currency: formData.currency,
           description: formData.description,
           default_assignee_id: formData.default_assignee_id
@@ -219,7 +227,7 @@ export default function CreateServiceType() {
                 variant="contained"
                 startIcon={<SaveIcon />}
                 onClick={handleSubmit}
-                disabled={submitting || !formData.name || formData.cost <= 0}
+                disabled={submitting || !formData.name || typeof formData.cost === 'number' && formData.cost <= 0}
               >
                 {submitting ? (isNew ? 'Creating...' : 'Updating...') : (isNew ? 'Create Service Type' : 'Update Service Type')}
               </Button>
@@ -263,8 +271,8 @@ export default function CreateServiceType() {
                   onChange={handleInputChange}
                   fullWidth
                   required
-                  error={formData.cost <= 0}
-                  helperText={formData.cost <= 0 ? 'Cost must be greater than 0' : 'Enter the service cost'}
+                  error={typeof formData.cost === 'number' && formData.cost <= 0}
+                  helperText={typeof formData.cost === 'number' && formData.cost <= 0 ? 'Cost must be greater than 0' : 'Enter the service cost'}
                   inputProps={{ min: 0, step: 0.01, max: 999999.99 }}
                 />
               </Grid>
@@ -320,7 +328,7 @@ export default function CreateServiceType() {
           </Paper>
 
           {/* Preview */}
-          {formData.name && formData.cost > 0 && (
+          {formData.name && typeof formData.cost === 'number' && formData.cost > 0 && (
             <Card>
               <CardContent>
                 <Typography variant="h6" gutterBottom>Preview</Typography>

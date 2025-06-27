@@ -126,13 +126,13 @@ export default function Users() {
       const [usersResult, villagesResult] = await Promise.all([
         userService.getUsers({ 
           page, 
-          limit: pageSize * 5 // Load more to allow for filtering
+          limit: Math.min(pageSize * 5, 100) // Ensure limit doesn't exceed 100
         }),
         villageService.getVillages()
       ]);
       
       setUsers(usersResult.data);
-      setTotalUsers(usersResult.total || usersResult.data.length);
+      setTotalUsers(usersResult.pagination?.total || usersResult.data.length);
       setVillages(villagesResult.data);
     } catch (err: any) {
       console.error('Error loading users data:', err);
@@ -371,7 +371,7 @@ export default function Users() {
 
         {/* Summary Cards */}
         <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
@@ -383,7 +383,7 @@ export default function Users() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
@@ -395,7 +395,7 @@ export default function Users() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
@@ -407,7 +407,7 @@ export default function Users() {
               </CardContent>
             </Card>
           </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
             <Card>
               <CardContent>
                 <Typography color="text.secondary" gutterBottom variant="body2">
@@ -685,19 +685,19 @@ export default function Users() {
             {selectedUser && (
               <Box sx={{ mt: 1 }}>
                 <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Name</Typography>
                     <Typography variant="body1">{selectedUser.name}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Email</Typography>
                     <Typography variant="body1">{selectedUser.email}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Phone</Typography>
                     <Typography variant="body1">{selectedUser.phone_number || '-'}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Role</Typography>
                     <Chip 
                       label={selectedUser.role.replace('_', ' ')} 
@@ -706,7 +706,7 @@ export default function Users() {
                       sx={{ textTransform: 'capitalize' }}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Status</Typography>
                     <Chip 
                       label={selectedUser.is_active ? 'Active' : 'Inactive'}
@@ -714,7 +714,7 @@ export default function Users() {
                       color={selectedUser.is_active ? 'success' : 'error'}
                     />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Responsible Village</Typography>
                     <Typography variant="body1">
                       {selectedUser.responsible_village 
@@ -723,11 +723,11 @@ export default function Users() {
                       }
                     </Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Created At</Typography>
                     <Typography variant="body1">{formatDate(selectedUser.created_at)}</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Last Login</Typography>
                     <Typography variant="body1">
                       {selectedUser.last_login ? formatDate(selectedUser.last_login) : 'Never'}
@@ -817,11 +817,11 @@ export default function Users() {
                 <FormControl fullWidth margin="normal">
                   <InputLabel>Responsible Village</InputLabel>
                   <Select
-                    value={newUser.responsible_village || ''}
+                    value={newUser.responsible_village?.toString() || ''}
                     label="Responsible Village"
                     onChange={(e) => setNewUser({ 
                       ...newUser, 
-                      responsible_village: e.target.value ? parseInt(e.target.value as string) : undefined 
+                      responsible_village: e.target.value ? parseInt(e.target.value) : undefined 
                     })}
                   >
                     <MenuItem value="">None</MenuItem>

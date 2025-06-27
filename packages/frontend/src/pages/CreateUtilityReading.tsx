@@ -76,10 +76,10 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   // Form fields
   const [apartmentId, setApartmentId] = useState<number>(propApartmentId || 0);
   const [bookingId, setBookingId] = useState<number | undefined>(props.bookingId);
-  const [waterStartReading, setWaterStartReading] = useState<number | undefined>(undefined);
-  const [waterEndReading, setWaterEndReading] = useState<number | undefined>(undefined);
-  const [electricityStartReading, setElectricityStartReading] = useState<number | undefined>(undefined);
-  const [electricityEndReading, setElectricityEndReading] = useState<number | undefined>(undefined);
+  const [waterStartReading, setWaterStartReading] = useState<number | string | undefined>(undefined);
+  const [waterEndReading, setWaterEndReading] = useState<number | string | undefined>(undefined);
+  const [electricityStartReading, setElectricityStartReading] = useState<number | string | undefined>(undefined);
+  const [electricityEndReading, setElectricityEndReading] = useState<number | string | undefined>(undefined);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [whoPays, setWhoPays] = useState<'owner' | 'renter' | 'company'>('renter');
@@ -270,20 +270,20 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const selectedBooking = (bookings || []).find(b => b.id === bookingId);
   
   // Calculate potential bills
-    const waterBill = (waterStartReading !== undefined && waterEndReading !== undefined && selectedApartment?.village) 
+    const waterBill = (typeof waterStartReading === 'number' && typeof waterEndReading === 'number' && selectedApartment?.village)
     ? utilityReadingService.calculateUtilityCost(
-        waterStartReading, 
-        waterEndReading, 
-        'water', 
+        Number(waterStartReading),
+        Number(waterEndReading),
+        'water',
         Number(selectedApartment.village.electricity_price),
         Number(selectedApartment.village.water_price)
       )
     : null;
-  const electricityBill = (electricityStartReading !== undefined && electricityEndReading !== undefined && selectedApartment?.village)
+  const electricityBill = (typeof electricityStartReading === 'number' && typeof electricityEndReading === 'number' && selectedApartment?.village)
     ? utilityReadingService.calculateUtilityCost(
-        electricityStartReading, 
-        electricityEndReading, 
-        'electricity', 
+        Number(electricityStartReading),
+        Number(electricityEndReading),
+        'electricity',
         Number(selectedApartment.village.electricity_price),
         Number(selectedApartment.village.water_price)
       )
@@ -423,8 +423,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                     fullWidth
                     label="Water Start Reading"
                     type="number"
-                    value={waterStartReading || ''}
-                    onChange={(e) => setWaterStartReading(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={waterStartReading === undefined ? '' : waterStartReading}
+                    onChange={(e) => setWaterStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                     inputProps={{ min: 0, step: 0.01 }}
                     helperText="Starting meter reading for water"
                   />
@@ -434,8 +434,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                     fullWidth
                     label="Water End Reading"
                     type="number"
-                    value={waterEndReading || ''}
-                    onChange={(e) => setWaterEndReading(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={waterEndReading === undefined ? '' : waterEndReading}
+                    onChange={(e) => setWaterEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                     inputProps={{ min: 0, step: 0.01 }}
                     helperText="Ending meter reading for water"
                   />
@@ -452,8 +452,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                     fullWidth
                     label="Electricity Start Reading"
                     type="number"
-                    value={electricityStartReading || ''}
-                    onChange={(e) => setElectricityStartReading(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={electricityStartReading === undefined ? '' : electricityStartReading}
+                    onChange={(e) => setElectricityStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                     inputProps={{ min: 0, step: 0.01 }}
                     helperText="Starting meter reading for electricity"
                   />
@@ -463,8 +463,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                     fullWidth
                     label="Electricity End Reading"
                     type="number"
-                    value={electricityEndReading || ''}
-                    onChange={(e) => setElectricityEndReading(e.target.value ? parseFloat(e.target.value) : undefined)}
+                    value={electricityEndReading === undefined ? '' : electricityEndReading}
+                    onChange={(e) => setElectricityEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
                     inputProps={{ min: 0, step: 0.01 }}
                     helperText="Ending meter reading for electricity"
                   />

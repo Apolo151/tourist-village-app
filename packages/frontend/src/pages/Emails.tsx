@@ -27,7 +27,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  DialogContentText
+  DialogContentText,
+  Container
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -238,239 +239,237 @@ export default function Emails() {
   }
 
   return (
-    <Box sx={{ width: '100%' }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <EmailIcon />
-          Emails
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateEmail}
-        >
-          Add New Email
-        </Button>
-      </Box>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          {error}
-        </Alert>
-      )}
-
-      {/* Filters */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography variant="h6" sx={{ mb: 2 }}>
-          Filters
-        </Typography>
-        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-          <TextField
-            label="Search emails"
-            value={searchTerm}
-            onChange={handleSearchChange}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon />
-                </InputAdornment>
-              ),
-            }}
-            sx={{ minWidth: 300 }}
-          />
-          
-          <FormControl sx={{ minWidth: 200 }}>
-            <InputLabel>Apartment</InputLabel>
-            <Select
-              value={apartmentFilter}
-              onChange={handleApartmentFilterChange}
-              label="Apartment"
-            >
-              <MenuItem value="">All Apartments</MenuItem>
-              {apartments.map(apartment => (
-                <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                  {apartment.name} - {apartment.village?.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          <FormControl sx={{ minWidth: 180 }}>
-            <InputLabel>Email Type</InputLabel>
-            <Select
-              value={typeFilter}
-              onChange={handleTypeFilterChange}
-              label="Email Type"
-            >
-              <MenuItem value="">All Types</MenuItem>
-              {emailService.getEmailTypeOptions().map(option => (
-                <MenuItem key={option.value} value={option.value}>
-                  {option.label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+    <Container maxWidth="xl">
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Emails</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateEmail}
+          >
+            Create Email
+          </Button>
         </Box>
-      </Paper>
 
-      {/* Export Buttons */}
-      <ExportButtons data={emails} columns={["id","apartment_id","booking_id","date","from","to","subject","type"]} excelFileName="emails.xlsx" pdfFileName="emails.pdf" />
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
 
-      {/* Emails Table */}
-      <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-        <TableContainer>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>Date</TableCell>
-                <TableCell>From</TableCell>
-                <TableCell>To</TableCell>
-                <TableCell>Subject</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell>Apartment</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {emails.length === 0 ? (
+        {/* Filters */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Filters
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <TextField
+              label="Search emails"
+              value={searchTerm}
+              onChange={handleSearchChange}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ minWidth: 300 }}
+            />
+            
+            <FormControl sx={{ minWidth: 200 }}>
+              <InputLabel>Apartment</InputLabel>
+              <Select
+                value={apartmentFilter}
+                onChange={handleApartmentFilterChange}
+                label="Apartment"
+              >
+                <MenuItem value="">All Apartments</MenuItem>
+                {apartments.map(apartment => (
+                  <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                    {apartment.name} - {apartment.village?.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl sx={{ minWidth: 180 }}>
+              <InputLabel>Email Type</InputLabel>
+              <Select
+                value={typeFilter}
+                onChange={handleTypeFilterChange}
+                label="Email Type"
+              >
+                <MenuItem value="">All Types</MenuItem>
+                {emailService.getEmailTypeOptions().map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        </Paper>
+
+        {/* Export Buttons */}
+        <ExportButtons data={emails} columns={["id","apartment_id","booking_id","date","from","to","subject","type"]} excelFileName="emails.xlsx" pdfFileName="emails.pdf" />
+
+        {/* Emails Table */}
+        <Paper sx={{ width: '100%', overflow: 'hidden' }}>
+          <TableContainer>
+            <Table>
+              <TableHead>
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
-                    {loading ? (
-                      <CircularProgress size={24} />
-                    ) : (
-                      <Typography color="textSecondary">
-                        No emails found
-                      </Typography>
-                    )}
-                  </TableCell>
+                  <TableCell>Date</TableCell>
+                  <TableCell>From</TableCell>
+                  <TableCell>To</TableCell>
+                  <TableCell>Subject</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Apartment</TableCell>
+                  <TableCell>Actions</TableCell>
                 </TableRow>
-              ) : (
-                emails.map((email) => (
-                  <TableRow key={email.id} hover>
-                    <TableCell>
-                      {formatDate(email.date)}
-                    </TableCell>
-                    <TableCell>
-                      {email.from}
-                    </TableCell>
-                    <TableCell>
-                      {email.to}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {email.subject}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={emailService.getEmailTypeDisplayName(email.type)}
-                        color={emailService.getEmailTypeColor(email.type)}
-                        size="small"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {email.apartment?.name || getApartmentName(email.apartment_id)}
-                      </Typography>
-                      {email.apartment?.village && (
-                        <Typography variant="caption" color="textSecondary">
-                          {email.apartment.village.name}
+              </TableHead>
+              <TableBody>
+                {emails.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                      {loading ? (
+                        <CircularProgress size={24} />
+                      ) : (
+                        <Typography color="textSecondary">
+                          No emails found
                         </Typography>
                       )}
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        <Tooltip title="View Details">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewEmail(email)}
-                          >
-                            <ViewIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Edit">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEditEmail(email)}
-                          >
-                            <EditIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDeleteClick(email)}
-                          >
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                ) : (
+                  emails.map((email) => (
+                    <TableRow key={email.id} hover>
+                      <TableCell>
+                        {formatDate(email.date)}
+                      </TableCell>
+                      <TableCell>
+                        {email.from}
+                      </TableCell>
+                      <TableCell>
+                        {email.to}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {email.subject}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          label={emailService.getEmailTypeDisplayName(email.type)}
+                          color={emailService.getEmailTypeColor(email.type)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">
+                          {email.apartment?.name || getApartmentName(email.apartment_id)}
+                        </Typography>
+                        {email.apartment?.village && (
+                          <Typography variant="caption" color="textSecondary">
+                            {email.apartment.village.name}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', gap: 0.5 }}>
+                          <Tooltip title="View Details">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewEmail(email)}
+                            >
+                              <ViewIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Edit">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditEmail(email)}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDeleteClick(email)}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
-        {/* Pagination */}
-        {pagination.total_pages > 1 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-            <Pagination
-              count={pagination.total_pages}
-              page={pagination.page}
-              onChange={handlePageChange}
-              color="primary"
-            />
-          </Box>
-        )}
-      </Paper>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog
-        open={deleteDialog.open}
-        onClose={handleDeleteCancel}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Delete Email</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Are you sure you want to delete this email? This action cannot be undone.
-          </DialogContentText>
-          {deleteDialog.email && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="body2">
-                <strong>From:</strong> {deleteDialog.email.from}
-              </Typography>
-              <Typography variant="body2">
-                <strong>To:</strong> {deleteDialog.email.to}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Subject:</strong> {deleteDialog.email.subject}
-              </Typography>
-              <Typography variant="body2">
-                <strong>Date:</strong> {formatDate(deleteDialog.email.date)}
-              </Typography>
+          {/* Pagination */}
+          {pagination.total_pages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+              <Pagination
+                count={pagination.total_pages}
+                page={pagination.page}
+                onChange={handlePageChange}
+                color="primary"
+              />
             </Box>
           )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDeleteCancel} disabled={deleting}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleDeleteConfirm} 
-            color="error" 
-            variant="contained"
-            disabled={deleting}
-          >
-            {deleting ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        </Paper>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog
+          open={deleteDialog.open}
+          onClose={handleDeleteCancel}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Delete Email</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete this email? This action cannot be undone.
+            </DialogContentText>
+            {deleteDialog.email && (
+              <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                <Typography variant="body2">
+                  <strong>From:</strong> {deleteDialog.email.from}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>To:</strong> {deleteDialog.email.to}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Subject:</strong> {deleteDialog.email.subject}
+                </Typography>
+                <Typography variant="body2">
+                  <strong>Date:</strong> {formatDate(deleteDialog.email.date)}
+                </Typography>
+              </Box>
+            )}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteCancel} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleDeleteConfirm} 
+              color="error" 
+              variant="contained"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </Container>
   );
 } 

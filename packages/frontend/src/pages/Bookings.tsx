@@ -24,7 +24,8 @@ import {
   Tooltip,
   CircularProgress,
   Alert,
-  Pagination
+  Pagination,
+  Container
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -346,306 +347,315 @@ export default function Bookings() {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ width: '100%' }}>
-        <Typography variant="h4" gutterBottom>
-          Bookings
-        </Typography>
-
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
-
-        {/* Header with Create Button */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateBooking}
-          >
-            Create a new Booking
-          </Button>
-          
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="Toggle Filters">
-              <IconButton onClick={toggleFilters}>
-                <FilterIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Clear Filters">
-              <IconButton onClick={clearFilters}>
-                <ClearIcon />
-              </IconButton>
-            </Tooltip>
+      <Container maxWidth="xl">
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h4">Bookings</Typography>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={() => navigate('/bookings/new')}
+            >
+              Add Booking
+            </Button>
           </Box>
-        </Box>
+          
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
-        {/* Tabs */}
-        <Paper sx={{ mb: 2 }}>
-          <Tabs value={tabValue} onChange={handleTabChange}>
-            <Tab label="Current & Upcoming" />
-            <Tab label="Past" />
-            <Tab label="All" />
-          </Tabs>
-        </Paper>
-
-        {/* Filters */}
-        {showFilters && (
-          <Paper sx={{ p: 2, mb: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Filters
-            </Typography>
+          {/* Header with Create Button */}
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={handleCreateBooking}
+            >
+              Create a new Booking
+            </Button>
             
-            {/* Search and basic filters */}
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-              <TextField
-                label="Search"
-                value={filters.searchTerm}
-                onChange={handleSearchChange}
-                placeholder="Search by user name, apartment name, notes..."
-                sx={{ flex: '1 1 300px' }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              
-              <FormControl sx={{ flex: '1 1 200px' }}>
-                <InputLabel>Apartment</InputLabel>
-                <Select
-                  value={filters.apartmentId}
-                  label="Apartment"
-                  onChange={(e) => handleSelectChange(e, 'apartmentId')}
-                >
-                  <MenuItem value="">All Apartments</MenuItem>
-                  {apartments.map(apartment => (
-                    <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                      {apartment.name} ({apartment.village?.name})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl sx={{ flex: '1 1 150px' }}>
-                <InputLabel>Village</InputLabel>
-                <Select
-                  value={filters.village}
-                  label="Village"
-                  onChange={(e) => handleSelectChange(e, 'village')}
-                >
-                  <MenuItem value="">All Villages</MenuItem>
-                  {villages.map(village => (
-                    <MenuItem key={village.id} value={village.name}>
-                      {village.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Toggle Filters">
+                <IconButton onClick={toggleFilters}>
+                  <FilterIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Clear Filters">
+                <IconButton onClick={clearFilters}>
+                  <ClearIcon />
+                </IconButton>
+              </Tooltip>
             </Box>
+          </Box>
 
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-              <FormControl sx={{ flex: '1 1 150px' }}>
-                <InputLabel>Status</InputLabel>
-                <Select
-                  value={filters.state}
-                  label="Status"
-                  onChange={(e) => handleSelectChange(e, 'state')}
-                >
-                  <MenuItem value="">All Statuses</MenuItem>
-                  <MenuItem value="not_arrived">Has not Arrived</MenuItem>
-                  <MenuItem value="in_village">In Village</MenuItem>
-                  <MenuItem value="left">Left</MenuItem>
-                </Select>
-              </FormControl>
-
-              <FormControl sx={{ flex: '1 1 150px' }}>
-                <InputLabel>User Type</InputLabel>
-                <Select
-                  value={filters.userType}
-                  label="User Type"
-                  onChange={(e) => handleSelectChange(e, 'userType')}
-                >
-                  <MenuItem value="">All Types</MenuItem>
-                  <MenuItem value="owner">Owner</MenuItem>
-                  <MenuItem value="renter">Renter</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-
-            {/* Date filters */}
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Arrival Date Range
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-              <DatePicker
-                label="Arrival Date From"
-                value={filters.arrivalDateStart}
-                onChange={(date) => handleDateChange(date, 'arrivalDateStart')}
-                slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-              />
-              <DatePicker
-                label="Arrival Date To"
-                value={filters.arrivalDateEnd}
-                onChange={(date) => handleDateChange(date, 'arrivalDateEnd')}
-                slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-              />
-            </Box>
-
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Leaving Date Range
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <DatePicker
-                label="Leaving Date From"
-                value={filters.leavingDateStart}
-                onChange={(date) => handleDateChange(date, 'leavingDateStart')}
-                slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-              />
-              <DatePicker
-                label="Leaving Date To"
-                value={filters.leavingDateEnd}
-                onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
-                slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-              />
-            </Box>
+          {/* Tabs */}
+          <Paper sx={{ mb: 2 }}>
+            <Tabs value={tabValue} onChange={handleTabChange}>
+              <Tab label="Current & Upcoming" />
+              <Tab label="Past" />
+              <Tab label="All" />
+            </Tabs>
           </Paper>
-        )}
 
-        {/* Export Buttons */}
-        <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","user","user_type","number_of_people","arrival_date","leaving_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
+          {/* Filters */}
+          {showFilters && (
+            <Paper sx={{ p: 2, mb: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Filters
+              </Typography>
+              
+              {/* Search and basic filters */}
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                <TextField
+                  label="Search"
+                  value={filters.searchTerm}
+                  onChange={handleSearchChange}
+                  placeholder="Search by user name, apartment name, notes..."
+                  sx={{ flex: '1 1 300px' }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                
+                <FormControl sx={{ flex: '1 1 200px' }}>
+                  <InputLabel>Apartment</InputLabel>
+                  <Select
+                    value={filters.apartmentId}
+                    label="Apartment"
+                    onChange={(e) => handleSelectChange(e, 'apartmentId')}
+                  >
+                    <MenuItem value="">All Apartments</MenuItem>
+                    {apartments.map(apartment => (
+                      <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                        {apartment.name} ({apartment.village?.name})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-        {/* Bookings Table */}
-        <Paper>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Booking ID</TableCell>
-                  <TableCell>User Name</TableCell>
-                  <TableCell>User Type</TableCell>
-                  <TableCell>Apartment</TableCell>
-                  <TableCell>Arrival DateTime</TableCell>
-                  <TableCell>Leaving DateTime</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>People</TableCell>
-                  <TableCell align="center">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {loading ? (
+                <FormControl sx={{ flex: '1 1 150px' }}>
+                  <InputLabel>Village</InputLabel>
+                  <Select
+                    value={filters.village}
+                    label="Village"
+                    onChange={(e) => handleSelectChange(e, 'village')}
+                  >
+                    <MenuItem value="">All Villages</MenuItem>
+                    {villages.map(village => (
+                      <MenuItem key={village.id} value={village.name}>
+                        {village.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                <FormControl sx={{ flex: '1 1 150px' }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={filters.state}
+                    label="Status"
+                    onChange={(e) => handleSelectChange(e, 'state')}
+                  >
+                    <MenuItem value="">All Statuses</MenuItem>
+                    <MenuItem value="not_arrived">Has not Arrived</MenuItem>
+                    <MenuItem value="in_village">In Village</MenuItem>
+                    <MenuItem value="left">Left</MenuItem>
+                  </Select>
+                </FormControl>
+
+                <FormControl sx={{ flex: '1 1 150px' }}>
+                  <InputLabel>User Type</InputLabel>
+                  <Select
+                    value={filters.userType}
+                    label="User Type"
+                    onChange={(e) => handleSelectChange(e, 'userType')}
+                  >
+                    <MenuItem value="">All Types</MenuItem>
+                    <MenuItem value="owner">Owner</MenuItem>
+                    <MenuItem value="renter">Renter</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Date filters */}
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Arrival Date Range
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                <DatePicker
+                  label="Arrival Date From"
+                  value={filters.arrivalDateStart}
+                  onChange={(date) => handleDateChange(date, 'arrivalDateStart')}
+                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
+                />
+                <DatePicker
+                  label="Arrival Date To"
+                  value={filters.arrivalDateEnd}
+                  onChange={(date) => handleDateChange(date, 'arrivalDateEnd')}
+                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
+                />
+              </Box>
+
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                Leaving Date Range
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                <DatePicker
+                  label="Leaving Date From"
+                  value={filters.leavingDateStart}
+                  onChange={(date) => handleDateChange(date, 'leavingDateStart')}
+                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
+                />
+                <DatePicker
+                  label="Leaving Date To"
+                  value={filters.leavingDateEnd}
+                  onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
+                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
+                />
+              </Box>
+            </Paper>
+          )}
+
+          {/* Export Buttons */}
+          <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","user","user_type","number_of_people","arrival_date","leaving_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
+
+          {/* Bookings Table */}
+          <Paper>
+            <TableContainer>
+              <Table>
+                <TableHead>
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      <CircularProgress />
-                    </TableCell>
+                    <TableCell>Booking ID</TableCell>
+                    <TableCell>User Name</TableCell>
+                    <TableCell>User Type</TableCell>
+                    <TableCell>Apartment</TableCell>
+                    <TableCell>Arrival DateTime</TableCell>
+                    <TableCell>Leaving DateTime</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>People</TableCell>
+                    <TableCell align="center">Actions</TableCell>
                   </TableRow>
-                ) : bookings.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} align="center">
-                      <Typography color="text.secondary">
-                        No bookings found
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  (bookings || []).map((booking) => (
-                    <TableRow
-                      key={booking.id}
-                      hover
-                      sx={{ cursor: 'pointer' }}
-                      onClick={() => handleBookingClick(booking.id)}
-                    >
-                      <TableCell>#{booking.id}</TableCell>
-                      <TableCell>{booking.user?.name || 'Unknown User'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getUserTypeDisplay(booking.user_type)}
-                          size="small"
-                          color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {booking.apartment?.name || 'Unknown Apartment'}
-                        {booking.apartment?.village && (
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {booking.apartment.village.name}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>{formatDate(booking.arrival_date)}</TableCell>
-                      <TableCell>{formatDate(booking.leaving_date)}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={getStatusDisplayName(booking.status)}
-                          size="small"
-                          color={statusColors[booking.status] || 'default'}
-                        />
-                      </TableCell>
-                      <TableCell>{booking.number_of_people}</TableCell>
-                      <TableCell align="center">
-                        <Box sx={{ display: 'flex', gap: 1 }}>
-                          <Tooltip title="View Details">
-                            <IconButton
-                              size="small"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleBookingClick(booking.id);
-                              }}
-                            >
-                              <ViewIcon />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete Booking">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteBooking(booking.id);
-                              }}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
+                </TableHead>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <CircularProgress />
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                  ) : bookings.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} align="center">
+                        <Typography color="text.secondary">
+                          No bookings found
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    (bookings || []).map((booking) => (
+                      <TableRow
+                        key={booking.id}
+                        hover
+                        sx={{ cursor: 'pointer' }}
+                        onClick={() => handleBookingClick(booking.id)}
+                      >
+                        <TableCell>#{booking.id}</TableCell>
+                        <TableCell>{booking.user?.name || 'Unknown User'}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={getUserTypeDisplay(booking.user_type)}
+                            size="small"
+                            color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          {booking.apartment?.name || 'Unknown Apartment'}
+                          {booking.apartment?.village && (
+                            <Typography variant="caption" display="block" color="text.secondary">
+                              {booking.apartment.village.name}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>{formatDate(booking.arrival_date)}</TableCell>
+                        <TableCell>{formatDate(booking.leaving_date)}</TableCell>
+                        <TableCell>
+                          <Chip
+                            label={getStatusDisplayName(booking.status)}
+                            size="small"
+                            color={statusColors[booking.status] || 'default'}
+                          />
+                        </TableCell>
+                        <TableCell>{booking.number_of_people}</TableCell>
+                        <TableCell align="center">
+                          <Box sx={{ display: 'flex', gap: 1 }}>
+                            <Tooltip title="View Details">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleBookingClick(booking.id);
+                                }}
+                              >
+                                <ViewIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete Booking">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBooking(booking.id);
+                                }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
 
-          {/* Pagination */}
-          {pagination.total_pages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-              <Pagination
-                count={pagination.total_pages}
-                page={pagination.page}
-                onChange={handlePageChange}
-                color="primary"
-                showFirstButton
-                showLastButton
-              />
-            </Box>
-          )}
-        </Paper>
+            {/* Pagination */}
+            {pagination.total_pages > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <Pagination
+                  count={pagination.total_pages}
+                  page={pagination.page}
+                  onChange={handlePageChange}
+                  color="primary"
+                  showFirstButton
+                  showLastButton
+                />
+              </Box>
+            )}
+          </Paper>
 
-        {/* Summary */}
-        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            Showing {bookings.length} of {pagination.total} bookings
-          </Typography>
-          {tabValue === 0 && (
+          {/* Summary */}
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" color="text.secondary">
-              Default filter: Current and upcoming bookings only
+              Showing {bookings.length} of {pagination.total} bookings
             </Typography>
-          )}
+            {tabValue === 0 && (
+              <Typography variant="body2" color="text.secondary">
+                Default filter: Current and upcoming bookings only
+              </Typography>
+            )}
+          </Box>
         </Box>
-      </Box>
+      </Container>
     </LocalizationProvider>
   );
 } 

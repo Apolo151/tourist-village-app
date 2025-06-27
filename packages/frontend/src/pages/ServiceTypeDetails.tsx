@@ -51,12 +51,17 @@ export default function ServiceTypeDetails() {
   const [isNew] = useState(id === 'new');
   
   // Form data
-  const [formData, setFormData] = useState<CreateServiceTypeRequest>({
+  const [formData, setFormData] = useState<{
+    name: string;
+    cost: number | string;
+    currency: 'EGP' | 'GBP';
+    description: string;
+    default_assignee_id?: number;
+  }>({
     name: '',
     cost: 0,
     currency: 'EGP',
     description: '',
-    default_assignee_id: undefined
   });
 
   // Check if user is admin
@@ -128,7 +133,7 @@ export default function ServiceTypeDetails() {
     const { name, value } = event.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'cost' ? parseFloat(value) || 0 : value
+      [name]: name === 'cost' ? (value === '' ? '' : parseFloat(value)) : value
     }));
   };
 
@@ -173,7 +178,7 @@ export default function ServiceTypeDetails() {
         return;
       }
 
-      if (formData.cost <= 0) {
+      if (typeof formData.cost === 'number' && formData.cost <= 0) {
         setError('Cost must be greater than 0');
         return;
       }
@@ -182,7 +187,11 @@ export default function ServiceTypeDetails() {
 
       if (isNew) {
         try {
-          const newServiceType = await serviceRequestService.createServiceType(formData);
+          const apiData = {
+            ...formData,
+            cost: typeof formData.cost === 'string' ? parseFloat(formData.cost) || 0 : formData.cost
+          };
+          const newServiceType = await serviceRequestService.createServiceType(apiData);
           console.log('Created service type:', newServiceType);
           
           if (newServiceType && newServiceType.id) {
@@ -202,7 +211,7 @@ export default function ServiceTypeDetails() {
       } else if (id) {
         const updateData: UpdateServiceTypeRequest = {
           name: formData.name,
-          cost: formData.cost,
+          cost: typeof formData.cost === 'string' ? parseFloat(formData.cost) || 0 : formData.cost,
           currency: formData.currency,
           description: formData.description,
           default_assignee_id: formData.default_assignee_id
@@ -327,14 +336,14 @@ export default function ServiceTypeDetails() {
                 label="Cost"
                 name="cost"
                 type="number"
-                value={formData.cost}
+                value={formData.cost === '' ? '' : formData.cost}
                 onChange={handleInputChange}
                 fullWidth
                 required
                 disabled={!isEditing}
                 inputProps={{ min: 0, step: 0.01 }}
-                error={formData.cost <= 0}
-                helperText={formData.cost <= 0 ? 'Cost must be greater than 0' : ''}
+                error={formData.cost !== '' && Number(formData.cost) <= 0}
+                helperText={formData.cost !== '' && Number(formData.cost) <= 0 ? 'Cost must be greater than 0' : ''}
               />
               
               <FormControl fullWidth disabled={!isEditing}>

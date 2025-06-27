@@ -275,8 +275,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 required
                 label="Number of People"
                 type="number"
-                value={numberOfPeople}
-                onChange={(e) => setNumberOfPeople(parseInt(e.target.value))}
+                value={numberOfPeople === 0 ? '' : numberOfPeople}
+                onChange={(e) => setNumberOfPeople(e.target.value === '' ? 0 : parseInt(e.target.value))}
                 inputProps={{ min: 1, max: 20 }}
               />
             </Grid>
