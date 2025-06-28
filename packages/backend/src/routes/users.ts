@@ -38,7 +38,9 @@ usersRouter.get(
 
       // Super admins see all users, Admins see users in their village
       if (req.user.role === 'super_admin' || req.user.role === 'admin') {
-        const result = await userService.getUsers(filters, req.villageFilter);
+        // Remove village filtering for users - all users should be accessible to admins
+        // for operational purposes (bookings, service requests, apartment assignments, etc.)
+        const result = await userService.getUsers(filters);
 
         res.json({
           success: true,

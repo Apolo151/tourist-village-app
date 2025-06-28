@@ -148,8 +148,8 @@ export default function Login() {
           </Box>
           
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
-            Demo Login: admin@touristvillage.com / SuperAdmin
-          </Typography>
+            Demo Login: admin@touristvillage.com / superadmin
+          </Typography>    
         </Paper>
       </Box>
     </Box>

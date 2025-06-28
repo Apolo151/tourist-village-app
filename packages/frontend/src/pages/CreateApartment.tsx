@@ -64,11 +64,19 @@ export default function CreateApartment() {
       setLoading(true);
       const [villagesData, usersData] = await Promise.all([
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ limit: 100, role: 'owner' })
+        userService.getUsers({ role: 'owner', limit: 100 })
       ]);
       
       setVillages(villagesData.data);
       setOwners(usersData.data);
+      
+      // If the admin has a responsible village, prefill the village field
+      if (currentUser?.responsible_village) {
+        setFormData(prev => ({
+          ...prev,
+          village_id: currentUser.responsible_village!
+        }));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load initial data');
     } finally {
@@ -231,6 +239,7 @@ export default function CreateApartment() {
                     value={formData.village_id.toString()}
                     label="Village"
                     onChange={handleSelectChange}
+                    disabled={!!currentUser?.responsible_village}
                   >
                     <MenuItem value="0">
                       <em>Select Village</em>
@@ -244,6 +253,11 @@ export default function CreateApartment() {
                   {errors.village_id && (
                     <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
                       {errors.village_id}
+                    </Typography>
+                  )}
+                  {currentUser?.responsible_village && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2 }}>
+                      Village pre-filled based on your responsible village
                     </Typography>
                   )}
                 </FormControl>

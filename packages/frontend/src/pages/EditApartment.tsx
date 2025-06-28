@@ -67,7 +67,7 @@ export default function EditApartment() {
       const [apartmentData, villagesData, usersData] = await Promise.all([
         apartmentService.getApartmentById(parseInt(id!)),
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ limit: 100, role: 'owner' })
+        userService.getUsers({ role: 'owner', limit: 100 })
       ]);
       
       setApartment(apartmentData);
