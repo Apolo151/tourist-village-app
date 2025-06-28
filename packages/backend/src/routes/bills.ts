@@ -24,8 +24,7 @@ router.get(
         .leftJoin('payments as p', 'a.id', 'p.apartment_id')
         .leftJoin('service_requests as sr', 'a.id', 'sr.apartment_id')
         .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-        // Temporarily remove utility readings join to isolate issue
-        // .leftJoin('utility_readings as ur', 'a.id', 'ur.apartment_id')
+        .leftJoin('utility_readings as ur', 'a.id', 'ur.apartment_id')
         .select(
           'a.id as apartment_id',
           'a.name as apartment_name',
@@ -35,10 +34,21 @@ router.get(
           db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_payments_egp"),
           db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_payments_gbp"),
           db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_service_requests_egp"),
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp")
-          // Temporarily remove utility readings from select
-          // db.raw("COALESCE(SUM(CASE WHEN ur.currency = 'EGP' THEN ur.cost ELSE 0 END), 0) as total_utility_readings_egp"),
-          // db.raw("COALESCE(SUM(CASE WHEN ur.currency = 'GBP' THEN ur.cost ELSE 0 END), 0) as total_utility_readings_gbp")
+          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp"),
+          db.raw(`
+            COALESCE(SUM(
+              CASE 
+                WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL 
+                THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
+                ELSE 0 
+              END +
+              CASE 
+                WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+                THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+                ELSE 0 
+              END
+            ), 0) as total_utility_readings_egp
+          `)
         )
         .groupBy('a.id', 'a.name', 'v.name', 'owner.name', 'owner.id');
 
@@ -116,9 +126,8 @@ router.get(
         const paymentsGBP = parseFloat(row.total_payments_gbp) || 0;
         const requestsEGP = parseFloat(row.total_service_requests_egp) || 0;
         const requestsGBP = parseFloat(row.total_service_requests_gbp) || 0;
-        // Temporarily remove utility calculations
-        // const utilityEGP = parseFloat(row.total_utility_readings_egp) || 0;
-        // const utilityGBP = parseFloat(row.total_utility_readings_gbp) || 0;
+        const utilityEGP = parseFloat(row.total_utility_readings_egp) || 0;
+        const utilityGBP = 0; // No utility readings in GBP
 
         return {
           apartment_id: row.apartment_id,
@@ -131,12 +140,12 @@ router.get(
             GBP: paymentsGBP
           },
           total_money_requested: {
-            EGP: requestsEGP, // + utilityEGP,
-            GBP: requestsGBP  // + utilityGBP
+            EGP: requestsEGP + utilityEGP,
+            GBP: requestsGBP + utilityGBP
           },
           net_money: {
-            EGP: requestsEGP - paymentsEGP, // (requestsEGP + utilityEGP) - paymentsEGP,
-            GBP: requestsGBP - paymentsGBP  // (requestsGBP + utilityGBP) - paymentsGBP
+            EGP: requestsEGP + utilityEGP - paymentsEGP,
+            GBP: requestsGBP + utilityGBP - paymentsGBP
           }
         };
       });
@@ -289,10 +298,14 @@ router.get(
       const utilityReadings = await db('utility_readings as ur')
         .leftJoin('bookings as b', 'ur.booking_id', 'b.id')
         .leftJoin('users as u', 'b.user_id', 'u.id')
+        .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
         .select(
           'ur.*',
           'b.arrival_date as booking_arrival_date',
-          'u.name as person_name'
+          'u.name as person_name',
+          'v.electricity_price',
+          'v.water_price'
         )
         .where('ur.apartment_id', apartmentId)
         .orderBy('ur.created_at', 'desc');
@@ -323,18 +336,39 @@ router.get(
           person_name: sr.person_name,
           created_at: sr.created_at
         })),
-        ...utilityReadings.map(ur => ({
-          id: `utility_${ur.id}`,
-          type: 'Utility Reading',
-          description: `Utility reading from ${ur.start_date} to ${ur.end_date} (${ur.who_pays} pays)`,
-          amount: 0, // No cost field in current schema
-          currency: 'EGP', // Default currency since no cost
-          date: ur.created_at,
-          booking_id: ur.booking_id,
-          booking_arrival_date: ur.booking_arrival_date,
-          person_name: ur.person_name,
-          created_at: ur.created_at
-        }))
+        ...utilityReadings.map(ur => {
+          // Calculate utility costs
+          const waterUsage = (ur.water_end_reading && ur.water_start_reading) ? 
+            parseFloat(ur.water_end_reading) - parseFloat(ur.water_start_reading) : 0;
+          const electricityUsage = (ur.electricity_end_reading && ur.electricity_start_reading) ?
+            parseFloat(ur.electricity_end_reading) - parseFloat(ur.electricity_start_reading) : 0;
+          
+          const waterCost = waterUsage * (parseFloat(ur.water_price) || 0);
+          const electricityCost = electricityUsage * (parseFloat(ur.electricity_price) || 0);
+          const totalCost = waterCost + electricityCost;
+
+          // Build description with usage details
+          let description = `Utility reading from ${ur.start_date} to ${ur.end_date} (${ur.who_pays} pays)`;
+          if (waterUsage > 0 || electricityUsage > 0) {
+            const usageDetails = [];
+            if (waterUsage > 0) usageDetails.push(`Water: ${waterUsage.toFixed(2)} units`);
+            if (electricityUsage > 0) usageDetails.push(`Electricity: ${electricityUsage.toFixed(2)} units`);
+            description += ` - ${usageDetails.join(', ')}`;
+          }
+
+          return {
+            id: `utility_${ur.id}`,
+            type: 'Utility Reading',
+            description,
+            amount: totalCost,
+            currency: 'EGP',
+            date: ur.created_at,
+            booking_id: ur.booking_id,
+            booking_arrival_date: ur.booking_arrival_date,
+            person_name: ur.person_name,
+            created_at: ur.created_at
+          };
+        })
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Calculate totals

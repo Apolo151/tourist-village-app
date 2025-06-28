@@ -11,7 +11,6 @@ import {
   Select,
   MenuItem,
   Box,
-  Alert,
   CircularProgress,
   Grid
 } from '@mui/material';
@@ -24,6 +23,9 @@ import { userService } from '../services/userService';
 import type { Village } from '../services/villageService';
 import type { User } from '../services/userService';
 import type { CreateApartmentRequest } from '../services/apartmentService';
+import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
+import { ErrorMessageHandler } from '../utils/errorUtils';
+import type { DetailedError } from '../utils/errorUtils';
 
 export default function CreateApartment() {
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ export default function CreateApartment() {
   const [owners, setOwners] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [detailedError, setDetailedError] = useState<DetailedError | null>(null);
   
   // Form state
   const [formData, setFormData] = useState<CreateApartmentRequest>({
@@ -46,7 +48,7 @@ export default function CreateApartment() {
     paying_status: 'non-payer'
   });
   
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
@@ -62,6 +64,8 @@ export default function CreateApartment() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      setDetailedError(null);
+      
       const [villagesData, usersData] = await Promise.all([
         villageService.getVillages({ limit: 100 }),
         userService.getUsers({ role: 'owner', limit: 100 })
@@ -77,8 +81,15 @@ export default function CreateApartment() {
           village_id: currentUser.responsible_village!
         }));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load initial data');
+    } catch (err: any) {
+      console.error('Load initial data error:', err);
+      const enhancedError = ErrorMessageHandler.parseApiError(err);
+      setDetailedError({
+        ...enhancedError,
+        title: 'Failed to Load Required Data',
+        message: 'Could not load villages and owners information required for creating an apartment.',
+        action: 'Please refresh the page to try again. If the problem persists, contact support.'
+      });
     } finally {
       setLoading(false);
     }
@@ -96,13 +107,18 @@ export default function CreateApartment() {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => {
+    // Clear field error for this field
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
       });
+    }
+    
+    // Clear general error when user starts typing
+    if (detailedError) {
+      setDetailedError(null);
     }
   };
 
@@ -123,37 +139,64 @@ export default function CreateApartment() {
       setFormData(prev => ({ ...prev, paying_status: value as 'transfer' | 'rent' | 'non-payer' }));
     }
     
-    // Clear error for this field
-    if (errors[name]) {
-      setErrors(prev => {
+    // Clear field error for this field
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
       });
     }
+    
+    // Clear general error when user makes changes
+    if (detailedError) {
+      setDetailedError(null);
+    }
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+    const newFieldErrors: Record<string, string> = {};
     
     if (!formData.name.trim()) {
-      newErrors.name = 'Apartment name is required';
+      newFieldErrors.name = ErrorMessageHandler.getFormValidationMessage('name', 'required');
+    } else if (formData.name.length > 100) {
+      newFieldErrors.name = ErrorMessageHandler.getFormValidationMessage('name', 'length_max');
     }
     
-    if (!formData.village_id) {
-      newErrors.village_id = 'Village is required';
+    if (!formData.village_id || formData.village_id === 0) {
+      newFieldErrors.village_id = ErrorMessageHandler.getFormValidationMessage('village_id', 'required');
     }
     
-    if (!formData.owner_id) {
-      newErrors.owner_id = 'Owner is required';
+    if (!formData.owner_id || formData.owner_id === 0) {
+      newFieldErrors.owner_id = ErrorMessageHandler.getFormValidationMessage('owner_id', 'required');
     }
     
-    if (!formData.phase) {
-      newErrors.phase = 'Phase is required';
+    if (!formData.phase || formData.phase < 1) {
+      newFieldErrors.phase = ErrorMessageHandler.getFormValidationMessage('phase', 'required');
     }
     
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Validate that selected phase exists for the village
+    if (formData.village_id && formData.phase) {
+      const availablePhases = getPhases(formData.village_id);
+      if (!availablePhases.includes(formData.phase)) {
+        newFieldErrors.phase = `Phase ${formData.phase} is not available for this village. Available phases: ${availablePhases.join(', ')}.`;
+      }
+    }
+    
+    setFieldErrors(newFieldErrors);
+    
+    // If there are field errors, show a summary error
+    if (Object.keys(newFieldErrors).length > 0) {
+      setDetailedError({
+        title: 'Form Validation Failed',
+        message: 'Please fix the highlighted fields below.',
+        action: 'Check each required field and ensure all information is correct before saving.',
+        type: 'validation'
+      });
+      return false;
+    }
+    
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,17 +208,24 @@ export default function CreateApartment() {
     
     try {
       setSaving(true);
-      setError('');
+      setDetailedError(null);
       
       const apartment = await apartmentService.createApartment(formData);
       
       // Navigate to the created apartment with success message
       navigate(`/apartments/${apartment.id}?success=true&message=${encodeURIComponent('Apartment created successfully')}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create apartment');
+    } catch (err: any) {
+      console.error('Create apartment error:', err);
+      const enhancedError = ErrorMessageHandler.getContextualErrorMessage('create_apartment', err);
+      setDetailedError(enhancedError);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRetrySubmit = () => {
+    setDetailedError(null);
+    handleSubmit(new Event('submit') as any);
   };
 
   const handleBack = () => {
@@ -198,19 +248,26 @@ export default function CreateApartment() {
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
-            variant="text"
-            color="primary"
-            startIcon={<ArrowBackIcon />}
             onClick={handleBack}
+            startIcon={<ArrowBackIcon />}
             sx={{ mr: 2 }}
           >
             Back to Apartments
           </Button>
-          <Typography variant="h4">Add New Apartment</Typography>
+          <Typography variant="h4" component="h1">
+            Create New Apartment
+          </Typography>
         </Box>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
+        {/* Error Display */}
+        {detailedError && (
+          <Box sx={{ mb: 3 }}>
+            <EnhancedErrorDisplay
+              error={detailedError}
+              onRetry={detailedError.type === 'network' ? loadInitialData : handleRetrySubmit}
+              showDetails={true}
+            />
+          </Box>
         )}
 
         <Paper sx={{ p: 3 }}>
@@ -224,40 +281,47 @@ export default function CreateApartment() {
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  error={!!errors.name}
-                  helperText={errors.name}
+                  error={!!fieldErrors.name}
+                  helperText={fieldErrors.name || 'Enter a unique name for this apartment (e.g., Villa A1, Unit 205)'}
                   required
+                  disabled={saving}
+                  placeholder="e.g., Villa A1, Unit 205"
                 />
               </Grid>
 
               {/* Village */}
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth error={!!errors.village_id} required>
+                <FormControl fullWidth error={!!fieldErrors.village_id} required>
                   <InputLabel>Village</InputLabel>
                   <Select
                     name="village_id"
                     value={formData.village_id.toString()}
                     label="Village"
                     onChange={handleSelectChange}
-                    disabled={!!currentUser?.responsible_village}
+                    disabled={!!currentUser?.responsible_village || saving}
                   >
                     <MenuItem value="0">
                       <em>Select Village</em>
                     </MenuItem>
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.id.toString()}>
-                        {village.name}
+                        {village.name} ({village.phases} phases)
                       </MenuItem>
                     ))}
                   </Select>
-                  {errors.village_id && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
-                      {errors.village_id}
+                  {fieldErrors.village_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      {fieldErrors.village_id}
                     </Typography>
                   )}
                   {currentUser?.responsible_village && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2 }}>
-                      Village pre-filled based on your responsible village
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      Village pre-filled based on your assigned responsibility
+                    </Typography>
+                  )}
+                  {!currentUser?.responsible_village && !fieldErrors.village_id && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      Select the village where this apartment is located
                     </Typography>
                   )}
                 </FormControl>
@@ -265,7 +329,7 @@ export default function CreateApartment() {
 
               {/* Phase */}
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth error={!!errors.phase} required disabled={!formData.village_id}>
+                <FormControl fullWidth error={!!fieldErrors.phase} required disabled={!formData.village_id || saving}>
                   <InputLabel>Apartment Phase</InputLabel>
                   <Select
                     name="phase"
@@ -279,9 +343,19 @@ export default function CreateApartment() {
                       </MenuItem>
                     ))}
                   </Select>
-                  {errors.phase && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
-                      {errors.phase}
+                  {fieldErrors.phase && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      {fieldErrors.phase}
+                    </Typography>
+                  )}
+                  {!formData.village_id && !fieldErrors.phase && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      Select a village first to see available phases
+                    </Typography>
+                  )}
+                  {formData.village_id && !fieldErrors.phase && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      Phase determines the apartment's development stage
                     </Typography>
                   )}
                 </FormControl>
@@ -289,26 +363,32 @@ export default function CreateApartment() {
 
               {/* Owner */}
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth error={!!errors.owner_id} required>
+                <FormControl fullWidth error={!!fieldErrors.owner_id} required>
                   <InputLabel>Owner Name</InputLabel>
                   <Select
                     name="owner_id"
                     value={formData.owner_id.toString()}
                     label="Owner Name"
                     onChange={handleSelectChange}
+                    disabled={saving}
                   >
                     <MenuItem value="0">
                       <em>Select Owner</em>
                     </MenuItem>
                     {owners.map(owner => (
                       <MenuItem key={owner.id} value={owner.id.toString()}>
-                        {owner.name} ({owner.email})
+                        {owner.name} ({owner.email}) {owner.phone_number && `- ${owner.phone_number}`}
                       </MenuItem>
                     ))}
                   </Select>
-                  {errors.owner_id && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
-                      {errors.owner_id}
+                  {fieldErrors.owner_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      {fieldErrors.owner_id}
+                    </Typography>
+                  )}
+                  {!fieldErrors.owner_id && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      Choose the person who owns this apartment
                     </Typography>
                   )}
                 </FormControl>
@@ -323,50 +403,54 @@ export default function CreateApartment() {
                   type="date"
                   value={formData.purchase_date || ''}
                   onChange={handleInputChange}
+                  disabled={saving}
                   InputLabelProps={{
                     shrink: true,
                   }}
+                  helperText="When was this apartment purchased? (Optional)"
                 />
               </Grid>
 
               {/* Paying Status */}
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth required>
-                  <InputLabel>Paying Status</InputLabel>
+                <FormControl fullWidth>
+                  <InputLabel>Payment Status</InputLabel>
                   <Select
                     name="paying_status"
                     value={formData.paying_status}
-                    label="Paying Status"
+                    label="Payment Status"
                     onChange={handleSelectChange}
+                    disabled={saving}
                   >
-                    <MenuItem value="transfer">Payed By Transfer</MenuItem>
-                    <MenuItem value="rent">Payed By Rent</MenuItem>
-                    <MenuItem value="non-payer">Non-Payer</MenuItem>
+                    <MenuItem value="transfer">Transfer (Paid in full)</MenuItem>
+                    <MenuItem value="rent">Rent (Monthly payments)</MenuItem>
+                    <MenuItem value="non-payer">Non-payer (Outstanding balance)</MenuItem>
                   </Select>
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                    Current payment status of the apartment owner
+                  </Typography>
                 </FormControl>
               </Grid>
-
-              {/* Action Buttons */}
-              <Grid size={{xs: 12}}>
-                <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
-                  <Button
-                    variant="outlined"
-                    onClick={handleBack}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    disabled={saving}
-                  >
-                    {saving ? 'Creating...' : 'Create Apartment'}
-                  </Button>
-                </Box>
-              </Grid>
             </Grid>
+
+            {/* Action Buttons */}
+            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
+              <Button
+                onClick={handleBack}
+                disabled={saving}
+                variant="outlined"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                disabled={saving}
+              >
+                {saving ? 'Creating...' : 'Create Apartment'}
+              </Button>
+            </Box>
           </form>
         </Paper>
       </Box>

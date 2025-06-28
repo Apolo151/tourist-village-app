@@ -46,9 +46,10 @@ import {
 } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { billService, type BillSummaryItem, type BillTotals, type RenterSummaryResponse } from '../services/billService';
 import { villageService } from '../services/villageService';
+import { apartmentService } from '../services/apartmentService';
 import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
 
@@ -92,6 +93,7 @@ interface ApartmentBillDetails {
 }
 
 export default function Bills() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
   const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
@@ -117,6 +119,30 @@ export default function Bills() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [detailedBillData, setDetailedBillData] = useState<ApartmentBillDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+
+  // Handle URL parameters on component mount
+  useEffect(() => {
+    const handleUrlParams = async () => {
+      const apartmentId = searchParams.get('apartmentId');
+      if (apartmentId) {
+        try {
+          // Fetch apartment details to get the name for filtering
+          const apartment = await apartmentService.getApartmentById(parseInt(apartmentId));
+          if (apartment) {
+            setSearchTerm(apartment.name);
+            // Also highlight this apartment if it's in the results
+            setHighlightedBill(apartment.id);
+          }
+        } catch (error) {
+          console.error('Error fetching apartment for URL filter:', error);
+          // If we can't fetch the apartment, just set the search term to the ID
+          setSearchTerm(`ID: ${apartmentId}`);
+        }
+      }
+    };
+
+    handleUrlParams();
+  }, [searchParams]);
 
   // Handle bill highlighting
   const handleHighlightBill = async (apartmentId: number) => {
@@ -397,6 +423,28 @@ export default function Bills() {
                 )}
               </Box>
             </Paper>
+          )}
+          
+          {/* Apartment Filter Indicator */}
+          {searchParams.get('apartmentId') && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography>
+                  Showing bills for apartment: <strong>{searchTerm}</strong>
+                </Typography>
+                <Button 
+                  size="small" 
+                  onClick={() => {
+                    setSearchParams({});
+                    setSearchTerm('');
+                    setHighlightedBill(null);
+                    setHighlightedBillSummary(null);
+                  }}
+                >
+                  Clear Filter
+                </Button>
+              </Box>
+            </Alert>
           )}
           
           {/* Filters */}

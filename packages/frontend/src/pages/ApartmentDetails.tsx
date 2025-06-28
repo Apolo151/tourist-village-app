@@ -483,7 +483,7 @@ export default function ApartmentDetails() {
                       <Button
                         variant="outlined"
                         startIcon={<BillsIcon />}
-                        onClick={() => navigate(`/bills/apartment/${id}`)}
+                        onClick={() => navigate(`/bills?apartmentId=${id}`)}
                         fullWidth
                       >
                         View all Bills

@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Button, Paper, TextField, Typography, Alert, CircularProgress } from '@mui/material';
+import { Box, Button, Paper, TextField, Typography, CircularProgress } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
+import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
+import { ErrorMessageHandler } from '../utils/errorUtils';
+import type { DetailedError } from '../utils/errorUtils';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [detailedError, setDetailedError] = useState<DetailedError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
@@ -36,8 +39,47 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setDetailedError(null);
     setIsSubmitting(true);
+    
+    // Client-side validation
+    if (!email.trim()) {
+      setDetailedError({
+        title: 'Email Required',
+        message: 'Please enter your email address.',
+        action: 'Enter the email address you used when registering your account.',
+        field: 'email',
+        type: 'validation'
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!password.trim()) {
+      setDetailedError({
+        title: 'Password Required',
+        message: 'Please enter your password.',
+        action: 'Enter the password for your account.',
+        field: 'password',
+        type: 'validation'
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setDetailedError({
+        title: 'Invalid Email Format',
+        message: 'Please enter a valid email address.',
+        action: 'Make sure your email contains @ and a valid domain (e.g., user@example.com).',
+        field: 'email',
+        type: 'validation'
+      });
+      setIsSubmitting(false);
+      return;
+    }
     
     try {
       const success = await login(email, password);
@@ -46,13 +88,28 @@ export default function Login() {
         // Use replace to prevent going back to login page
         navigate('/', { replace: true });
       } else {
-        setError('Invalid email or password');
+        setDetailedError({
+          title: 'Login Failed',
+          message: 'Invalid email or password.',
+          action: 'Double-check your email and password. If you forgot your password, contact your administrator.',
+          type: 'validation'
+        });
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Login error:', err);
-      setError('An error occurred during login');
+      const enhancedError = ErrorMessageHandler.getContextualErrorMessage('login', err);
+      setDetailedError(enhancedError);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRetryLogin = () => {
+    setDetailedError(null);
+    // Focus on email field for retry
+    const emailField = document.getElementById('email');
+    if (emailField) {
+      emailField.focus();
     }
   };
 
@@ -107,7 +164,15 @@ export default function Login() {
             Login
           </Typography>
           
-          {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+          {detailedError && (
+            <Box sx={{ mb: 2 }}>
+              <EnhancedErrorDisplay
+                error={detailedError}
+                onRetry={handleRetryLogin}
+                showDetails={true}
+              />
+            </Box>
+          )}
           
           <Box component="form" onSubmit={handleSubmit} sx={{ mt: 1 }}>
             <TextField
@@ -122,6 +187,8 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isSubmitting}
+              error={detailedError?.field === 'email'}
+              helperText={detailedError?.field === 'email' ? 'Please check your email format' : ''}
             />
             <TextField
               margin="normal"
@@ -135,6 +202,8 @@ export default function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               disabled={isSubmitting}
+              error={detailedError?.field === 'password'}
+              helperText={detailedError?.field === 'password' ? 'Please enter your password' : ''}
             />
             <Button
               type="submit"
