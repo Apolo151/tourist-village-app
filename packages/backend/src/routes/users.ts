@@ -122,12 +122,12 @@ usersRouter.get(
 
 /**
  * POST /api/users
- * Create a new user (super admin only)
+ * Create a new user (admin or super admin)
  */
 usersRouter.post(
   '/',
   authenticateToken,
-  requireRole('super_admin'),
+  requireAdmin,
   ValidationMiddleware.validateCreateUser,
   ValidationMiddleware.validateVillageExists,
   async (req: Request, res: Response) => {
@@ -219,12 +219,12 @@ usersRouter.put(
 
 /**
  * DELETE /api/users/:id
- * Delete user by ID (super admin only)
+ * Delete user by ID (admin or super admin)
  */
 usersRouter.delete(
   '/:id',
   authenticateToken,
-  requireRole('super_admin'),
+  requireAdmin,
   ValidationMiddleware.validateIdParam,
   async (req: Request, res: Response) => {
     try {

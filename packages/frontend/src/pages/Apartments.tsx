@@ -39,7 +39,8 @@ import {
   FilterList as FilterListIcon,
   Visibility as ViewIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  EventAvailable as BookingIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
@@ -47,6 +48,7 @@ import { villageService } from '../services/villageService';
 import type { Apartment } from '../services/apartmentService';
 import type { Village } from '../services/villageService';
 import ExportButtons from '../components/ExportButtons';
+import CreateBooking from './CreateBooking';
 
 interface ApartmentWithBalance extends Apartment {
   balance?: {
@@ -88,7 +90,11 @@ export default function Apartments() {
   const [apartmentToDelete, setApartmentToDelete] = useState<Apartment | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // Check if user is admin
+  // Booking dialog state
+  const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
+  const [bookingApartmentId, setBookingApartmentId] = useState<number | null>(null);
+
+  // Check if user is admin or owner (both should see financial data)
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   // Load initial data
@@ -165,12 +171,25 @@ export default function Apartments() {
           })
         );
       }
+      else{
+        // Load Apartments without financial data
+        apartmentsWithBalance = response.data;
+        apartmentsWithBalance = apartmentsWithBalance.map(apartment => ({
+          ...apartment,
+          balance: undefined
+        }));
+      }
       
       setApartments(apartmentsWithBalance);
       setTotalPages(response.pagination?.total_pages || 1);
       setTotalItems(response.pagination?.total || 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load apartments');
+    } catch (err: any) {
+      console.error('Failed to load apartments:', err);
+      console.error('Error details:', { status: err.status, message: err.message, currentUserRole: currentUser?.role });
+      
+      // Show error message instead of redirecting to unauthorized
+      // This will help debug what's actually causing the 403 error
+      setError(err.message || `Failed to load apartments (Status: ${err.status || 'Unknown'})`);
     }
   };
   
@@ -335,7 +354,9 @@ export default function Apartments() {
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Apartments</Typography>
+          <Typography variant="h4" sx={{ mt: 3 }}>
+            Apartments
+          </Typography>
           {isAdmin && (
             <Button
               variant="contained"
@@ -454,7 +475,9 @@ export default function Apartments() {
         </Paper>
 
         {/* Export Buttons */}
+        {(isAdmin) && (
         <ExportButtons data={transformApartmentsForExport(apartments)} columns={["id","name","village","phase","owner","paying_status","status","balance_EGP","balance_GBP"]} excelFileName="apartments.xlsx" pdfFileName="apartments.pdf" />
+        )}
 
         <Paper>
           <TableContainer>
@@ -558,7 +581,7 @@ export default function Apartments() {
                           <ViewIcon />
                         </IconButton>
                       </Tooltip>
-                      {isAdmin && (
+                      {isAdmin ? (
                         <>
                           <Tooltip title="Edit">
                             <IconButton 
@@ -578,6 +601,22 @@ export default function Apartments() {
                             </IconButton>
                           </Tooltip>
                         </>
+                      ) : (
+                        <Tooltip title="Book Apartment">
+                          <span>
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={e => {
+                                e.stopPropagation();
+                                setBookingApartmentId(apartment.id);
+                                setBookingDialogOpen(true);
+                              }}
+                            >
+                              <BookingIcon />
+                            </IconButton>
+                          </span>
+                        </Tooltip>
                       )}
                     </TableCell>
                   </TableRow>
@@ -637,6 +676,24 @@ export default function Apartments() {
             </Button>
           </DialogActions>
         </Dialog>
+
+        {!isAdmin && (
+          <Dialog open={bookingDialogOpen} onClose={() => setBookingDialogOpen(false)} maxWidth="md" fullWidth>
+            <CreateBooking
+              apartmentId={bookingApartmentId ?? undefined}
+              onSuccess={() => {
+                setBookingDialogOpen(false);
+                setBookingApartmentId(null);
+                loadApartments();
+              }}
+              onCancel={() => {
+                setBookingDialogOpen(false);
+                setBookingApartmentId(null);
+              }}
+              lockApartment={true}
+            />
+          </Dialog>
+        )}
       </Box>
     </Container>
   );

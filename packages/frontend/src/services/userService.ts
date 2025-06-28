@@ -88,7 +88,10 @@ class UserService {
       return response.data;
     }
     
-    throw new Error(response.message || 'Failed to create user');
+    const errorMsg = response.error && response.message
+      ? `${response.error}: ${response.message}`
+      : response.message || response.error || 'Failed to create user';
+    throw new Error(errorMsg);
   }
 
   async updateUser(id: number, userData: UpdateUserRequest): Promise<User> {
@@ -98,7 +101,10 @@ class UserService {
       return response.data;
     }
     
-    throw new Error(response.message || 'Failed to update user');
+    const errorMsg = response.error && response.message
+      ? `${response.error}: ${response.message}`
+      : response.message || response.error || 'Failed to update user';
+    throw new Error(errorMsg);
   }
 
   async deleteUser(id: number): Promise<void> {

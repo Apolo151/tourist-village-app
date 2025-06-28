@@ -313,7 +313,7 @@ export default function PaymentDetails() {
             <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
-            <Typography variant="h4">
+            <Typography variant="h4" sx={{ mt: 3 }}>
               {isNew ? 'New Payment' : isEditing ? 'Edit Payment' : 'Payment Details'}
             </Typography>
           </Box>

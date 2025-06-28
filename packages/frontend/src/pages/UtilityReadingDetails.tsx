@@ -151,7 +151,7 @@ const UtilityReadingDetails: React.FC = () => {
           >
             Back
           </Button>
-          <Typography variant="h4">
+          <Typography variant="h4" sx={{ mt: 3 }}>
             Utility Reading Details
           </Typography>
         </Box>

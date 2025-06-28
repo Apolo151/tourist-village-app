@@ -328,7 +328,9 @@ export default function Bills() {
       <Container maxWidth="xl">
         <Box sx={{ mb: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h4">Financial Reports</Typography>
+            <Typography variant="h4" sx={{ mt: 3 }}>
+              Financial Reports
+            </Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="contained"

@@ -285,7 +285,7 @@ export default function ServiceTypeDetails() {
             <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
-            <Typography variant="h4">
+            <Typography variant="h4" sx={{ mt: 3 }}>
               {isNew ? 'New Service Type' : serviceType?.name || 'Service Type'}
             </Typography>
           </Box>

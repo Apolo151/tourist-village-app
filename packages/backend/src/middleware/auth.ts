@@ -185,11 +185,12 @@ export const filterByResponsibleVillage = () => {
       return next();
     }
 
-    // Only apply filtering for admin users with responsible_village set
+    // Only filter for admin with responsible_village
     if (req.user.role === 'admin' && req.user.responsible_village) {
       req.villageFilter = req.user.responsible_village;
     }
 
+    // For owner/renter, do not set req.villageFilter (allow all)
     next();
   };
 };

@@ -29,6 +29,9 @@ import type { Apartment as ServiceApartment } from '../services/apartmentService
 import type { Payment as ServicePayment } from '../services/paymentService';
 import type { Apartment } from '../types';
 import ExportButtons from '../components/ExportButtons';
+import { useAuth } from '../context/AuthContext';
+import { bookingService } from '../services/bookingService';
+import type { Booking } from '../services/bookingService';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
@@ -43,16 +46,43 @@ interface FinancialReportRow {
 }
 
 export default function Dashboard() {
+  const { currentUser } = useAuth();
   const [city, setCity] = useState<string>('');
   const [paymentMethod, setPaymentMethod] = useState<string>('');
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [payments, setPayments] = useState<ServicePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [userBookingsLoading, setUserBookingsLoading] = useState(false);
+  const [userBookingsError, setUserBookingsError] = useState('');
   
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter')) {
+      fetchUserBookings();
+    } else {
+      loadDashboardData();
+    }
+  }, [currentUser]);
+
+  const fetchUserBookings = async () => {
+    setUserBookingsLoading(true);
+    setUserBookingsError('');
+    try {
+      if (!currentUser) throw new Error('No user');
+      const response = await bookingService.getBookings({ 
+        user_id: currentUser.id, 
+        sort_by: 'leaving_date', 
+        sort_order: 'desc', 
+        limit: 50 
+      });
+      setUserBookings(response.bookings);
+    } catch (err) {
+      setUserBookingsError(err instanceof Error ? err.message : 'Failed to load bookings');
+    } finally {
+      setUserBookingsLoading(false);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
@@ -144,6 +174,60 @@ export default function Dashboard() {
     alert('Export functionality would be implemented here');
   };
 
+  if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter')) {
+    return (
+      <Container maxWidth="xl">
+        <Box sx={{ mb: 4 }}>
+          <Typography variant="h4" gutterBottom sx={{ mt: 3 }}>
+            My Bookings
+          </Typography>
+          {userBookingsLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
+              <CircularProgress />
+            </Box>
+          ) : userBookingsError ? (
+            <Alert severity="error" sx={{ mb: 3 }}>{userBookingsError}</Alert>
+          ) : (
+            <Paper>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Apartment</TableCell>
+                      <TableCell>Arrival Date</TableCell>
+                      <TableCell>Leaving Date</TableCell>
+                      <TableCell>Status</TableCell>
+                      <TableCell>People</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {userBookings.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} align="center">
+                          <Typography color="text.secondary">No past bookings found</Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      userBookings.map((booking) => (
+                        <TableRow key={booking.id}>
+                          <TableCell>{booking.apartment?.name || 'Unknown'}</TableCell>
+                          <TableCell>{booking.arrival_date ? new Date(booking.arrival_date).toLocaleString() : ''}</TableCell>
+                          <TableCell>{booking.leaving_date ? new Date(booking.leaving_date).toLocaleString() : ''}</TableCell>
+                          <TableCell>{booking.status}</TableCell>
+                          <TableCell>{booking.number_of_people}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+          )}
+        </Box>
+      </Container>
+    );
+  }
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -155,7 +239,7 @@ export default function Dashboard() {
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom>
+        <Typography variant="h4" gutterBottom sx={{ mt: 3 }}>
           Dashboard
         </Typography>
         

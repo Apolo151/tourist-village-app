@@ -242,7 +242,9 @@ export default function Emails() {
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Emails</Typography>
+          <Typography variant="h4" sx={{ mt: 3 }}>
+            Emails
+          </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}

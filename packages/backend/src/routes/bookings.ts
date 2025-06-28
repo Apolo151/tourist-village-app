@@ -31,6 +31,21 @@ bookingsRouter.get(
         search: req.query.search as string
       };
 
+      // Add access control for user_id filter
+      if (filters.user_id && req.user) {
+        // Only admin and super_admin can filter bookings by other users
+        if (!['admin', 'super_admin'].includes(req.user.role)) {
+          // Non-admin users can only filter their own bookings
+          if (filters.user_id !== req.user.id) {
+            return res.status(403).json({
+              success: false,
+              error: 'Access denied',
+              message: 'You can only access your own bookings'
+            });
+          }
+        }
+      }
+
       const options: BookingQueryOptions = {
         page: req.query.page ? parseInt(req.query.page as string) : 1,
         limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
@@ -152,6 +167,18 @@ bookingsRouter.get(
   async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.params.userId);
+      
+      // Add access control - only admin/super_admin can access other users' bookings
+      if (req.user && !['admin', 'super_admin'].includes(req.user.role)) {
+        if (userId !== req.user.id) {
+          return res.status(403).json({
+            success: false,
+            error: 'Access denied',
+            message: 'You can only access your own bookings'
+          });
+        }
+      }
+      
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
       const sort_by = req.query.sort_by as string || 'arrival_date';

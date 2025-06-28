@@ -217,7 +217,7 @@ export default function CreateServiceType() {
               <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleCancel}>
                 Back
               </Button>
-              <Typography variant="h4">
+              <Typography variant="h4" sx={{ mt: 3 }}>
                 {isNew ? 'Create New Service Type' : `Edit Service Type`}
               </Typography>
             </Box>

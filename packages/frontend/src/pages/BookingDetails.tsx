@@ -678,7 +678,7 @@ const BookingDetails: React.FC = () => {
                 {/* Booking Summary */}
                 <Card sx={{ mb: 3 }}>
                   <CardContent>
-                    <Typography variant="h6" gutterBottom>
+                    <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
                       Booking Information
                     </Typography>
                     <Divider sx={{ mb: 2 }} />

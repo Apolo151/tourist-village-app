@@ -159,7 +159,9 @@ const BillDetails: React.FC = () => {
           >
             Back
           </Button>
-          <Typography variant="h4">Bill Details</Typography>
+          <Typography variant="h4" sx={{ mt: 3 }}>
+            Bill Details
+          </Typography>
         </Box>
         <Box>
           <Button

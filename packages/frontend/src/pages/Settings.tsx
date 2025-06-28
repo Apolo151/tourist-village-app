@@ -114,7 +114,7 @@ export default function Settings() {
   });
 
   // Only show user management for super_admins
-  const isSuperAdmin = currentUser?.role === 'super_admin';
+  const isSuperAdmin = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   // Admin check
@@ -317,7 +317,7 @@ export default function Settings() {
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Container maxWidth="xl">
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" gutterBottom>Settings</Typography>
+          <Typography variant="h4" gutterBottom sx={{ mt: 3 }}>Settings</Typography>
         
         {error && (
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>{error}</Alert>
@@ -351,29 +351,9 @@ export default function Settings() {
           
           {/* Users Management Tab */}
           <TabPanel value={tabValue} index={1}>
-            {isSuperAdmin ? (
+            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') ? (
               <Users />
-            ) : isAdmin ? (
-              // For admins, show only their own profile
-              <Box sx={{ p: 3 }}>
-                <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
-                  <Paper sx={{ p: 3 }}>
-                    <Typography variant="h5" gutterBottom>My Profile</Typography>
-                    <List>
-                      <ListItem><ListItemText primary="Name" secondary={currentUser?.name} /></ListItem>
-                      <ListItem><ListItemText primary="Email" secondary={currentUser?.email} /></ListItem>
-                      <ListItem><ListItemText primary="Phone" secondary={currentUser?.phone_number || '-'} /></ListItem>
-                      <ListItem><ListItemText primary="Role" secondary={currentUser?.role} /></ListItem>
-                      {isAdmin && currentUser?.responsible_village && (
-                        <ListItem><ListItemText primary="Responsible Village" secondary={villages.find(v => v.id === currentUser.responsible_village)?.name || 'Unknown'} /></ListItem>
-                      )}
-                    </List>
-                    <Button variant="contained">Edit Profile</Button>
-                  </Paper>
-                </Box>
-              </Box>
-            ) : (
-              // For renters/owners, show only their own profile
+            ) : (currentUser?.role === 'owner' || currentUser?.role === 'renter') ? (
               <Box sx={{ p: 3 }}>
                 <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
                   <Paper sx={{ p: 3 }}>
@@ -388,7 +368,7 @@ export default function Settings() {
                   </Paper>
                 </Box>
               </Box>
-            )}
+            ) : null}
           </TabPanel>
           
           {/* Payment Methods Tab */}

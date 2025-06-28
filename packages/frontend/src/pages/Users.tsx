@@ -72,6 +72,7 @@ export default function Users() {
   const [villages, setVillages] = useState<Village[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   
   // Pagination
   const [page, setPage] = useState(1);
@@ -100,9 +101,9 @@ export default function Users() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // Only super_admin can access this page
+  // Allow both admin and super_admin to access this page
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'super_admin') {
+    if (currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'admin') {
       navigate('/unauthorized');
     }
   }, [currentUser, navigate]);
@@ -242,12 +243,44 @@ export default function Users() {
       setUsers(users.filter(u => u.id !== userToDelete.id));
       setDeleteDialogOpen(false);
       setUserToDelete(null);
+      setDialogError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to delete user');
+      setDialogError(err.message || 'Failed to delete user');
     }
   };
 
+  // Add frontend validation matching backend
+  const validateUserForm = (user: typeof newUser) => {
+    if (!user.name || !user.name.trim()) {
+      return 'Name is required';
+    }
+    if (!user.email || !user.email.trim()) {
+      return 'Email is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(user.email)) {
+      return 'Invalid email format';
+    }
+    if (!user.role) {
+      return 'Role is required';
+    }
+    const validRoles = ['super_admin', 'admin', 'owner', 'renter'];
+    if (!validRoles.includes(user.role)) {
+      return 'Invalid role specified';
+    }
+    if (user.phone_number && !/^\d+$/.test(user.phone_number)) {
+      return 'Invalid phone number format';
+    }
+    return null;
+  };
+
   const handleSaveUser = async () => {
+    // Run frontend validation first
+    const validationError = validateUserForm(newUser);
+    if (validationError) {
+      setDialogError(validationError);
+      return;
+    }
     try {
       if (editingUser) {
         // Update existing user
@@ -258,12 +291,13 @@ export default function Users() {
         const createdUser = await userService.createUser(newUser);
         setUsers([createdUser, ...users]);
       }
-      
       setEditDialogOpen(false);
       setEditingUser(null);
       resetForm();
+      setDialogError(null);
     } catch (err: any) {
-      setError(err.message || 'Failed to save user');
+      // Show more detailed error message
+      setDialogError(err.message || JSON.stringify(err) || 'Failed to save user');
     }
   };
 
@@ -351,15 +385,24 @@ export default function Users() {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Users Management</Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleAddUser}
-          >
-            Add User
-          </Button>
+        <Box sx={{ mb: 3 }}>
+          <Grid container alignItems="center" justifyContent="space-between">
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', height: 48, mt: 3, ml: 2 }}>
+                Users Management
+              </Typography>
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddUser}
+                sx={{ minWidth: 140 }}
+              >
+                Add User
+              </Button>
+            </Grid>
+          </Grid>
         </Box>
 
         {/* Error Display */}
@@ -756,7 +799,7 @@ export default function Users() {
         {/* Edit/Add User Dialog */}
         <Dialog
           open={editDialogOpen}
-          onClose={() => setEditDialogOpen(false)}
+          onClose={() => { setEditDialogOpen(false); setDialogError(null); }}
           maxWidth="sm"
           fullWidth
         >
@@ -764,6 +807,9 @@ export default function Users() {
             {editingUser ? 'Edit User' : 'Add New User'}
           </DialogTitle>
           <DialogContent>
+            {dialogError && (
+              <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>
+            )}
             <Box sx={{ mt: 1 }}>
               <TextField
                 fullWidth
@@ -855,10 +901,13 @@ export default function Users() {
         {/* Delete Confirmation Dialog */}
         <Dialog
           open={deleteDialogOpen}
-          onClose={() => setDeleteDialogOpen(false)}
+          onClose={() => { setDeleteDialogOpen(false); setDialogError(null); }}
         >
           <DialogTitle>Confirm Delete</DialogTitle>
           <DialogContent>
+            {dialogError && (
+              <Alert severity="error" sx={{ mb: 2 }}>{dialogError}</Alert>
+            )}
             <Typography>
               Are you sure you want to delete user "{userToDelete?.name}"? This action cannot be undone.
             </Typography>

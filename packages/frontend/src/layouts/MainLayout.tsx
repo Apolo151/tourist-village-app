@@ -3,6 +3,13 @@ import { AppBar, Box, CssBaseline, Drawer, IconButton, List, ListItem, ListItemB
 import { Menu as MenuIcon, Dashboard, Apartment, BookOnline, Payments, Engineering, WaterDrop, Receipt, Email, Settings } from '@mui/icons-material';
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import Alert from '@mui/material/Alert';
+import { userService } from '../services/userService';
 
 const drawerWidth = 240;
 
@@ -11,6 +18,13 @@ export default function MainLayout() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profile, setProfile] = useState({ name: currentUser?.name || '', email: currentUser?.email || '', phone: currentUser?.phone_number || '' });
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profilePassword, setProfilePassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -37,7 +51,7 @@ export default function MainLayout() {
     { text: 'Payments', icon: <Payments />, link: '/payments' },
     { text: 'Bills', icon: <Receipt />, link: '/bills' },
     { text: 'Emails', icon: <Email />, link: '/emails', adminOnly: true },
-    { text: 'Settings', icon: <Settings />, link: '/settings', adminOnly: true },
+    { text: 'Settings', icon: <Settings />, link: '/settings' },
   ];
 
   // Function to check if a menu item is active
@@ -46,6 +60,9 @@ export default function MainLayout() {
     if (path !== '/' && location.pathname.startsWith(path)) return true;
     return false;
   };
+
+  // Only allow Dashboard, Apartments, and Services for owner/renter
+  const allowedForOwnerRenter = ['Dashboard', 'Apartments', 'Services'];
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -70,73 +87,117 @@ export default function MainLayout() {
         pt: 1 
       }}>
         {menuItems.map((item) => (
-          // Only show admin-only items to admin users
-          (!item.adminOnly || (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')) && (
-            <ListItem key={item.text} disablePadding sx={{ mb: 0.5, mx: 1 }}>
-              <ListItemButton 
-                component={Link} 
-                to={item.link} 
-                selected={isActive(item.link)}
-                sx={{ 
-                  color: 'white',
-                  borderRadius: '8px',
-                  py: 1,
-                  '&:hover': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  },
-                  '&.Mui-selected': {
-                    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                    '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.25)',
-                    }
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ 
-                  color: isActive(item.link) ? 'white' : 'rgba(255, 255, 255, 0.7)', 
-                  minWidth: '40px' 
-                }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.text} 
-                  primaryTypographyProps={{
-                    fontSize: 14,
-                    fontWeight: isActive(item.link) ? 'bold' : 'normal'
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          )
+          (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter'))
+            ? (allowedForOwnerRenter.includes(item.text) && (
+                <ListItem key={item.text} disablePadding sx={{ mb: 0.5, mx: 1 }}>
+                  <ListItemButton 
+                    component={Link} 
+                    to={item.link} 
+                    selected={isActive(item.link)}
+                    sx={{ 
+                      color: 'white',
+                      borderRadius: '8px',
+                      py: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                        }
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ 
+                      color: isActive(item.link) ? 'white' : 'rgba(255, 255, 255, 0.7)', 
+                      minWidth: '40px' 
+                    }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text} 
+                      primaryTypographyProps={{
+                        fontSize: 14,
+                        fontWeight: isActive(item.link) ? 'bold' : 'normal'
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))
+            : (
+              // Existing admin/super_admin logic
+              (!item.adminOnly || (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')) &&
+              (item.text !== 'Settings' || (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')) &&
+              ((item.text !== 'Bills' && item.text !== 'Payments') || (currentUser?.role === 'admin' || currentUser?.role === 'super_admin')) && (
+                <ListItem key={item.text} disablePadding sx={{ mb: 0.5, mx: 1 }}>
+                  <ListItemButton 
+                    component={Link} 
+                    to={item.link} 
+                    selected={isActive(item.link)}
+                    sx={{ 
+                      color: 'white',
+                      borderRadius: '8px',
+                      py: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      },
+                      '&.Mui-selected': {
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        '&:hover': {
+                          backgroundColor: 'rgba(255, 255, 255, 0.25)',
+                        }
+                      }
+                    }}
+                  >
+                    <ListItemIcon sx={{ 
+                      color: isActive(item.link) ? 'white' : 'rgba(255, 255, 255, 0.7)', 
+                      minWidth: '40px' 
+                    }}>
+                      {item.icon}
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={item.text} 
+                      primaryTypographyProps={{
+                        fontSize: 14,
+                        fontWeight: isActive(item.link) ? 'bold' : 'normal'
+                      }}
+                    />
+                  </ListItemButton>
+                </ListItem>
+              )
+            )
         ))}
       </List>
       {currentUser && (
-        <Box sx={{ 
-          p: 2, 
-          backgroundColor: 'rgba(0, 0, 0, 0.2)', 
-          color: 'white',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 1.5
-        }}>
-          <Avatar sx={{ 
-            width: 36, 
-            height: 36, 
-            bgcolor: 'primary.main',
-            fontSize: '1rem',
-            fontWeight: 'bold'
+        <div onClick={() => setProfileDialogOpen(true)} style={{ cursor: 'pointer' }}>
+          <Box sx={{
+            p: 2,
+            backgroundColor: 'rgba(0, 0, 0, 0.2)',
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5
           }}>
-            {currentUser.name?.charAt(0).toUpperCase()}
-          </Avatar>
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 'medium', lineHeight: 1.2 }}>
-              {currentUser.name}
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.8, textTransform: 'capitalize' }}>
-              {currentUser.role}
-            </Typography>
+            <Avatar sx={{ 
+              width: 36, 
+              height: 36, 
+              bgcolor: 'primary.main',
+              fontSize: '1rem',
+              fontWeight: 'bold'
+            }}>
+              {currentUser?.name?.charAt(0).toUpperCase()}
+            </Avatar>
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 'medium', lineHeight: 1.2 }}>
+                {currentUser?.name}
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.8, textTransform: 'capitalize' }}>
+                {currentUser?.role}
+              </Typography>
+            </Box>
           </Box>
-        </Box>
+        </div>
       )}
     </Box>
   );
@@ -242,6 +303,87 @@ export default function MainLayout() {
           <Outlet />
         </Box>
       </Box>
+      <Dialog open={profileDialogOpen} onClose={() => setProfileDialogOpen(false)}>
+        <DialogTitle>Edit Profile</DialogTitle>
+        <DialogContent>
+          {profileError && <Alert severity="error" sx={{ mb: 2 }}>{profileError}</Alert>}
+          {profileSuccess && <Alert severity="success" sx={{ mb: 2 }}>{profileSuccess}</Alert>}
+          <TextField
+            margin="dense"
+            label="Name"
+            fullWidth
+            value={profile.name}
+            onChange={e => setProfile({ ...profile, name: e.target.value })}
+          />
+          <TextField
+            margin="dense"
+            label="Email"
+            fullWidth
+            value={profile.email}
+            onChange={e => setProfile({ ...profile, email: e.target.value })}
+          />
+          <TextField
+            margin="dense"
+            label="Phone"
+            fullWidth
+            value={profile.phone}
+            onChange={e => setProfile({ ...profile, phone: e.target.value })}
+          />
+          <TextField
+            margin="dense"
+            label="Password"
+            type={showPassword ? 'text' : 'password'}
+            fullWidth
+            value={profilePassword}
+            onChange={e => setProfilePassword(e.target.value)}
+            helperText="Leave blank to keep current password"
+            InputProps={{
+              endAdornment: (
+                <Button onClick={() => setShowPassword(v => !v)} size="small">
+                  {showPassword ? 'Hide' : 'Show'}
+                </Button>
+              )
+            }}
+          />
+          <TextField
+            margin="dense"
+            label="Role"
+            fullWidth
+            value={currentUser?.role}
+            disabled
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setProfileDialogOpen(false)} disabled={profileLoading}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={async () => {
+              setProfileError('');
+              setProfileSuccess('');
+              setProfileLoading(true);
+              try {
+                if (!currentUser) throw new Error('No user');
+                const updateData: any = { name: profile.name, email: profile.email, phone_number: profile.phone };
+                if (profilePassword) updateData.password = profilePassword;
+                await userService.updateUser(currentUser.id, updateData);
+                setProfileSuccess('Profile updated successfully');
+                setProfilePassword('');
+              } catch (err) {
+                if (err instanceof Error) {
+                  setProfileError(err.message || 'Failed to update profile');
+                } else {
+                  setProfileError('Failed to update profile');
+                }
+              } finally {
+                setProfileLoading(false);
+              }
+            }}
+            disabled={profileLoading}
+          >
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 } 

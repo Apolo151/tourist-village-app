@@ -374,7 +374,9 @@ export default function Services() {
       <Box sx={{ mb: 4 }}>
         {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Typography variant="h4">Services</Typography>
+            <Typography variant="h4" sx={{ mt: 3 }}>
+              Services
+            </Typography>
           {isAdmin && (
                 <Button
                   variant="contained"
@@ -468,7 +470,9 @@ export default function Services() {
             </Paper>
         
         {/* Export Buttons */}
+        {isAdmin && (
         <ExportButtons data={transformServicesForExport(serviceRequests)} columns={["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"]} excelFileName="services.xlsx" pdfFileName="services.pdf" />
+        )}
         
         {/* Service Types Tab */}
         <TabPanel value={tabValue} index={0}>

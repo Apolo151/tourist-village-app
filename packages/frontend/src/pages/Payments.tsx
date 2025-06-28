@@ -319,7 +319,9 @@ export default function Payments() {
       <Box sx={{ mb: 4 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4">Payments</Typography>
+          <Typography variant="h4" sx={{ mt: 3 }}>
+            Payments
+          </Typography>
           <Button
             variant="contained"
             startIcon={<AddIcon />}

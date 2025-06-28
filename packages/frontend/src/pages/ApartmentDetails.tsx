@@ -119,7 +119,7 @@ export default function ApartmentDetails() {
 
   // Helper to render dialog
   const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => {
-    let dialogProps: any = {
+    const dialogProps: any = {
       apartmentId: apartment?.id,
       onSuccess: () => {
         closeDialog(type);
@@ -312,6 +312,7 @@ export default function ApartmentDetails() {
   }
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isOwnerOrRenter = currentUser?.role === 'owner' || currentUser?.role === 'renter';
 
   return (
     <>
@@ -323,14 +324,30 @@ export default function ApartmentDetails() {
             <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
-            <Typography variant="h4">{apartment.name}</Typography>
+            <Typography variant="h4" sx={{ mt: 3 }}>
+              {apartment.name}
+            </Typography>
           </Box>
+          
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            {/* Book Apartment Button for Owner/Renter */}
+            {isOwnerOrRenter && (
+              <Button 
+                variant="contained" 
+                color="primary"
+                startIcon={<BookingIcon />}
+                onClick={() => openDialog('booking')}
+              >
+                Book Apartment
+              </Button>
+            )}
           
           {isAdmin && (
             <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
               Edit
             </Button>
           )}
+          </Box>
         </Box>
 
         {/* Quick actions speed dial (admin only) */}

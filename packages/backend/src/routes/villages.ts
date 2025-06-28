@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { VillageService } from '../services/villageService';
 import { ValidationMiddleware } from '../middleware/validation';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, requireRole } from '../middleware/auth';
 import { VillageFilters } from '../types';
 
 export const villagesRouter = Router();
@@ -42,7 +42,7 @@ villagesRouter.get(
 villagesRouter.get(
   '/',
   authenticateToken,
-  requireAdmin,
+  requireRole('admin', 'super_admin', 'owner', 'renter'),
   ValidationMiddleware.validateQueryParams,
   async (req: Request, res: Response) => {
     try {
