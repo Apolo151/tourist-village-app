@@ -336,7 +336,7 @@ export default function Settings() {
               <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
             )}
             <Tab icon={<PaymentIcon />} iconPosition="start" label="Payment Methods" />
-            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+            {(currentUser?.role === 'super_admin') && (
               <Tab icon={<HomeIcon />} iconPosition="start" label="Project Details" />
             )}
           </Tabs>

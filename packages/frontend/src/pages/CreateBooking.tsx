@@ -299,7 +299,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   })()}
                   value={formData.user_id || null}
                   onChange={(value) => setFormData(prev => ({ ...prev, user_id: value as number || 0 }))}
-                  label="Person Name (Owner)"
+                  label="Person Name"
                   placeholder="Search owners by name or email..."
                   required
                   getOptionLabel={(option) => option.label}
@@ -346,7 +346,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                       setFormData(prev => ({ ...prev, user_id: 0 }));
                     }
                   }}
-                  label="Person Name (Tenant)"
+                  label="Person Name"
                   placeholder="Search users or type new name..."
                   required
                   freeSolo={true}
