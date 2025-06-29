@@ -89,8 +89,19 @@ class BillService {
    * Get detailed bills for a specific apartment
    */
   async getApartmentBills(apartmentId: number): Promise<BillDetailItem[]> {
-    const response = await apiClient.get<ApiResponse<BillDetailItem[]>>(`/bills/apartment/${apartmentId}`);
-    return response.data!;
+    const response = await apiClient.get<ApiResponse<{
+      apartment: {
+        id: number;
+        name: string;
+      };
+      bills: BillDetailItem[];
+      totals: {
+        total_money_spent: BillTotals;
+        total_money_requested: BillTotals;
+        net_money: BillTotals;
+      };
+    }>>(`/bills/apartment/${apartmentId}`);
+    return response.data!.bills;
   }
 
   /**

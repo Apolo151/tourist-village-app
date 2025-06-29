@@ -101,7 +101,7 @@ export default function ServiceRequestDetails() {
           status: serviceRequestData.status,
           who_pays: serviceRequestData.who_pays,
           notes: serviceRequestData.notes,
-          assignee_id: serviceRequestData.assignee_id
+          assignee_id: undefined
         });
 
         // Load bookings for the apartment
@@ -168,7 +168,7 @@ export default function ServiceRequestDetails() {
         status: serviceRequest.status,
         who_pays: serviceRequest.who_pays,
         notes: serviceRequest.notes,
-        assignee_id: serviceRequest.assignee_id
+        assignee_id: undefined
       });
     }
   };
@@ -458,7 +458,7 @@ export default function ServiceRequestDetails() {
                 ) : (
                   <Typography variant="body1">
                     {serviceRequest.booking ? 
-                      `${serviceRequest.booking.user?.name} - ${formatDate(serviceRequest.booking.arrival_date)} to ${formatDate(serviceRequest.booking.leaving_date)}` : 
+                      `${serviceRequest.booking.user?.name || 'Unknown'} - ${formatDate(serviceRequest.booking.arrival_date)} to ${formatDate(serviceRequest.booking.leaving_date)}` : 
                       'No booking'
                     }
                   </Typography>
@@ -534,7 +534,7 @@ export default function ServiceRequestDetails() {
                 )}
               </Grid>
               
-              <Grid size={{ xs: 12, sm: 6 }}>
+              {/* <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Assignee</Typography>
                 {isEditing ? (
                   <FormControl size="small" fullWidth>
@@ -555,7 +555,7 @@ export default function ServiceRequestDetails() {
                 ) : (
                   <Typography variant="body1">{serviceRequest.assignee?.name || 'Unassigned'}</Typography>
                 )}
-              </Grid>
+              </Grid> */}
               
               {/* Notes */}
               <Grid size={{ xs: 12 }}>

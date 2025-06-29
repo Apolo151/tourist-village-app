@@ -145,7 +145,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         setStartDate(new Date(filtered[0].arrival_date));
         setEndDate(new Date(filtered[0].leaving_date));
         // Auto-set who pays based on booking type
-        setWhoPays(filtered[0].user_type === 'Owner' ? 'owner' : 'renter');
+        setWhoPays(filtered[0].user_type === 'owner' ? 'owner' : 'renter');
       }
     } else {
       setFilteredBookings([]);
@@ -162,7 +162,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       if (selectedBooking) {
         setStartDate(new Date(selectedBooking.arrival_date));
         setEndDate(new Date(selectedBooking.leaving_date));
-        setWhoPays(selectedBooking.user_type === 'Owner' ? 'owner' : 'renter');
+        setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
       }
     }
   }, [props.bookingId, bookings, isEditMode]);
@@ -174,7 +174,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       if (selectedBooking) {
         setStartDate(new Date(selectedBooking.arrival_date));
         setEndDate(new Date(selectedBooking.leaving_date));
-        setWhoPays(selectedBooking.user_type === 'Owner' ? 'owner' : 'renter');
+        setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
       }
     }
   }, [bookingId, bookings]);

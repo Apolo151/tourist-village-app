@@ -48,7 +48,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     apartment_id: apartmentId || 0,
     user_id: 0,
     user_name: '',
-    user_type: 'Tenant' as 'Owner' | 'Tenant',
+    user_type: 'renter' as 'owner' | 'renter',
     number_of_people: 1,
     arrival_date: null as Date | null,
     leaving_date: null as Date | null,
@@ -87,7 +87,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
 
   // Reset user fields when user type changes
   useEffect(() => {
-    if (formData.user_type === 'Owner') {
+    if (formData.user_type === 'owner') {
       setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
     } else {
       setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
@@ -97,7 +97,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
     
-    if (formData.user_type === 'Owner') {
+    if (formData.user_type === 'owner') {
       if (!formData.user_id || formData.user_id === 0) return 'Please select a user for owner booking';
     } else {
       if (!formData.user_name.trim()) return 'Please enter the person name for renter booking';
@@ -135,11 +135,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       };
 
       // Add user data based on type
-      if (formData.user_type === 'Owner') {
+      if (formData.user_type === 'owner') {
         bookingData.user_id = formData.user_id;
       } else {
         bookingData.user_name = formData.user_name.trim();
-        bookingData.user_type = 'Tenant';
+        bookingData.user_type = 'renter';
       }
 
       await bookingService.createBooking(bookingData);
@@ -150,8 +150,13 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       } else {
         navigate('/bookings?success=true&message=Booking%20created%20successfully');
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create booking');
+    } catch (err: any) {
+      // If the error is an Axios error with a response and status 409, show the backend message
+      if (err.response && err.response.status === 409 && err.response.data && err.response.data.message) {
+        setError(err.response.data.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to create booking');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -187,7 +192,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           </Alert>
         )}
 
-        {formData.user_type === 'Tenant' && (
+        {formData.user_type === 'renter' && (
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
               <strong>Renter Booking:</strong> When you enter a person's name that doesn't exist in the system, 
@@ -228,17 +233,17 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 <Select
                   value={formData.user_type}
                   label="User Type"
-                  onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'Owner' | 'Tenant' }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'owner' | 'renter' }))}
                 >
                   <MenuItem value="Owner">Owner</MenuItem>
-                  <MenuItem value="Tenant">Tenant</MenuItem>
+                  <MenuItem value="Renter">Renter</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
 
             {/* User Selection - Conditional based on user type */}
             <Grid size={{ xs: 12, md: 6 }}>
-              {formData.user_type === 'Owner' ? (
+              {formData.user_type === 'owner' ? (
                 <FormControl fullWidth required>
                   <InputLabel>Person Name (Owner)</InputLabel>
                   <Select

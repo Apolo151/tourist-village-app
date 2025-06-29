@@ -7,7 +7,7 @@ export interface Booking {
   id: number;
   apartment_id: number;
   user_id: number;
-  user_type: 'Owner' | 'Tenant';
+  user_type: 'owner' | 'renter';
   number_of_people: number;
   arrival_date: string;
   leaving_date: string;
@@ -26,7 +26,7 @@ export interface CreateBookingRequest {
   apartment_id: number;
   user_id?: number;
   user_name?: string;
-  user_type?: 'Owner' | 'Tenant';
+  user_type?: 'renter' | 'renter';
   number_of_people?: number;
   arrival_date: string;
   leaving_date: string;
@@ -37,7 +37,7 @@ export interface CreateBookingRequest {
 export interface UpdateBookingRequest {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'Owner' | 'Tenant';
+  user_type?: 'owner' | 'renter';
   number_of_people?: number;
   arrival_date?: string;
   leaving_date?: string;
@@ -48,7 +48,7 @@ export interface UpdateBookingRequest {
 export interface BookingFilters {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'tenant';
+  user_type?: 'owner' | 'renter';
   village_id?: number;
   phase?: number;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
@@ -76,7 +76,7 @@ export interface BookingStats {
   };
   by_user_type: {
     Owner: number;
-    Tenant: number;
+    Renter: number;
   };
 }
 
@@ -256,10 +256,10 @@ class BookingService {
   // Helper to format user type for display
   formatUserType(userType: string): string {
     switch (userType) {
-      case 'Owner':
+      case 'owner':
         return 'Owner';
-      case 'Tenant':
-        return 'Tenant';
+      case 'renter':
+        return 'Renter';
       default:
         return userType;
     }

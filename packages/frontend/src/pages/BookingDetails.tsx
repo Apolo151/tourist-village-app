@@ -79,16 +79,20 @@ import CreateServiceRequest from './CreateServiceRequest';
 interface FormData {
   apartment_id: number;
   user_id: number;
+  user_name: string;
+  user_type: 'owner' | 'renter';
   number_of_people: number;
   arrival_date: Date | null;
   leaving_date: Date | null;
   status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes: string;
+  flightDetails: string;
 }
 
 interface FormErrors {
   apartment_id?: string;
   user_id?: string;
+  user_name?: string;
   arrival_date?: string;
   leaving_date?: string;
 }
@@ -140,11 +144,14 @@ const BookingDetails: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     apartment_id: 0,
     user_id: 0,
+    user_name: '',
+    user_type: 'renter',
     number_of_people: 0,
     arrival_date: null,
     leaving_date: null,
     status: 'Booked',
-    notes: ''
+    notes: '',
+    flightDetails: ''
   });
   
   const [errors, setErrors] = useState<FormErrors>({});
@@ -208,14 +215,29 @@ const BookingDetails: React.FC = () => {
           setBooking(bookingData);
           setRelatedData(relatedBookingData);
         setFormData({
-            apartment_id: bookingData.apartment_id,
-            user_id: bookingData.user_id,
-            number_of_people: bookingData.number_of_people,
-            arrival_date: parseISO(bookingData.arrival_date),
-            leaving_date: parseISO(bookingData.leaving_date),
-            status: bookingData.status,
-            notes: bookingData.notes || ''
-          });
+          apartment_id: bookingData.apartment_id,
+          user_id: bookingData.user_id,
+          user_name: bookingData.user?.name || '',
+          user_type: bookingData.user_type === 'owner' ? 'owner' : 'renter',
+          number_of_people: bookingData.number_of_people,
+          arrival_date: parseISO(bookingData.arrival_date),
+          leaving_date: parseISO(bookingData.leaving_date),
+          status: bookingData.status,
+          notes: bookingData.notes || '',
+          flightDetails: ''
+        });
+
+        // Extract flight details from notes if present
+        if (bookingData.notes && bookingData.notes.includes('Flight Details:')) {
+          const flightMatch = bookingData.notes.match(/Flight Details:\s*(.+)/);
+          if (flightMatch) {
+            setFormData(prev => ({
+              ...prev,
+              notes: bookingData.notes?.replace(/\n\nFlight Details:.*/, '') || '',
+              flightDetails: flightMatch[1].trim()
+            }));
+          }
+        }
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Failed to load booking data');
         } finally {
@@ -235,6 +257,15 @@ const BookingDetails: React.FC = () => {
       loadBills();
     }
   }, [booking]);
+
+  // Reset user fields when user type changes
+  useEffect(() => {
+    if (formData.user_type === 'owner') {
+      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
+    } else {
+      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
+    }
+  }, [formData.user_type]);
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -269,8 +300,14 @@ const BookingDetails: React.FC = () => {
       newErrors.apartment_id = 'Please select an apartment';
     }
     
-    if (!formData.user_id) {
-      newErrors.user_id = 'Please select a user';
+    if (formData.user_type === 'owner') {
+      if (!formData.user_id) {
+        newErrors.user_id = 'Please select a user for owner booking';
+      }
+    } else {
+      if (!formData.user_name.trim()) {
+        newErrors.user_name = 'Please enter the person name for renter booking';
+      }
     }
     
     if (!formData.arrival_date) {
@@ -302,22 +339,29 @@ const BookingDetails: React.FC = () => {
       setSaving(true);
       setError(null);
       
-      const bookingData = {
+      const bookingData: any = {
         apartment_id: formData.apartment_id,
-        user_id: formData.user_id,
         number_of_people: formData.number_of_people,
         arrival_date: formData.arrival_date!.toISOString(),
         leaving_date: formData.leaving_date!.toISOString(),
         status: formData.status,
-        notes: formData.notes
-    };
-    
-    if (isNew) {
+        notes: formData.notes + (formData.flightDetails ? `\n\nFlight Details: ${formData.flightDetails}` : '')
+      };
+
+      // Add user data based on type
+      if (formData.user_type === 'owner') {
+        bookingData.user_id = formData.user_id;
+      } else {
+        bookingData.user_name = formData.user_name.trim();
+        bookingData.user_type = 'renter';
+      }
+
+      if (isNew) {
         const newBooking = await bookingService.createBooking(bookingData as CreateBookingRequest);
-    setSuccess(true);
-    setTimeout(() => {
+        setSuccess(true);
+        setTimeout(() => {
           navigate(`/bookings/${newBooking.id}`);
-    }, 1500);
+        }, 1500);
       } else {
         const updatedBooking = await bookingService.updateBooking(parseInt(id!), bookingData as UpdateBookingRequest);
         setBooking(updatedBooking);
@@ -327,8 +371,13 @@ const BookingDetails: React.FC = () => {
         navigate(`/bookings/${id}`);
         setTimeout(() => setSuccess(false), 3000);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save booking');
+    } catch (err: any) {
+      // If the error is an Axios error with a response and status 409, show the backend message
+      if (err.response && err.response.status === 409 && err.response.data && err.response.data.message) {
+        setError(err.response.data.message);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save booking');
+      }
     } finally {
       setSaving(false);
     }
@@ -341,11 +390,14 @@ const BookingDetails: React.FC = () => {
         setFormData({
           apartment_id: booking.apartment_id,
           user_id: booking.user_id,
+          user_name: booking.user?.name || '',
+          user_type: booking.user_type === 'owner' ? 'owner' : 'renter',
           number_of_people: booking.number_of_people,
           arrival_date: parseISO(booking.arrival_date),
           leaving_date: parseISO(booking.leaving_date),
           status: booking.status,
-          notes: booking.notes || ''
+          notes: booking.notes || '',
+          flightDetails: ''
         });
       }
       setErrors({});
@@ -423,8 +475,8 @@ const BookingDetails: React.FC = () => {
     try {
       setBillsLoading(true);
       
-      if (booking.user_type === 'Tenant') {
-        // For tenants: show bills related to this specific booking
+      if (booking.user_type === 'renter') {
+        // For renters: show bills related to this specific booking
         // We'll need to filter the apartment bills by booking_id
         const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
         const bookingBills = apartmentBills.filter(bill => bill.booking_id === booking.id);
@@ -565,6 +617,19 @@ const BookingDetails: React.FC = () => {
             </Alert>
           )}
 
+          {isEditing && formData.user_type === 'renter' && (
+            <Alert severity="info" sx={{ mb: 3 }}>
+              <Typography variant="body2">
+                <strong>Renter Booking:</strong> When you enter a person's name that doesn't exist in the system, 
+                a new user account will be automatically created with the following default values:
+                <br />• Email: [cleanname][timestamp][random]@domain.com
+                <br />• Password: renterpassword
+                <br />• Role: Renter
+                <br />• Active: Yes
+              </Typography>
+            </Alert>
+          )}
+
           {/* Speed Dial for quick actions (non-edit mode only) */}
           {!isNew && !isEditing && (
           <SpeedDial
@@ -589,134 +654,178 @@ const BookingDetails: React.FC = () => {
           <Paper sx={{ p: 3 }}>
               <form onSubmit={handleSubmit}>
               <Grid container spacing={3}>
-                  <Grid size={{xs: 12, md: 6}}>
-                    <FormControl fullWidth error={!!errors.apartment_id}>
+                <Grid size={{xs: 12, md: 6}}>
+                  <FormControl fullWidth error={!!errors.apartment_id}>
                     <InputLabel>Apartment</InputLabel>
                     <Select
-                        value={formData.apartment_id.toString()}
+                      value={formData.apartment_id.toString()}
                       label="Apartment"
-                        onChange={(e) => handleSelectChange(e, 'apartment_id')}
+                      onChange={(e) => handleSelectChange(e, 'apartment_id')}
                     >
                       <MenuItem value="">
                         <em>Select an apartment</em>
                       </MenuItem>
-                        {apartments.map(apartment => (
-                          <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                            {apartment.name} - {apartment.village?.name}
-                          </MenuItem>
+                      {apartments.map(apartment => (
+                        <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                          {apartment.name} - {apartment.village?.name}
+                        </MenuItem>
                       ))}
                     </Select>
-                      {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
+                    {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
                   </FormControl>
                 </Grid>
 
-                  <Grid size={{xs: 12, md: 6}}>
-                    <FormControl fullWidth error={!!errors.user_id}>
-                      <InputLabel>User</InputLabel>
+                {/* User Type */}
+                <Grid size={{xs: 12, md: 6}}>
+                  <FormControl fullWidth>
+                    <InputLabel>User Type</InputLabel>
                     <Select
+                      value={formData.user_type}
+                      label="User Type"
+                      onChange={(e) => handleSelectChange(e, 'user_type')}
+                    >
+                      <MenuItem value="owner">Owner</MenuItem>
+                      <MenuItem value="renter">Renter</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+
+                {/* User Selection - Conditional based on user type */}
+                <Grid size={{xs: 12, md: 6}}>
+                  {formData.user_type === 'owner' ? (
+                    <FormControl fullWidth error={!!errors.user_id}>
+                      <InputLabel>Person Name (Owner)</InputLabel>
+                      <Select
                         value={formData.user_id.toString()}
-                        label="User"
+                        label="Person Name (Owner)"
                         onChange={(e) => handleSelectChange(e, 'user_id')}
                       >
-                        <MenuItem value="">
-                          <em>Select a user</em>
+                        <MenuItem value="0">
+                          <em>Select an owner</em>
                         </MenuItem>
-                        {users.map(user => (
+                        {users.filter(user => user.role === 'owner').map(user => (
                           <MenuItem key={user.id} value={user.id.toString()}>
-                            {user.name} ({user.role})
+                            {user.name} ({user.email})
                           </MenuItem>
                         ))}
                       </Select>
                       {errors.user_id && <FormHelperText>{errors.user_id}</FormHelperText>}
                     </FormControl>
-                  </Grid>
+                  ) : (
+                    <TextField
+                      fullWidth
+                      required
+                      label="Person Name (Renter)"
+                      value={formData.user_name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
+                      placeholder="Enter the person's name"
+                      error={!!errors.user_name}
+                      helperText={errors.user_name || "Enter the name of the person making the booking. A new user account will be created if they don't exist."}
+                    />
+                  )}
+                </Grid>
 
-                  <Grid size={{xs: 12, md: 6}}>
+                <Grid size={{xs: 12, md: 6}}>
                   <TextField
-                      name="number_of_people"
+                    name="number_of_people"
                     label="Number of People"
                     type="number"
-                      fullWidth
-                      value={formData.number_of_people}
-                      onChange={handleChange}
-                      inputProps={{ min: 1, max: 20 }}
+                    fullWidth
+                    value={formData.number_of_people}
+                    onChange={handleChange}
+                    inputProps={{ min: 1, max: 20 }}
                   />
                 </Grid>
 
-                  <Grid size={{xs: 12, md: 6}}>
-                    <DateTimePicker
-                      label="Arrival Date"
-                      value={formData.arrival_date}
-                      onChange={(date) => handleDateChange(date, 'arrival_date')}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          error: !!errors.arrival_date,
-                          helperText: errors.arrival_date
-                        }
-                      }}
-                    />
+                <Grid size={{xs: 12, md: 6}}>
+                  <DateTimePicker
+                    label="Arrival Date"
+                    value={formData.arrival_date}
+                    onChange={(date) => handleDateChange(date, 'arrival_date')}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: !!errors.arrival_date,
+                        helperText: errors.arrival_date
+                      }
+                    }}
+                  />
                 </Grid>
 
-                  <Grid size={{xs: 12, md: 6}}>
-                    <DateTimePicker
-                      label="Leaving Date"
-                      value={formData.leaving_date}
-                      onChange={(date) => handleDateChange(date, 'leaving_date')}
-                      slotProps={{
-                        textField: {
-                          fullWidth: true,
-                          error: !!errors.leaving_date,
-                          helperText: errors.leaving_date
-                        }
-                      }}
-                    />
+                <Grid size={{xs: 12, md: 6}}>
+                  <DateTimePicker
+                    label="Leaving Date"
+                    value={formData.leaving_date}
+                    onChange={(date) => handleDateChange(date, 'leaving_date')}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        error: !!errors.leaving_date,
+                        helperText: errors.leaving_date
+                      }
+                    }}
+                  />
                 </Grid>
 
-                  <Grid size={{xs: 12, md: 6}}>
-                    <FormControl fullWidth>
-                      <InputLabel>Status</InputLabel>
+                <Grid size={{xs: 12, md: 6}}>
+                  <FormControl fullWidth>
+                    <InputLabel>Status</InputLabel>
                     <Select
-                        value={formData.status}
-                        label="Status"
-                        onChange={(e) => handleSelectChange(e, 'status')}
-                      >
-                        <MenuItem value="Booked">Booked</MenuItem>
-                        <MenuItem value="Checked In">Checked In</MenuItem>
-                        <MenuItem value="Checked Out">Checked Out</MenuItem>
-                        <MenuItem value="Cancelled">Cancelled</MenuItem>
+                      value={formData.status}
+                      label="Status"
+                      onChange={(e) => handleSelectChange(e, 'status')}
+                    >
+                      <MenuItem value="Booked">Booked</MenuItem>
+                      <MenuItem value="Checked In">Checked In</MenuItem>
+                      <MenuItem value="Checked Out">Checked Out</MenuItem>
+                      <MenuItem value="Cancelled">Cancelled</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
 
-                  <Grid size={{xs: 12}}>
+                <Grid size={{xs: 12}}>
                   <TextField
                     name="notes"
-                      label="Notes"
+                    label="Notes"
                     multiline
                     rows={3}
                     fullWidth
-                      value={formData.notes}
+                    value={formData.notes}
                     onChange={handleChange}
                   />
                 </Grid>
 
-                  <Grid size={{xs: 12}}>
-                    <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                        <Button 
-                          variant="outlined"
-                        onClick={isNew ? handleBack : handleToggleEdit}
-                        >
-                          Cancel
-                        </Button>
-                        <Button 
-                          type="submit" 
-                          variant="contained" 
-                        startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-                        disabled={saving}
-                        >
-                        {saving ? 'Saving...' : (isNew ? 'Create Booking' : 'Save Changes')}
-                        </Button>
+                {/* Flight Details */}
+                <Grid size={{xs: 12}}>
+                  <TextField
+                    name="flightDetails"
+                    label="Flight Details"
+                    multiline
+                    rows={2}
+                    fullWidth
+                    value={formData.flightDetails}
+                    onChange={(e) => setFormData(prev => ({ ...prev, flightDetails: e.target.value }))}
+                    placeholder="Flight information (optional)"
+                    helperText="Include flight numbers, arrival/departure times, etc."
+                  />
+                </Grid>
+
+                <Grid size={{xs: 12}}>
+                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                    <Button 
+                      variant="outlined"
+                      onClick={isNew ? handleBack : handleToggleEdit}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      type="submit" 
+                      variant="contained" 
+                      startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
+                      disabled={saving}
+                    >
+                      {saving ? 'Saving...' : (isNew ? 'Create Booking' : 'Save Changes')}
+                    </Button>
                   </Box>
                 </Grid>
               </Grid>
@@ -755,7 +864,7 @@ const BookingDetails: React.FC = () => {
                               <Chip 
                                 label={booking.user_type} 
                                 size="small" 
-                                color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
+                                color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                                 sx={{ ml: 1 }}
                               />
                             </Typography>
@@ -1009,10 +1118,10 @@ const BookingDetails: React.FC = () => {
                   <TabPanel value={activeTab} index={4}>
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="h6">
-                        {booking?.user_type === 'Tenant' ? 'Booking Bills' : 'Owner Bills'}
+                        {booking?.user_type === 'renter' ? 'Booking Bills' : 'Owner Bills'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {booking?.user_type === 'Tenant' 
+                        {booking?.user_type === 'renter' 
                           ? 'Bills related to this specific booking'
                           : 'All bills for this apartment owner'
                         }
@@ -1034,7 +1143,7 @@ const BookingDetails: React.FC = () => {
                               <TableCell>Currency</TableCell>
                               <TableCell>Date</TableCell>
                               <TableCell>User Type</TableCell>
-                              {booking?.user_type === 'Tenant' && <TableCell>Booking Date</TableCell>}
+                              {booking?.user_type === 'renter' && <TableCell>Booking Date</TableCell>}
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1053,12 +1162,12 @@ const BookingDetails: React.FC = () => {
                                 <TableCell>{formatDate(bill.date)}</TableCell>
                                 <TableCell>
                                   <Chip 
-                                    label={bill.user_type === 'owner' ? 'Owner' : 'Tenant'} 
+                                    label={bill.user_type === 'owner' ? 'Owner' : 'Renter'} 
                                     size="small"
                                     color={bill.user_type === 'owner' ? 'primary' : 'secondary'}
                                   />
                                 </TableCell>
-                                {booking?.user_type === 'Tenant' && (
+                                {booking?.user_type === 'renter' && (
                                   <TableCell>
                                     {bill.booking_arrival_date ? formatDate(bill.booking_arrival_date) : 'N/A'}
                                   </TableCell>
@@ -1070,7 +1179,7 @@ const BookingDetails: React.FC = () => {
                       </TableContainer>
                     ) : (
                       <Alert severity="info">
-                        {booking?.user_type === 'Tenant' 
+                        {booking?.user_type === 'renter' 
                           ? 'No bills found for this booking'
                           : 'No bills found for this apartment owner'
                         }

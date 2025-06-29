@@ -204,11 +204,11 @@ export default function Bookings() {
       }
       if (filters.userType) {
         // Convert UI values to backend format
-        const userTypeMap: Record<string, 'owner' | 'tenant'> = {
+        const userTypeMap: Record<string, 'owner' | 'renter'> = {
           'Owner': 'owner',
-          'Tenant': 'tenant',
+          'Renter': 'renter',
           'owner': 'owner',
-          'tenant': 'tenant'
+          'renter': 'renter'
         };
         apiFilters.user_type = userTypeMap[filters.userType] || 'owner';
       }
@@ -338,9 +338,9 @@ export default function Bookings() {
       case 'Owner':
       case 'owner':
         return 'Owner';
-      case 'Tenant':
-      case 'tenant':
-        return 'Tenant';
+      case 'Renter':
+      case 'renter':
+        return 'Renter';
       default:
         return userType;
     }
@@ -536,7 +536,7 @@ export default function Bookings() {
                   >
                     <MenuItem value="">All Types</MenuItem>
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="tenant">Tenant</MenuItem>
+                    <MenuItem value="renter">Renter</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
@@ -630,7 +630,7 @@ export default function Bookings() {
                           <Chip
                             label={getUserTypeDisplay(booking.user_type)}
                             size="small"
-                            color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
+                            color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                           />
                         </TableCell>
                         <TableCell>

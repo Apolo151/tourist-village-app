@@ -80,7 +80,7 @@ export interface Booking {
   id: number;
   apartment_id: number;
   user_id: number;
-  user_type: 'owner' | 'tenant';
+  user_type: 'owner' | 'renter';
   number_of_people: number;
   arrival_date: Date;
   leaving_date: Date;
@@ -338,7 +338,7 @@ export interface CreateBookingRequest {
   apartment_id: number;
   user_id?: number;
   user_name?: string;
-  user_type?: 'owner' | 'tenant';
+  user_type?: 'owner' | 'renter';
   number_of_people?: number;
   arrival_date: string;
   leaving_date: string;
@@ -349,7 +349,7 @@ export interface CreateBookingRequest {
 export interface UpdateBookingRequest {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'tenant';
+  user_type?: 'owner' | 'renter';
   number_of_people?: number;
   arrival_date?: string;
   leaving_date?: string;
@@ -620,7 +620,7 @@ export interface PaymentFilters {
 export interface BookingFilters {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'tenant';
+  user_type?: 'owner' | 'renter';
   village_id?: number;
   phase?: number;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
@@ -644,7 +644,7 @@ export interface BookingStats {
   };
   by_user_type: {
     owner: number;
-    tenant: number;
+    renter: number;
   };
 }
 

@@ -169,9 +169,9 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         setFormData(prev => ({
           ...prev,
           user_type:
-            selectedBooking.user_type === 'Owner'
+            selectedBooking.user_type === 'owner'
               ? 'owner'
-              : selectedBooking.user_type === 'Tenant'
+              : selectedBooking.user_type === 'renter'
               ? 'renter'
               : (selectedBooking.user_type as 'owner' | 'renter')
         }));

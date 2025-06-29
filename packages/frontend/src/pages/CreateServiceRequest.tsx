@@ -142,7 +142,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       if (selectedBooking) {
         setFormData(prev => ({ 
           ...prev, 
-          who_pays: selectedBooking.user_type === 'Owner' ? 'owner' : 'renter' 
+          who_pays: selectedBooking.user_type === 'owner' ? 'owner' : 'renter' 
         }));
       }
     }
@@ -169,17 +169,6 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       ...prev,
       [fieldName]: parsedValue
     }));
-
-    // When service type changes, update default assignee
-    if (fieldName === 'type_id' && value) {
-      const serviceType = serviceTypes.find(st => st.id === parseInt(value));
-      if (serviceType?.default_assignee_id) {
-        setFormData(prev => ({
-          ...prev,
-          assignee_id: serviceType.default_assignee_id
-        }));
-      }
-    }
 
     // When apartment changes, reset booking selection
     if (fieldName === 'apartment_id') {
@@ -344,31 +333,6 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
                   </Select>
                 </FormControl>
               </Grid>
-
-              {selectedServiceType && (
-                <Grid size={{xs: 12}}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle1" gutterBottom>
-                        {selectedServiceType.name}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" paragraph>
-                        {selectedServiceType.description}
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="h6" color="primary">
-                          {selectedServiceType.cost} {selectedServiceType.currency}
-                        </Typography>
-                        {selectedServiceType.default_assignee && (
-                          <Typography variant="body2" color="text.secondary">
-                            Default Assignee: {selectedServiceType.default_assignee.name}
-                          </Typography>
-                        )}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              )}
             </Grid>
           </Paper>
 
@@ -509,26 +473,6 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
               </Grid>
 
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth>
-                  <InputLabel>Assignee (Optional)</InputLabel>
-                  <Select
-                    value={formData.assignee_id?.toString() || ''}
-                    label="Assignee (Optional)"
-                    onChange={(e) => handleSelectChange(e, 'assignee_id')}
-                  >
-                    <MenuItem value="">
-                      <em>Use default assignee</em>
-                    </MenuItem>
-                    {users.filter(user => user.role === 'admin' || user.role === 'super_admin').map(user => (
-                      <MenuItem key={user.id} value={user.id.toString()}>
-                        {user.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid size={{xs: 12}}>
                 <TextField
                   label="Notes (Optional)"
                   name="notes"
@@ -585,4 +529,4 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       </Container>
     </LocalizationProvider>
   );
-} 
+}

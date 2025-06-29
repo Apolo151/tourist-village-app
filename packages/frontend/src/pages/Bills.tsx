@@ -409,16 +409,16 @@ export default function Bills() {
               <Box sx={{ display: 'flex', gap: 4 }}>
                 <Box>
                   <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
-                  <Typography>Total Money Spent: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
-                  <Typography>Total Money Requested: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
-                  <Typography>Net Money: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
+                  <Typography>Total Payment: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
+                  <Typography>Total Outstanding: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
+                  <Typography>Net Balance: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
                 </Box>
                 {highlightedBillSummary.renterSummary && (
                   <Box>
                     <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
-                    <Typography>Total Money Spent: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
-                    <Typography>Total Money Requested: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
-                    <Typography>Net Money: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
+                    <Typography>Total Payment: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
+                    <Typography>Total Outstanding: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
+                    <Typography>Net Balance: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
                   </Box>
                 )}
               </Box>
@@ -722,7 +722,7 @@ export default function Bills() {
                         </Typography>
                       </Box>
                       <Box>
-                        <Typography variant="subtitle2" color="error.main">Money Requested</Typography>
+                        <Typography variant="subtitle2" color="error.main">Total Outstanding</Typography>
                         <Typography>
                           {detailedBillData.totals.total_money_requested.EGP > 0 && `${detailedBillData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
                           {detailedBillData.totals.total_money_requested.EGP > 0 && detailedBillData.totals.total_money_requested.GBP > 0 && ' / '}

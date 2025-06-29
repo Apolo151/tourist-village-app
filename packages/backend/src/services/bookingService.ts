@@ -5,7 +5,7 @@ import { UserService } from './userService';
 export interface BookingFilters {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'tenant';
+  user_type?: 'owner' | 'renter';
   village_id?: number;
   phase?: number;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
@@ -36,7 +36,7 @@ export interface BookingStats {
   };
   by_user_type: {
     owner: number;
-    tenant: number;
+    renter: number;
   };
 }
 
@@ -365,7 +365,7 @@ export class BookingService {
     }
 
     let userId: number;
-    let userType: 'owner' | 'tenant';
+    let userType: 'owner' | 'renter';
 
     // Handle user creation/lookup
     if (data.user_id) {
@@ -377,14 +377,14 @@ export class BookingService {
       userId = data.user_id;
       
       // Determine user_type based on apartment ownership
-      userType = data.user_id === apartment.owner_id ? 'owner' : 'tenant';
+      userType = data.user_id === apartment.owner_id ? 'owner' : 'renter';
     } else if (data.user_name) {
-      // Create booking with non-existing user (tenants only)
+      // Create booking with non-existing user (renters only)
       if (data.user_type === 'owner') {
         throw new Error('Cannot create booking with non-existing user for owner type. Owners must be existing users.');
       }
       
-      userType = 'tenant';
+      userType = 'renter';
       
       // Check if user with this name already exists
       const existingUser = await db('users')
@@ -412,7 +412,7 @@ export class BookingService {
 
     // If user_type was provided, validate it matches the determined type
     if (data.user_type && data.user_type !== userType) {
-      const expectedType = userType === 'owner' ? 'Owner (owns this apartment)' : 'Tenant (does not own this apartment)';
+      const expectedType = userType === 'owner' ? 'Owner (owns this apartment)' : 'renter (does not own this apartment)';
       throw new Error(`User type mismatch. User should have user_type '${userType}' for this apartment (${expectedType}), but '${data.user_type}' was provided.`);
     }
 
@@ -491,8 +491,8 @@ export class BookingService {
       if (userType === 'owner' && user.role !== 'owner') {
         throw new Error('Selected user is not an owner');
       }
-      if (userType === 'tenant' && !['renter', 'admin', 'super_admin'].includes(user.role)) {
-        throw new Error('Selected user cannot make tenant bookings');
+      if (userType === 'renter' && !['renter', 'admin', 'super_admin'].includes(user.role)) {
+        throw new Error('Selected user cannot make renter bookings');
       }
     }
 
@@ -607,7 +607,7 @@ export class BookingService {
 
     const byUserType = {
       owner: 0,
-      tenant: 0
+      renter: 0
     };
 
     userTypeStats.forEach(stat => {
@@ -772,26 +772,28 @@ export class BookingService {
     leavingDate: Date,
     excludeBookingId?: number
   ): Promise<void> {
-    // Convert to date-only for comparison (removing time component)
-    const newArrivalDate = new Date(arrivalDate.getFullYear(), arrivalDate.getMonth(), arrivalDate.getDate());
-    const newLeavingDate = new Date(leavingDate.getFullYear(), leavingDate.getMonth(), leavingDate.getDate());
+    // Convert to UTC date-only string (YYYY-MM-DD) for comparison
+    const toUTCDateString = (d: Date) => d.toISOString().split('T')[0];
+    const newArrivalDateStr = toUTCDateString(arrivalDate);
+    const newLeavingDateStr = toUTCDateString(leavingDate);
 
     let query = db('bookings')
       .where('apartment_id', apartmentId)
       .where(function() {
         this.where(function() {
-          // Case 1: New booking starts before existing booking ends AND after existing booking starts
-          // This catches overlaps where new booking starts during an existing booking
-          this.whereRaw('DATE(arrival_date) < ?', [newLeavingDate.toISOString().split('T')[0]])
-              .whereRaw('DATE(leaving_date) > ?', [newArrivalDate.toISOString().split('T')[0]]);
+          // Overlap if: existing.arrival < newLeaving AND existing.leaving > newArrival
+          this.whereRaw('DATE(arrival_date AT TIME ZONE \'UTC\') < ?', [newLeavingDateStr])
+              .whereRaw('DATE(leaving_date AT TIME ZONE \'UTC\') > ?', [newArrivalDateStr]);
         });
       });
 
-    if (excludeBookingId) {
+    if (excludeBookingId !== undefined && excludeBookingId !== null) {
       query = query.where('id', '!=', excludeBookingId);
     }
 
     const conflicts = await query.select('id', 'arrival_date', 'leaving_date');
+    // Debug log for troubleshooting
+    // console.log('Booking conflict check:', { apartmentId, newArrivalDateStr, newLeavingDateStr, excludeBookingId, conflicts });
 
     if (conflicts.length > 0) {
       // Build detailed conflict information

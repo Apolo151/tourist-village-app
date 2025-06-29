@@ -91,9 +91,9 @@ export default function ServiceTypeDetails() {
 
         console.log('Loading service type data for ID:', id);
         
-        // Load users for assignee selection
-        const usersData = await userService.getUsers({ limit: 100 });
-        setUsers(usersData.data);
+        // // Load users for assignee selection
+        // const usersData = await userService.getUsers({ limit: 100 });
+        // setUsers(usersData.data);
 
         if (!isNew && id) {
           console.log('Fetching service type by ID:', id);
@@ -106,7 +106,7 @@ export default function ServiceTypeDetails() {
             cost: serviceTypeData.cost,
             currency: serviceTypeData.currency,
             description: serviceTypeData.description || '',
-            default_assignee_id: serviceTypeData.default_assignee_id
+            default_assignee_id: undefined
           });
         } else if (isNew) {
           setIsEditing(true);
@@ -161,7 +161,7 @@ export default function ServiceTypeDetails() {
           cost: serviceType.cost,
           currency: serviceType.currency,
           description: serviceType.description || '',
-          default_assignee_id: serviceType.default_assignee_id
+          default_assignee_id: undefined
         });
       }
     }
@@ -214,7 +214,7 @@ export default function ServiceTypeDetails() {
           cost: typeof formData.cost === 'string' ? parseFloat(formData.cost) || 0 : formData.cost,
           currency: formData.currency,
           description: formData.description,
-          default_assignee_id: formData.default_assignee_id
+          default_assignee_id: undefined
         };
         
         console.log('Updating service type with data:', updateData);
@@ -369,24 +369,6 @@ export default function ServiceTypeDetails() {
               rows={3}
               disabled={!isEditing}
             />
-            
-            <FormControl fullWidth disabled={!isEditing}>
-              <InputLabel>Default Assignee (Optional)</InputLabel>
-              <Select
-                value={formData.default_assignee_id?.toString() || ''}
-                label="Default Assignee (Optional)"
-                onChange={(e) => handleSelectChange(e, 'default_assignee_id')}
-              >
-                <MenuItem value="">
-                  <em>No default assignee</em>
-                </MenuItem>
-                {(users || []).filter(user => user.role === 'admin' || user.role === 'super_admin').map(user => (
-                  <MenuItem key={user.id} value={user.id.toString()}>
-                    {user.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
           </Stack>
         </Paper>
 
@@ -421,4 +403,4 @@ export default function ServiceTypeDetails() {
       </Box>
     </Container>
   );
-} 
+}

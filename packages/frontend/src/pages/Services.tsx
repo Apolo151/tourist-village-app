@@ -30,7 +30,12 @@ import {
   CircularProgress,
   Pagination,
   IconButton,
-  Tooltip
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -123,6 +128,10 @@ export default function Services() {
   
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  
+  // Dialog state for delete confirmation
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [serviceRequestToDelete, setServiceRequestToDelete] = useState<number | null>(null);
   
   // Load initial data
   useEffect(() => {
@@ -295,21 +304,23 @@ export default function Services() {
     navigate(`/services/requests/${id}/edit`);
   };
 
-  const handleDeleteServiceRequest = async (id: number, e: React.MouseEvent) => {
+  const handleDeleteServiceRequestClick = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    if (!window.confirm('Are you sure you want to delete this service request? This action cannot be undone.')) {
-      return;
-    }
+    setServiceRequestToDelete(id);
+    setDeleteDialogOpen(true);
+  };
 
+  const handleDeleteServiceRequestConfirm = async () => {
+    if (!serviceRequestToDelete) return;
     try {
-      await serviceRequestService.deleteServiceRequest(id);
+      await serviceRequestService.deleteServiceRequest(serviceRequestToDelete);
       setSnackbarMessage('Service request deleted successfully');
       setOpenSnackbar(true);
+      setDeleteDialogOpen(false);
+      setServiceRequestToDelete(null);
       // Reload service requests
       const currentPage = serviceRequestsPagination.page;
       setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
-      // If we were on page 1, manually reload
       if (currentPage === 1) {
         const filters = {
           page: 1,
@@ -321,7 +332,6 @@ export default function Services() {
           sort_by: 'date_created',
           sort_order: 'desc' as const
         };
-        
         const response = await serviceRequestService.getServiceRequests(filters);
         setServiceRequests(response.data || []);
         setServiceRequestsPagination({
@@ -334,7 +344,14 @@ export default function Services() {
     } catch (err) {
       setSnackbarMessage(err instanceof Error ? err.message : 'Failed to delete service request');
       setOpenSnackbar(true);
+      setDeleteDialogOpen(false);
+      setServiceRequestToDelete(null);
     }
+  };
+
+  const handleDeleteServiceRequestCancel = () => {
+    setDeleteDialogOpen(false);
+    setServiceRequestToDelete(null);
   };
   
   const handleServiceTypePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
@@ -569,11 +586,11 @@ export default function Services() {
                       </Typography>
                     )}
                     
-                    {service.default_assignee && (
+                    {/* {service.default_assignee && (
                       <Typography variant="caption" color="text.secondary">
                         Default Assignee: {service.default_assignee.name}
                       </Typography>
-                    )}
+                    )} */}
                   </CardContent>
                   
                   <CardActions sx={{ p: 2, pt: 0 }}>
@@ -653,7 +670,7 @@ export default function Services() {
                   <TableCell>Action Date</TableCell>
                     <TableCell>Status</TableCell>
                   <TableCell>Who Pays</TableCell>
-                  <TableCell>Assignee</TableCell>
+                  {/* <TableCell>Assignee</TableCell> */}
                   <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
@@ -687,7 +704,7 @@ export default function Services() {
                           size="small"
                         />
                           </TableCell>
-                      <TableCell>{request.assignee?.name || 'Unassigned'}</TableCell>
+                      {/* <TableCell>{request.assignee?.name || 'Unassigned'}</TableCell> */}
                       <TableCell>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                         <Tooltip title="View Details">
@@ -715,7 +732,7 @@ export default function Services() {
                                 <IconButton 
                                   size="small"
                                   color="error"
-                                  onClick={(e) => handleDeleteServiceRequest(request.id, e)}
+                                  onClick={(e) => handleDeleteServiceRequestClick(request.id, e)}
                                 >
                                   <DeleteIcon />
                                 </IconButton>
@@ -759,6 +776,22 @@ export default function Services() {
           </Box>
           </TabPanel>
         
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onClose={handleDeleteServiceRequestCancel}>
+          <DialogTitle>Delete Service Request</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete this service request? This action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleDeleteServiceRequestCancel}>Cancel</Button>
+            <Button onClick={handleDeleteServiceRequestConfirm} color="error" variant="contained">
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
         {/* Snackbar for messages */}
         <Snackbar
           open={openSnackbar}
@@ -769,4 +802,4 @@ export default function Services() {
       </Box>
       </Container>
   );
-} 
+}

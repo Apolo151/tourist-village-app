@@ -304,26 +304,6 @@ export default function CreateServiceType() {
                   inputProps={{ maxLength: 1000 }}
                 />
               </Grid>
-              
-                <Grid size={{xs: 12}}>
-                <FormControl fullWidth>
-                  <InputLabel>Default Assignee (Optional)</InputLabel>
-                  <Select
-                    value={formData.default_assignee_id?.toString() || ''}
-                    label="Default Assignee (Optional)"
-                    onChange={(e) => handleSelectChange(e, 'default_assignee_id')}
-                  >
-                    <MenuItem value="">
-                      <em>No default assignee</em>
-                    </MenuItem>
-                    {users.filter(user => user.role === 'admin' || user.role === 'super_admin').map(user => (
-                      <MenuItem key={user.id} value={user.id.toString()}>
-                        {user.name} ({user.email})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Grid>
             </Grid>
           </Paper>
 
@@ -349,14 +329,6 @@ export default function CreateServiceType() {
                     <Box sx={{ gridColumn: { sm: 'span 2' } }}>
                       <Typography variant="subtitle2" color="text.secondary">Description</Typography>
                       <Typography variant="body1">{formData.description}</Typography>
-                    </Box>
-                  )}
-                  {formData.default_assignee_id && (
-                    <Box>
-                      <Typography variant="subtitle2" color="text.secondary">Default Assignee</Typography>
-                      <Typography variant="body1">
-                        {users.find(u => u.id === formData.default_assignee_id)?.name || 'Unknown'}
-                      </Typography>
                     </Box>
                   )}
                 </Box>

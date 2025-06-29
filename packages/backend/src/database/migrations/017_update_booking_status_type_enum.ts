@@ -32,20 +32,20 @@ export async function up(knex: Knex): Promise<void> {
       ELSE 'Booked'
     END
   `);
-  
+
   // Create new enum type
   await knex.raw(`CREATE TYPE booking_status_new AS ENUM ('Booked', 'Checked In', 'Checked Out', 'Cancelled')`);
-  
+
   // Drop old column and rename new one
   await knex.raw(`ALTER TABLE bookings DROP COLUMN status`);
   await knex.raw(`ALTER TABLE bookings RENAME COLUMN status_new TO status`);
-  
+
   // Convert to enum
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN status TYPE booking_status_new USING status::booking_status_new`);
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN status SET DEFAULT 'Booked'`);
-  
-  // Drop old enum type
-  await knex.raw(`DROP TYPE booking_status`);
+
+  // Drop old enum type (safe)
+  await knex.raw(`DROP TYPE IF EXISTS booking_status`);
 
   // 2. Change user_type enum - using temporary column approach
   await knex.raw(`ALTER TABLE bookings ADD COLUMN user_type_new TEXT`);
@@ -57,20 +57,20 @@ export async function up(knex: Knex): Promise<void> {
       ELSE 'tenant'
     END
   `);
-  
+
   // Create new enum type
   await knex.raw(`CREATE TYPE booking_user_type_new AS ENUM ('owner', 'tenant')`);
-  
+
   // Drop old column and rename new one
   await knex.raw(`ALTER TABLE bookings DROP COLUMN user_type`);
   await knex.raw(`ALTER TABLE bookings RENAME COLUMN user_type_new TO user_type`);
-  
+
   // Convert to enum
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN user_type TYPE booking_user_type_new USING user_type::booking_user_type_new`);
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN user_type SET DEFAULT 'tenant'`);
-  
-  // Drop old enum type
-  await knex.raw(`DROP TYPE booking_user_type`);
+
+  // Drop old enum type (safe)
+  await knex.raw(`DROP TYPE IF EXISTS booking_user_type`);
 }
 
 export async function down(knex: Knex): Promise<void> {
@@ -86,20 +86,20 @@ export async function down(knex: Knex): Promise<void> {
       ELSE 'not_arrived'
     END
   `);
-  
+
   // Create old enum type
   await knex.raw(`CREATE TYPE booking_status_old AS ENUM ('not_arrived', 'in_village', 'left', 'Cancelled')`);
-  
+
   // Drop new column and rename old one
   await knex.raw(`ALTER TABLE bookings DROP COLUMN status`);
   await knex.raw(`ALTER TABLE bookings RENAME COLUMN status_old TO status`);
-  
+
   // Convert to enum
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN status TYPE booking_status_old USING status::booking_status_old`);
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN status SET DEFAULT 'not_arrived'`);
-  
-  // Drop new enum type
-  await knex.raw(`DROP TYPE booking_status_new`);
+
+  // Drop new enum type (safe)
+  await knex.raw(`DROP TYPE IF EXISTS booking_status_new`);
 
   // 2. Revert user_type enum
   await knex.raw(`ALTER TABLE bookings ADD COLUMN user_type_old TEXT`);
@@ -111,18 +111,18 @@ export async function down(knex: Knex): Promise<void> {
       ELSE 'renter'
     END
   `);
-  
+
   // Create old enum type
   await knex.raw(`CREATE TYPE booking_user_type_old AS ENUM ('owner', 'renter')`);
-  
+
   // Drop new column and rename old one
   await knex.raw(`ALTER TABLE bookings DROP COLUMN user_type`);
   await knex.raw(`ALTER TABLE bookings RENAME COLUMN user_type_old TO user_type`);
-  
+
   // Convert to enum
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN user_type TYPE booking_user_type_old USING user_type::booking_user_type_old`);
   await knex.raw(`ALTER TABLE bookings ALTER COLUMN user_type SET DEFAULT 'renter'`);
-  
-  // Drop new enum type
-  await knex.raw(`DROP TYPE booking_user_type_new`);
-} 
+
+  // Drop new enum type (safe)
+  await knex.raw(`DROP TYPE IF EXISTS booking_user_type_new`);
+}

@@ -225,31 +225,31 @@ const BillDetails: React.FC = () => {
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
               {bill.totalMoneySpentEGP > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Money Spent (EGP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Total Payment (EGP)</Typography>
                   <Typography variant="h6" color="primary">{bill.totalMoneySpentEGP.toLocaleString()} EGP</Typography>
                 </Box>
               )}
               {bill.totalMoneySpentGBP > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Money Spent (GBP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Total Payment (GBP)</Typography>
                   <Typography variant="h6" color="primary">{bill.totalMoneySpentGBP.toLocaleString()} GBP</Typography>
                 </Box>
               )}
               {bill.totalMoneyRequestedEGP > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Money Requested (EGP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Total Outstanding (EGP)</Typography>
                   <Typography variant="h6" color="error">{bill.totalMoneyRequestedEGP.toLocaleString()} EGP</Typography>
                 </Box>
               )}
               {bill.totalMoneyRequestedGBP > 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Money Requested (GBP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Tota Outstanding (GBP)</Typography>
                   <Typography variant="h6" color="error">{bill.totalMoneyRequestedGBP.toLocaleString()} GBP</Typography>
                 </Box>
               )}
               {bill.netMoneyEGP !== 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Net Money (EGP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Net Balance (EGP)</Typography>
                   <Typography variant="h6" color={bill.netMoneyEGP > 0 ? 'success.main' : 'error'}>
                     {bill.netMoneyEGP.toLocaleString()} EGP
                   </Typography>
@@ -257,7 +257,7 @@ const BillDetails: React.FC = () => {
               )}
               {bill.netMoneyGBP !== 0 && (
                 <Box>
-                  <Typography variant="subtitle2" color="textSecondary">Net Money (GBP)</Typography>
+                  <Typography variant="subtitle2" color="textSecondary">Net Balance (GBP)</Typography>
                   <Typography variant="h6" color={bill.netMoneyGBP > 0 ? 'success.main' : 'error'}>
                     {bill.netMoneyGBP.toLocaleString()} GBP
                   </Typography>

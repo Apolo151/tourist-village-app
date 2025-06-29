@@ -692,7 +692,7 @@ export default function ApartmentDetails() {
                             <Chip 
                               label={booking.user_type} 
                               size="small"
-                              color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
+                              color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                             />
                           </TableCell>
                           <TableCell>{booking.arrival_date}</TableCell>
