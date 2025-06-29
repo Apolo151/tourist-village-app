@@ -29,7 +29,8 @@ import {
   Card,
   CardContent,
   Divider,
-  Container
+  Container,
+  TextField
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -46,6 +47,8 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import ExportButtons from '../components/ExportButtons';
 import { format, parseISO } from 'date-fns';
+import { villageService } from '../services/villageService';
+import { userService } from '../services/userService';
 
 const UTILITY_TYPES = [
   { value: 'water', label: 'Water' },
@@ -92,6 +95,10 @@ export default function Utilities() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [readingToDelete, setReadingToDelete] = useState<UtilityReading | null>(null);
 
+  // Additional state
+  const [villages, setVillages] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+
   // Check if user is admin
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
@@ -135,6 +142,23 @@ export default function Utilities() {
 
     loadData();
   }, [filters]);
+
+  // Load villages and users for filters
+  useEffect(() => {
+    const loadDropdownData = async () => {
+      try {
+        const [villagesResult, usersResult] = await Promise.all([
+          villageService.getVillages(),
+          userService.getUsers({ limit: 100 })
+        ]);
+        setVillages(villagesResult.data);
+        setUsers(usersResult.data);
+      } catch (err) {
+        // ignore errors for dropdowns
+      }
+    };
+    loadDropdownData();
+  }, []);
 
   const handleFilterChange = (key: keyof UtilityReadingFilters, value: any) => {
     setFilters(prev => ({
@@ -305,6 +329,22 @@ export default function Utilities() {
 
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
+                <InputLabel>Village</InputLabel>
+                <Select
+                  value={filters.village_id || ''}
+                  label="Village"
+                  onChange={(e) => handleFilterChange('village_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
+                >
+                  <MenuItem value="">All Villages</MenuItem>
+                  {villages.map(village => (
+                    <MenuItem key={village.id} value={village.id}>{village.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
                 <InputLabel>Booking</InputLabel>
                 <Select
                   value={filters.booking_id || ''}
@@ -335,6 +375,148 @@ export default function Utilities() {
                       {option.label}
                     </MenuItem>
                   ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                label="Start Date From"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.start_date_from || ''}
+                onChange={e => handleFilterChange('start_date_from', e.target.value || undefined)}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                label="Start Date To"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.start_date_to || ''}
+                onChange={e => handleFilterChange('start_date_to', e.target.value || undefined)}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                label="End Date From"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.end_date_from || ''}
+                onChange={e => handleFilterChange('end_date_from', e.target.value || undefined)}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                label="End Date To"
+                type="date"
+                size="small"
+                fullWidth
+                InputLabelProps={{ shrink: true }}
+                value={filters.end_date_to || ''}
+                onChange={e => handleFilterChange('end_date_to', e.target.value || undefined)}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Has Water Readings</InputLabel>
+                <Select
+                  value={filters.has_water_readings === undefined ? '' : String(filters.has_water_readings)}
+                  label="Has Water Readings"
+                  onChange={e => {
+                    const val = e.target.value;
+                    handleFilterChange('has_water_readings', val === '' ? undefined : val === 'true');
+                  }}
+                >
+                  <MenuItem value="">Any</MenuItem>
+                  <MenuItem value="true">Yes</MenuItem>
+                  <MenuItem value="false">No</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Has Electricity Readings</InputLabel>
+                <Select
+                  value={filters.has_electricity_readings === undefined ? '' : String(filters.has_electricity_readings)}
+                  label="Has Electricity Readings"
+                  onChange={e => {
+                    const val = e.target.value;
+                    handleFilterChange('has_electricity_readings', val === '' ? undefined : val === 'true');
+                  }}
+                >
+                  <MenuItem value="">Any</MenuItem>
+                  <MenuItem value="true">Yes</MenuItem>
+                  <MenuItem value="false">No</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Created By</InputLabel>
+                <Select
+                  value={filters.created_by || ''}
+                  label="Created By"
+                  onChange={e => handleFilterChange('created_by', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
+                >
+                  <MenuItem value="">All Users</MenuItem>
+                  {users.map(user => (
+                    <MenuItem key={user.id} value={user.id}>{user.name} ({user.role})</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <TextField
+                label="Search"
+                size="small"
+                fullWidth
+                value={filters.search || ''}
+                onChange={e => handleFilterChange('search', e.target.value || undefined)}
+              />
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={filters.sort_by || 'created_at'}
+                  label="Sort By"
+                  onChange={e => handleFilterChange('sort_by', e.target.value)}
+                >
+                  <MenuItem value="created_at">Created At</MenuItem>
+                  <MenuItem value="start_date">Start Date</MenuItem>
+                  <MenuItem value="end_date">End Date</MenuItem>
+                  <MenuItem value="apartment_name">Apartment Name</MenuItem>
+                  <MenuItem value="village_name">Village Name</MenuItem>
+                  <MenuItem value="who_pays">Who Pays</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Sort Order</InputLabel>
+                <Select
+                  value={filters.sort_order || 'desc'}
+                  label="Sort Order"
+                  onChange={e => handleFilterChange('sort_order', e.target.value)}
+                >
+                  <MenuItem value="desc">Descending</MenuItem>
+                  <MenuItem value="asc">Ascending</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

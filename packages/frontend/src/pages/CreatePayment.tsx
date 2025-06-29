@@ -468,23 +468,23 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                 />
               </Grid>
 
-              {/* Booking (required for renters) */}
+              {/* Booking (always shown, required for renters) */}
               <Grid size={{ xs: 12 }}>
                 <FormControl 
                   fullWidth 
                   required={formData.user_type === 'renter'} 
                   error={Boolean(errors.booking_id)}
                 >
-                  <InputLabel>Booking {formData.user_type === 'renter' && '*'}</InputLabel>
+                  <InputLabel>Related Booking {formData.user_type === 'renter' && '*'}</InputLabel>
                   <Select
                     name="booking_id"
                     value={formData.booking_id}
-                    label={`Booking ${formData.user_type === 'renter' ? '*' : ''}`}
+                    label={`Related Booking ${formData.user_type === 'renter' ? '*' : ''}`}
                     onChange={handleSelectChange}
                     disabled={!formData.apartment_id}
                   >
                     <MenuItem value="">
-                      <em>Select a booking</em>
+                      <em>Select a booking (optional for owners)</em>
                     </MenuItem>
                     {availableBookings.map(booking => (
                       <MenuItem key={booking.id} value={booking.id}>
@@ -494,8 +494,10 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                     ))}
                   </Select>
                   {errors.booking_id && <FormHelperText>{errors.booking_id}</FormHelperText>}
-                  {formData.user_type === 'renter' && (
+                  {formData.user_type === 'renter' ? (
                     <FormHelperText>Booking is required for renter payments</FormHelperText>
+                  ) : (
+                    <FormHelperText>Optional: Link this payment to a specific booking</FormHelperText>
                   )}
                 </FormControl>
               </Grid>

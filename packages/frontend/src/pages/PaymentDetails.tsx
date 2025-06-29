@@ -255,7 +255,7 @@ export default function PaymentDetails() {
   };
   
   const handleEdit = () => {
-    navigate(`/payments/${id}?edit=true`);
+    navigate(`/payments/${id}/edit`);
   };
   
   const handleCancel = () => {
