@@ -286,8 +286,8 @@ export default function Apartments() {
 
   const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
     switch (status) {
-      case 'transfer': return 'Payed By Transfer';
-      case 'rent': return 'Payed By Rent';
+      case 'transfer': return 'Payment By Owner';
+      case 'rent': return 'Payment By Tenant';
       case 'non-payer': return 'Non-Payer';
       default: return status;
     }
@@ -332,8 +332,8 @@ export default function Apartments() {
       village: apartment.village?.name || 'Unknown',
       phase: `Phase ${apartment.phase}`,
       owner: apartment.owner?.name || 'Unknown',
-      paying_status: apartment.paying_status === 'transfer' ? 'Payed By Transfer' : 
-                     apartment.paying_status === 'rent' ? 'Payed By Rent' : 'Non-Payer',
+      paying_status: apartment.paying_status === 'transfer' ? 'Payment By Owner' : 
+                     apartment.paying_status === 'rent' ? 'Payment By Tenant' : 'Non-Payer',
       status: apartment.status || 'Unknown',
       balance_EGP: apartment.balance?.EGP || 0,
       balance_GBP: apartment.balance?.GBP || 0
