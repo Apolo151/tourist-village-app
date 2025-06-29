@@ -797,125 +797,99 @@ router.get(
         });
       }
 
-      // Check if there are any active/recent bookings for this apartment
-      const recentBooking = await db('bookings as b')
+      // Get all payments for this apartment where the payer is a renter
+      const renterPayments = await db('payments as p')
+        .leftJoin('bookings as b', 'p.booking_id', 'b.id')
         .leftJoin('users as u', 'b.user_id', 'u.id')
-        .select('b.*', 'u.name as renter_name', 'u.id as renter_id')
-        .where('b.apartment_id', apartmentId)
-        .where('b.user_type', 'renter')
-        .orderBy('b.arrival_date', 'desc')
+        .select(
+          'u.name as renter_name',
+          'u.id as renter_id',
+          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
+        )
+        .where('p.apartment_id', apartmentId)
+        .where(function() {
+          this.where('p.user_type', 'renter')
+            .orWhere('u.role', 'renter');
+        })
+        .groupBy('u.id', 'u.name');
+
+      // Get all service requests for this apartment where the requester is a renter
+      const renterServiceRequests = await db('service_requests as sr')
+        .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+        .leftJoin('users as u', 'sr.requester_id', 'u.id')
+        .select(
+          'u.name as renter_name',
+          'u.id as renter_id',
+          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+        )
+        .where('sr.apartment_id', apartmentId)
+        .where('u.role', 'renter')
+        .groupBy('u.id', 'u.name');
+
+      // Get all utility readings for this apartment where who_pays is renter
+      const renterUtilityReadings = await db('utility_readings as ur')
+        .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
+        .select(
+          db.raw(`COALESCE(SUM(
+            CASE 
+              WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL AND ur.who_pays = 'renter'
+              THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
+              ELSE 0 
+            END +
+            CASE 
+              WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL AND ur.who_pays = 'renter'
+              THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price 
+              ELSE 0 
+            END
+          ), 0) as total_egp`)
+        )
+        .where('ur.apartment_id', apartmentId)
         .first();
 
+      // Aggregate totals for all renters
       let renterSummary = null;
-
-      if (recentBooking) {
-        // Get bills summary for this specific booking
-        const bookingPayments = await db('payments as p')
-          .select(
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
-          )
-          .where('p.apartment_id', apartmentId)
-          .where('p.booking_id', recentBooking.id)
-          .first();
-
-        const bookingServiceRequests = await db('service_requests as sr')
-          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-          .select(
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
-          )
-          .where('sr.apartment_id', apartmentId)
-          .where('sr.booking_id', recentBooking.id)
-          .first();
-
-        const paymentsEGP = parseFloat(bookingPayments?.total_egp || '0');
-        const paymentsGBP = parseFloat(bookingPayments?.total_gbp || '0');
-        const requestsEGP = parseFloat(bookingServiceRequests?.total_egp || '0');
-        const requestsGBP = parseFloat(bookingServiceRequests?.total_gbp || '0');
-
+      if ((renterPayments && renterPayments.length > 0) || (renterServiceRequests && renterServiceRequests.length > 0) || renterUtilityReadings) {
+        // For simplicity, sum all payments and requests for all renters
+        let paymentsEGP = 0, paymentsGBP = 0, requestsEGP = 0, requestsGBP = 0, utilityEGP = 0;
+        let renterName = null, renterId = null;
+        if (renterPayments && renterPayments.length > 0) {
+          paymentsEGP = renterPayments.reduce((sum, p) => sum + parseFloat(p.total_egp || 0), 0);
+          paymentsGBP = renterPayments.reduce((sum, p) => sum + parseFloat(p.total_gbp || 0), 0);
+          renterName = renterPayments[0].renter_name;
+          renterId = renterPayments[0].renter_id;
+        }
+        if (renterServiceRequests && renterServiceRequests.length > 0) {
+          requestsEGP = renterServiceRequests.reduce((sum, r) => sum + parseFloat(r.total_egp || 0), 0);
+          requestsGBP = renterServiceRequests.reduce((sum, r) => sum + parseFloat(r.total_gbp || 0), 0);
+          if (!renterName) {
+            renterName = renterServiceRequests[0].renter_name;
+            renterId = renterServiceRequests[0].renter_id;
+          }
+        }
+        if (renterUtilityReadings) {
+          utilityEGP = parseFloat(renterUtilityReadings.total_egp || 0);
+        }
         renterSummary = {
-          userName: recentBooking.renter_name,
-          userId: recentBooking.renter_id,
-          bookingId: recentBooking.id,
-          bookingDates: {
-            arrival: recentBooking.arrival_date,
-            leaving: recentBooking.leaving_date
-          },
+          userName: renterName,
+          userId: renterId,
+          bookingId: null,
+          bookingDates: null,
           total_money_spent: {
             EGP: paymentsEGP,
             GBP: paymentsGBP
           },
           total_money_requested: {
-            EGP: requestsEGP,
+            EGP: requestsEGP + utilityEGP,
             GBP: requestsGBP
           },
           net_money: {
-            EGP: requestsEGP - paymentsEGP,
+            EGP: (requestsEGP + utilityEGP) - paymentsEGP,
             GBP: requestsGBP - paymentsGBP
           }
         };
-      } else {
-        // Check if there are any renter bills for this apartment (not booking-specific)
-        const allRenterPayments = await db('payments as p')
-          .leftJoin('bookings as b', 'p.booking_id', 'b.id')
-          .leftJoin('users as u', 'p.created_by', 'u.id')
-          .select(
-            'u.name as renter_name',
-            'u.id as renter_id',
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_gbp")
-          )
-          .where('p.apartment_id', apartmentId)
-          .whereNotNull('u.id')
-          .where('u.role', 'renter')
-          .groupBy('u.id', 'u.name')
-          .orderByRaw('SUM(p.amount) DESC')
-          .first();
-
-        const allRenterServiceRequests = await db('service_requests as sr')
-          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-          .leftJoin('users as u', 'sr.requester_id', 'u.id')
-          .select(
-            'u.name as renter_name',
-            'u.id as renter_id',
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
-          )
-          .where('sr.apartment_id', apartmentId)
-          .whereNotNull('u.id')
-          .where('u.role', 'renter')
-          .groupBy('u.id', 'u.name')
-          .orderByRaw('SUM(st.cost) DESC')
-          .first();
-
-        if (allRenterPayments || allRenterServiceRequests) {
-          const renterName = allRenterPayments?.renter_name || allRenterServiceRequests?.renter_name;
-          const renterId = allRenterPayments?.renter_id || allRenterServiceRequests?.renter_id;
-          const paymentsEGP = parseFloat(allRenterPayments?.total_egp || '0');
-          const paymentsGBP = parseFloat(allRenterPayments?.total_gbp || '0');
-          const requestsEGP = parseFloat(allRenterServiceRequests?.total_egp || '0');
-          const requestsGBP = parseFloat(allRenterServiceRequests?.total_gbp || '0');
-
-          renterSummary = {
-            userName: renterName,
-            userId: renterId,
-            bookingId: null,
-            bookingDates: null,
-            total_money_spent: {
-              EGP: paymentsEGP,
-              GBP: paymentsGBP
-            },
-            total_money_requested: {
-              EGP: requestsEGP,
-              GBP: requestsGBP
-            },
-            net_money: {
-              EGP: requestsEGP - paymentsEGP,
-              GBP: requestsGBP - paymentsGBP
-            }
-          };
-        }
       }
 
       res.json({
