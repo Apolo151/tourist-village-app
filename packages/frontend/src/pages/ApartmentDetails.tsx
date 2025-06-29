@@ -270,8 +270,8 @@ export default function ApartmentDetails() {
   // Helper function to convert paying status for display
   const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
     switch (status) {
-      case 'transfer': return 'Payed By Transfer';
-      case 'rent': return 'Payed By Rent';
+      case 'transfer': return 'Payment By Owner';
+      case 'rent': return 'Payment By Tenant';
       case 'non-payer': return 'Non-Payer';
       default: return status;
     }

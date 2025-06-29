@@ -29,6 +29,7 @@ import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 const WHO_PAYS_OPTIONS = [
   { value: 'owner', label: 'Owner' },
@@ -332,40 +333,66 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               <Grid container spacing={3}>
                 {/* Apartment Selection */}
                 <Grid size={{ xs: 12 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Related Apartment</InputLabel>
-                    <Select
-                      value={apartmentId}
-                      label="Related Apartment"
-                      onChange={(e) => setApartmentId(e.target.value as number)}
-                      disabled={lockApartment && propApartmentId !== undefined}
-                    >
-                      {(apartments || []).map(apartment => (
-                        <MenuItem key={apartment.id} value={apartment.id}>
-                          {apartment.name} ({apartment.village?.name} - Phase {apartment.phase})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <SearchableDropdown
+                    options={apartments.map(apartment => ({
+                      id: apartment.id,
+                      label: `${apartment.name} (${apartment.village?.name} - Phase ${apartment.phase})`,
+                      name: apartment.name,
+                      village: apartment.village,
+                      phase: apartment.phase
+                    }))}
+                    value={apartmentId || null}
+                    onChange={(value) => setApartmentId(value as number || 0)}
+                    label="Related Apartment"
+                    placeholder="Search apartments by name..."
+                    required
+                    disabled={lockApartment && propApartmentId !== undefined}
+                    getOptionLabel={(option) => option.label}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body1">{option.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {option.village?.name} (Phase {option.phase})
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                  />
                 </Grid>
                 {/* Booking Selection */}
                 <Grid size={{ xs: 12 }}>
-                  <FormControl fullWidth>
-                    <InputLabel>Related Booking (Optional)</InputLabel>
-                    <Select
-                      value={bookingId || ''}
-                      label="Related Booking (Optional)"
-                      onChange={(e) => setBookingId(e.target.value ? e.target.value as number : undefined)}
-                      disabled={!apartmentId}
-                    >
-                      <MenuItem value="">No Booking</MenuItem>
-                      {(filteredBookings || []).map(booking => (
-                        <MenuItem key={booking.id} value={booking.id}>
-                          {booking.user?.name} ({booking.user_type}) - {utilityReadingService.formatDate(booking.arrival_date)} to {utilityReadingService.formatDate(booking.leaving_date)}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <SearchableDropdown
+                    options={[
+                      { id: '', label: 'No Booking', name: 'No Booking' },
+                      ...filteredBookings.map(booking => ({
+                        id: booking.id,
+                        label: `${booking.user?.name} (${booking.user_type}) - ${utilityReadingService.formatDate(booking.arrival_date)} to ${utilityReadingService.formatDate(booking.leaving_date)}`,
+                        name: booking.user?.name || 'Unknown',
+                        user_type: booking.user_type,
+                        arrival_date: booking.arrival_date,
+                        leaving_date: booking.leaving_date
+                      }))
+                    ]}
+                    value={bookingId || null}
+                    onChange={(value) => setBookingId(value ? value as number : undefined)}
+                    label="Related Booking (Optional)"
+                    placeholder="Search bookings by user name..."
+                    disabled={!apartmentId}
+                    getOptionLabel={(option) => option.label}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body1">{option.name}</Typography>
+                          {option.user_type && (
+                            <Typography variant="body2" color="text.secondary">
+                              {option.user_type} - {utilityReadingService.formatDate(option.arrival_date)} to {utilityReadingService.formatDate(option.leaving_date)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </li>
+                    )}
+                  />
                 </Grid>
                 {/* Who Pays */}
                 <Grid size={{ xs: 12, md: 6 }}>

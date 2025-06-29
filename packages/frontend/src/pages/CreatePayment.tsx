@@ -34,6 +34,7 @@ import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 interface PaymentFormData {
   apartment_id: string;
@@ -437,26 +438,34 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
 
               {/* Apartment */}
               <Grid size={{ xs: 12 }}>
-                <FormControl fullWidth required error={Boolean(errors.apartment_id)}>
-                  <InputLabel>Apartment</InputLabel>
-                  <Select
-                    name="apartment_id"
-                    value={formData.apartment_id}
-                    label="Apartment"
-                    onChange={handleSelectChange}
-                    disabled={lockApartment && apartmentId !== undefined}
-                  >
-                    <MenuItem value="">
-                      <em>Select an apartment</em>
-                    </MenuItem>
-                    {apartments.map(apartment => (
-                      <MenuItem key={apartment.id} value={apartment.id}>
-                        {apartment.name} - {apartment.village?.name} (Phase {apartment.phase})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
-                </FormControl>
+                <SearchableDropdown
+                  options={apartments.map(apartment => ({
+                    id: apartment.id,
+                    label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
+                    name: apartment.name,
+                    village: apartment.village,
+                    phase: apartment.phase
+                  }))}
+                  value={formData.apartment_id ? parseInt(formData.apartment_id) : null}
+                  onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value?.toString() || '' }))}
+                  label="Apartment"
+                  placeholder="Search apartments by name..."
+                  required
+                  disabled={lockApartment && apartmentId !== undefined}
+                  error={Boolean(errors.apartment_id)}
+                  helperText={errors.apartment_id}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.village?.name} (Phase {option.phase})
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
               </Grid>
 
               {/* Booking (required for renters) */}

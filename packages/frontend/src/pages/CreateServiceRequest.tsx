@@ -36,6 +36,7 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 export interface CreateServiceRequestProps {
   apartmentId?: number;
@@ -342,24 +343,31 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
             
             <Grid container spacing={3}>
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth required>
-                  <InputLabel>Apartment</InputLabel>
-                  <Select
-                    value={formData.apartment_id?.toString() || ''}
-                    label="Apartment"
-                    onChange={(e) => handleSelectChange(e, 'apartment_id')}
-                    disabled={lockApartment && apartmentId !== undefined}
-                  >
-                    <MenuItem value="">
-                      <em>Select an apartment</em>
-                    </MenuItem>
-                    {apartments.map(apartment => (
-                      <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                        {apartment.name} - {apartment.village?.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <SearchableDropdown
+                  options={apartments.map(apartment => ({
+                    id: apartment.id,
+                    label: `${apartment.name} - ${apartment.village?.name}`,
+                    name: apartment.name,
+                    village: apartment.village
+                  }))}
+                  value={formData.apartment_id || null}
+                  onChange={(value) => handleSelectChange({ target: { value: value?.toString() || '' } } as SelectChangeEvent, 'apartment_id')}
+                  label="Apartment"
+                  placeholder="Search apartments by name..."
+                  required
+                  disabled={lockApartment && apartmentId !== undefined}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.village?.name}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
               </Grid>
 
               {formData.apartment_id && bookings.length > 0 && (
@@ -438,23 +446,30 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
               </Grid>
 
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth required>
-                  <InputLabel>Requester</InputLabel>
-                  <Select
-                    value={formData.requester_id?.toString() || ''}
-                    label="Requester"
-                    onChange={(e) => handleSelectChange(e, 'requester_id')}
-                  >
-                    <MenuItem value="">
-                      <em>Select a requester</em>
-                    </MenuItem>
-                    {users.map(user => (
-                      <MenuItem key={user.id} value={user.id.toString()}>
-                        {user.name} ({user.role})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <SearchableDropdown
+                  options={users.map(user => ({
+                    id: user.id,
+                    label: `${user.name} (${user.role})`,
+                    name: user.name,
+                    role: user.role
+                  }))}
+                  value={formData.requester_id || null}
+                  onChange={(value) => handleSelectChange({ target: { value: value?.toString() || '' } } as SelectChangeEvent, 'requester_id')}
+                  label="Requester"
+                  placeholder="Search users by name..."
+                  required
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.role}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
               </Grid>
 
               <Grid size={{xs: 12, sm: 6}}>

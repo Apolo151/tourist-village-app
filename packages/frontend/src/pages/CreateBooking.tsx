@@ -24,6 +24,7 @@ import { apartmentService } from '../services/apartmentService';
 import { userService } from '../services/userService';
 import type { Apartment } from '../services/apartmentService';
 import type { User } from '../services/userService';
+import SearchableDropdown, { type SearchableDropdownOption } from '../components/SearchableDropdown';
 
 export interface CreateBookingProps {
   apartmentId?: number;
@@ -209,21 +210,31 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           <Grid container spacing={3}>
             {/* Apartment Selection */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <FormControl fullWidth required>
-                <InputLabel>Related Apartment</InputLabel>
-                <Select
-                  value={formData.apartment_id}
-                  label="Related Apartment"
-                  onChange={(e) => setFormData(prev => ({ ...prev, apartment_id: e.target.value as number }))}
-                  disabled={lockApartment}
-                >
-                  {apartments.map(apartment => (
-                    <MenuItem key={apartment.id} value={apartment.id}>
-                      {apartment.name} ({apartment.village?.name})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+              <SearchableDropdown
+                options={apartments.map(apartment => ({
+                  id: apartment.id,
+                  label: `${apartment.name} (${apartment.village?.name})`,
+                  name: apartment.name,
+                  village: apartment.village
+                }))}
+                value={formData.apartment_id || null}
+                onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || 0 }))}
+                label="Related Apartment"
+                placeholder="Search apartments by name..."
+                required
+                disabled={lockApartment}
+                getOptionLabel={(option) => option.label}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <Box>
+                      <Typography variant="body1">{option.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {option.village?.name}
+                      </Typography>
+                    </Box>
+                  </li>
+                )}
+              />
             </Grid>
 
             {/* User Type */}
@@ -236,7 +247,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'owner' | 'renter' }))}
                 >
                   <MenuItem value="Owner">Owner</MenuItem>
-                  <MenuItem value="Renter">Renter</MenuItem>
+                  <MenuItem value="Renter">Tenant</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -244,23 +255,32 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             {/* User Selection - Conditional based on user type */}
             <Grid size={{ xs: 12, md: 6 }}>
               {formData.user_type === 'owner' ? (
-                <FormControl fullWidth required>
-                  <InputLabel>Person Name (Owner)</InputLabel>
-                  <Select
-                    value={formData.user_id}
-                    label="Person Name (Owner)"
-                    onChange={(e) => setFormData(prev => ({ ...prev, user_id: e.target.value as number }))}
-                  >
-                    <MenuItem value={0}>
-                      <em>Select an owner</em>
-                    </MenuItem>
-                    {users.filter(user => user.role === 'owner').map(user => (
-                      <MenuItem key={user.id} value={user.id}>
-                        {user.name} ({user.email})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <SearchableDropdown
+                  options={users
+                    .filter(user => user.role === 'owner')
+                    .map(user => ({
+                      id: user.id,
+                      label: `${user.name} (${user.email})`,
+                      name: user.name,
+                      email: user.email
+                    }))}
+                  value={formData.user_id || null}
+                  onChange={(value) => setFormData(prev => ({ ...prev, user_id: value as number || 0 }))}
+                  label="Person Name (Owner)"
+                  placeholder="Search owners by name or email..."
+                  required
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.email}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
               ) : (
                 <TextField
                   fullWidth

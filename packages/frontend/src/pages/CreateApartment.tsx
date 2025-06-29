@@ -26,6 +26,7 @@ import type { CreateApartmentRequest } from '../services/apartmentService';
 import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
 import { ErrorMessageHandler } from '../utils/errorUtils';
 import type { DetailedError } from '../utils/errorUtils';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 export default function CreateApartment() {
   const navigate = useNavigate();
@@ -293,40 +294,33 @@ export default function CreateApartment() {
 
               {/* Village */}
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth error={!!fieldErrors.village_id} required>
-                  <InputLabel>Project</InputLabel>
-                  <Select
-                    name="village_id"
-                    value={formData.village_id.toString()}
-                    label="Project"
-                    onChange={handleSelectChange}
-                    disabled={!!currentUser?.responsible_village || saving}
-                  >
-                    <MenuItem value="0">
-                      <em>Select Project</em>
-                    </MenuItem>
-                    {villages.map(village => (
-                      <MenuItem key={village.id} value={village.id.toString()}>
-                        {village.name} ({village.phases} phases)
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {fieldErrors.village_id && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      {fieldErrors.village_id}
-                    </Typography>
+                <SearchableDropdown
+                  options={villages.map(village => ({
+                    id: village.id,
+                    label: `${village.name} (${village.phases} phases)`,
+                    name: village.name,
+                    phases: village.phases
+                  }))}
+                  value={formData.village_id || null}
+                  onChange={(value) => handleSelectChange({ target: { name: 'village_id', value: value?.toString() || '0' } } as SelectChangeEvent<string>)}
+                  label="Project"
+                  placeholder="Search projects by name..."
+                  required
+                  disabled={!!currentUser?.responsible_village || saving}
+                  error={!!fieldErrors.village_id}
+                  helperText={fieldErrors.village_id || (currentUser?.responsible_village ? 'Project pre-filled based on your assigned responsibility' : 'Select the project where this apartment is located')}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.phases} phases
+                        </Typography>
+                      </Box>
+                    </li>
                   )}
-                  {currentUser?.responsible_village && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      Project pre-filled based on your assigned responsibility
-                    </Typography>
-                  )}
-                  {!currentUser?.responsible_village && !fieldErrors.village_id && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      Select the project where this apartment is located
-                    </Typography>
-                  )}
-                </FormControl>
+                />
               </Grid>
 
               {/* Phase */}
@@ -365,35 +359,34 @@ export default function CreateApartment() {
 
               {/* Owner */}
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth error={!!fieldErrors.owner_id} required>
-                  <InputLabel>Owner Name</InputLabel>
-                  <Select
-                    name="owner_id"
-                    value={formData.owner_id.toString()}
-                    label="Owner Name"
-                    onChange={handleSelectChange}
-                    disabled={saving}
-                  >
-                    <MenuItem value="0">
-                      <em>Select Owner</em>
-                    </MenuItem>
-                    {owners.map(owner => (
-                      <MenuItem key={owner.id} value={owner.id.toString()}>
-                        {owner.name} ({owner.email}) {owner.phone_number && `- ${owner.phone_number}`}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {fieldErrors.owner_id && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      {fieldErrors.owner_id}
-                    </Typography>
+                <SearchableDropdown
+                  options={owners.map(owner => ({
+                    id: owner.id,
+                    label: `${owner.name} (${owner.email})${owner.phone_number ? ` - ${owner.phone_number}` : ''}`,
+                    name: owner.name,
+                    email: owner.email,
+                    phone_number: owner.phone_number
+                  }))}
+                  value={formData.owner_id || null}
+                  onChange={(value) => handleSelectChange({ target: { name: 'owner_id', value: value?.toString() || '0' } } as SelectChangeEvent<string>)}
+                  label="Owner Name"
+                  placeholder="Search owners by name or email..."
+                  required
+                  disabled={saving}
+                  error={!!fieldErrors.owner_id}
+                  helperText={fieldErrors.owner_id || 'Choose the person who owns this apartment'}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.email}{option.phone_number ? ` • ${option.phone_number}` : ''}
+                        </Typography>
+                      </Box>
+                    </li>
                   )}
-                  {!fieldErrors.owner_id && (
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      Choose the person who owns this apartment
-                    </Typography>
-                  )}
-                </FormControl>
+                />
               </Grid>
 
               {/* Purchase Date */}

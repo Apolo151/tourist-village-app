@@ -36,6 +36,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 export interface CreateEmailProps {
   apartmentId?: number;
@@ -405,50 +406,69 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
               </Grid>
               {/* Apartment */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={!!formErrors.apartment_id} required>
-                  <InputLabel>Related Apartment</InputLabel>
-                  <Select
-                    name="apartment_id"
-                    value={formData.apartment_id ? formData.apartment_id.toString() : ''}
-                    onChange={handleSelectChange}
-                    label="Related Apartment *"
-                    disabled={apartmentFieldLocked}
-                  >
-                    <MenuItem value="">Select an apartment</MenuItem>
-                    {apartments.map(apartment => (
-                      <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                        {apartment.name} - {apartment.village?.name} (Phase {apartment.phase})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {formErrors.apartment_id && <FormHelperText>{formErrors.apartment_id}</FormHelperText>}
-                </FormControl>
+                <SearchableDropdown
+                  options={apartments.map(apartment => ({
+                    id: apartment.id,
+                    label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
+                    name: apartment.name,
+                    village: apartment.village,
+                    phase: apartment.phase
+                  }))}
+                  value={formData.apartment_id || null}
+                  onChange={(value) => handleSelectChange({ target: { name: 'apartment_id', value: value?.toString() || '' } })}
+                  label="Related Apartment"
+                  placeholder="Search apartments by name..."
+                  required
+                  disabled={apartmentFieldLocked}
+                  error={!!formErrors.apartment_id}
+                  helperText={formErrors.apartment_id}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.village?.name} (Phase {option.phase})
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
               </Grid>
               {/* Booking (Optional) */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <FormControl fullWidth error={!!formErrors.booking_id} disabled={!formData.apartment_id}>
-                  <InputLabel>Related Booking (Optional)</InputLabel>
-                  <Select
-                    name="booking_id"
-                    value={formData.booking_id?.toString() || ''}
-                    onChange={handleSelectChange}
-                    label="Related Booking (Optional)"
-                  >
-                    <MenuItem value="">No related booking</MenuItem>
-                    {getRelatedBookings().map(booking => (
-                      <MenuItem key={booking.id} value={booking.id.toString()}>
-                        Booking #{booking.id} - {booking.user?.name} ({booking.user_type})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {!formData.apartment_id && (
-                    <FormHelperText>Select an apartment first to see related bookings</FormHelperText>
+                <SearchableDropdown
+                  options={[
+                    { id: '', label: 'No related booking', name: 'No related booking' },
+                    ...getRelatedBookings().map(booking => ({
+                      id: booking.id,
+                      label: `Booking #${booking.id} - ${booking.user?.name} (${booking.user_type})`,
+                      name: booking.user?.name || 'Unknown',
+                      user_type: booking.user_type,
+                      booking_id: booking.id
+                    }))
+                  ]}
+                  value={formData.booking_id || null}
+                  onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
+                  label="Related Booking (Optional)"
+                  placeholder="Search bookings by user name..."
+                  disabled={!formData.apartment_id}
+                  error={!!formErrors.booking_id}
+                  helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getRelatedBookings().length === 0 ? 'No bookings found for this apartment' : '')}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        {option.user_type && (
+                          <Typography variant="body2" color="text.secondary">
+                            Booking #{option.booking_id} ({option.user_type})
+                          </Typography>
+                        )}
+                      </Box>
+                    </li>
                   )}
-                  {formData.apartment_id && getRelatedBookings().length === 0 && (
-                    <FormHelperText>No bookings found for this apartment</FormHelperText>
-                  )}
-                  {formErrors.booking_id && <FormHelperText>{formErrors.booking_id}</FormHelperText>}
-                </FormControl>
+                />
               </Grid>
               {/* From */}
               <Grid size={{ xs: 12, sm: 6 }}>

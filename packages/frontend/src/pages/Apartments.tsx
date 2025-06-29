@@ -458,8 +458,8 @@ export default function Apartments() {
                 <MenuItem value="">
                   <em>All Paying Status</em>
                 </MenuItem>
-                <MenuItem value="transfer">Payed By Transfer</MenuItem>
-                <MenuItem value="rent">Payed By Rent</MenuItem>
+                <MenuItem value="transfer">Payed By Owner</MenuItem>
+                <MenuItem value="rent">Payment By Tenant</MenuItem>
                 <MenuItem value="non-payer">Non-Payer</MenuItem>
               </Select>
             </FormControl>
