@@ -382,14 +382,19 @@ export default function Dashboard() {
                   Total Income
                 </Typography>
                   </Box>
-                  <Typography variant="h3" color="success.main" sx={{ fontWeight: 'bold' }}>
-                    {totals.spentEGP.toLocaleString()}
-                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
+                    <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
+                      {totals.spentEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                    </Typography>
+                    <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
+                      {totals.spentGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                    </Typography>
+                  </Box>
                   <Typography variant="body2" color="text.secondary">
-                    EGP {totals.spentGBP > 0 && `• ${totals.spentGBP.toLocaleString()} GBP`}
-                </Typography>
-              </CardContent>
-            </Card>
+                    Total payments received
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
             
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -401,14 +406,19 @@ export default function Dashboard() {
                       Total Expenses
                     </Typography>
                   </Box>
-                  <Typography variant="h3" color="error.main" sx={{ fontWeight: 'bold' }}>
-                    {totals.requestedEGP.toLocaleString()}
-                </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
+                    <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                      {totals.requestedEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                    </Typography>
+                    <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
+                      {totals.requestedGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                    </Typography>
+                  </Box>
                   <Typography variant="body2" color="text.secondary">
-                    EGP {totals.requestedGBP > 0 && `• ${totals.requestedGBP.toLocaleString()} GBP`}
-                </Typography>
-              </CardContent>
-            </Card>
+                    Total requested from owners/renters
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
             
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -420,11 +430,16 @@ export default function Dashboard() {
                       Net Balance
                     </Typography>
           </Box>
-                  <Typography variant="h3" color={totals.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                    {totals.netEGP.toLocaleString()}
-                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
+                    <Typography variant="h4" color={totals.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                      {totals.netEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                    </Typography>
+                    <Typography variant="h4" color={totals.netGBP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                      {totals.netGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                    </Typography>
+                  </Box>
                   <Typography variant="body2" color="text.secondary">
-                    EGP {totals.netGBP !== 0 && `• ${totals.netGBP.toLocaleString()} GBP`}
+                    Net = Income - Expenses
                   </Typography>
                 </CardContent>
               </Card>

@@ -58,7 +58,7 @@ import { userService, type User } from '../services/userService';
 import { villageService, type Village } from '../services/villageService';
 import ExportButtons from '../components/ExportButtons';
 
-export default function Users() {
+export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boolean }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
   const [villageFilter, setVillageFilter] = useState<string>('');
@@ -124,6 +124,15 @@ export default function Users() {
   useEffect(() => {
     applyFilters();
   }, [users, searchTerm, roleFilter, villageFilter, statusFilter, startDate, endDate]);
+
+  // Filter out super_admin users for admin
+  useEffect(() => {
+    let filtered = [...users];
+    if (hideSuperAdmin) {
+      filtered = filtered.filter(user => user.role !== 'super_admin');
+    }
+    setFilteredUsers(filtered);
+  }, [users, hideSuperAdmin]);
 
   const loadData = async () => {
     setLoading(true);
@@ -681,32 +690,40 @@ export default function Users() {
                     <TableCell align="center">
                       <Box sx={{ display: 'flex', gap: 0.5 }}>
                         <Tooltip title="View Details">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleViewDetails(user)}
-                            color="info"
-                          >
-                            <VisibilityIcon />
-                          </IconButton>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleViewDetails(user)}
+                              color="info"
+                              disabled={hideSuperAdmin && user.role === 'super_admin'}
+                            >
+                              <VisibilityIcon />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                         <Tooltip title="Edit User">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleEditUser(user)}
-                            color="primary"
-                          >
-                            <EditIcon />
-                          </IconButton>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditUser(user)}
+                              color="primary"
+                              disabled={hideSuperAdmin && user.role === 'super_admin'}
+                            >
+                              <EditIcon />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                         <Tooltip title="Delete User">
-                          <IconButton
-                            size="small"
-                            onClick={() => handleDeleteUser(user)}
-                            color="error"
-                            disabled={user.id === currentUser?.id} // Prevent self-deletion
-                          >
-                            <DeleteIcon />
-                          </IconButton>
+                          <span>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteUser(user)}
+                              color="error"
+                              disabled={user.id === currentUser?.id || (hideSuperAdmin && user.role === 'super_admin')}
+                            >
+                              <DeleteIcon />
+                            </IconButton>
+                          </span>
                         </Tooltip>
                       </Box>
                     </TableCell>

@@ -55,7 +55,7 @@ import { paymentMethodService } from '../services/paymentMethodService';
 import { villageService } from '../services/villageService';
 import type { PaymentMethod } from '../services/paymentMethodService';
 import type { Village } from '../services/villageService';
-import Users from './Users'; // Import the Users component
+import Users from './Users';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -332,9 +332,13 @@ export default function Settings() {
             aria-label="settings tabs"
           >
             <Tab icon={<SettingsIcon />} iconPosition="start" label="General" />
-            <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
+            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+              <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
+            )}
             <Tab icon={<PaymentIcon />} iconPosition="start" label="Payment Methods" />
-            <Tab icon={<HomeIcon />} iconPosition="start" label="Project Details" />
+            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
+              <Tab icon={<HomeIcon />} iconPosition="start" label="Project Details" />
+            )}
           </Tabs>
           
           {/* General Settings Tab */}
@@ -352,7 +356,7 @@ export default function Settings() {
           {/* Users Management Tab */}
           <TabPanel value={tabValue} index={1}>
             {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') ? (
-              <Users />
+              <Users hideSuperAdmin={currentUser?.role === 'admin'} />
             ) : (currentUser?.role === 'owner' || currentUser?.role === 'renter') ? (
               <Box sx={{ p: 3 }}>
                 <Box sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
