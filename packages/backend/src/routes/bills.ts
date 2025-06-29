@@ -17,26 +17,108 @@ router.get(
       const user = (req as any).user;
       const { village_id, user_type, year, date_from, date_to } = req.query;
 
-      // Build base query for financial summary
-      let query = db('apartments as a')
+      // Get all apartments (with filters)
+      let apartmentsQuery = db('apartments as a')
         .leftJoin('villages as v', 'a.village_id', 'v.id')
         .leftJoin('users as owner', 'a.owner_id', 'owner.id')
-        .leftJoin('payments as p', 'a.id', 'p.apartment_id')
-        .leftJoin('service_requests as sr', 'a.id', 'sr.apartment_id')
-        .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-        .leftJoin('utility_readings as ur', 'a.id', 'ur.apartment_id')
         .select(
           'a.id as apartment_id',
           'a.name as apartment_name',
           'v.name as village_name',
           'owner.name as owner_name',
           'owner.id as owner_id',
-          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_payments_egp"),
-          db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_payments_gbp"),
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_service_requests_egp"),
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp"),
-          db.raw(`
-            COALESCE(SUM(
+          'a.village_id'
+        );
+
+      // Role-based filtering
+      if (user.role === 'owner') {
+        apartmentsQuery = apartmentsQuery.where('a.owner_id', user.id);
+      } else if (user.role === 'renter') {
+        apartmentsQuery = apartmentsQuery.whereExists(function() {
+          this.select('*')
+              .from('bookings as b')
+              .whereRaw('b.apartment_id = a.id')
+              .where('b.user_id', user.id);
+        });
+      }
+      if (village_id) {
+        apartmentsQuery = apartmentsQuery.where('a.village_id', village_id);
+      }
+      if (req.villageFilter) {
+        apartmentsQuery = apartmentsQuery.where('a.village_id', req.villageFilter);
+      }
+      if (user_type) {
+        if (user_type === 'owner') {
+          apartmentsQuery = apartmentsQuery.whereExists(function() {
+            this.select('*')
+                .from('bookings as b')
+                .whereRaw('b.apartment_id = a.id')
+                .where('b.user_type', 'owner');
+          });
+        } else if (user_type === 'renter') {
+          apartmentsQuery = apartmentsQuery.whereExists(function() {
+            this.select('*')
+                .from('bookings as b')
+                .whereRaw('b.apartment_id = a.id')
+                .where('b.user_type', 'renter');
+          });
+        }
+      }
+      const apartments = await apartmentsQuery;
+
+      // Helper to build date filter
+      function buildDateFilter(table: string) {
+        if (year) {
+          return db.raw(`EXTRACT(YEAR FROM ${table}) = ?`, [year]);
+        } else if (date_from || date_to) {
+          const conditions = [];
+          if (date_from) conditions.push(db.raw(`${table} >= ?`, [date_from]));
+          if (date_to) conditions.push(db.raw(`${table} <= ?`, [date_to]));
+          return conditions;
+        }
+        return [];
+      }
+
+      // For each apartment, aggregate payments, service requests, and utility readings separately
+      const summary = [];
+      for (const apt of apartments) {
+        // Payments
+        let paymentsQuery = db('payments as p')
+          .select(
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_payments_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_payments_gbp")
+          )
+          .where('p.apartment_id', apt.apartment_id);
+        const paymentDateFilter = buildDateFilter('p.date');
+        if (Array.isArray(paymentDateFilter)) {
+          paymentDateFilter.forEach(f => paymentsQuery = paymentsQuery.where(f));
+        } else if (paymentDateFilter) {
+          paymentsQuery = paymentsQuery.where(paymentDateFilter);
+        }
+        const payments = await paymentsQuery.first();
+
+        // Service Requests
+        let serviceRequestsQuery = db('service_requests as sr')
+          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+          .select(
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_service_requests_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp")
+          )
+          .where('sr.apartment_id', apt.apartment_id);
+        const srDateFilter = buildDateFilter('sr.date_created');
+        if (Array.isArray(srDateFilter)) {
+          srDateFilter.forEach(f => serviceRequestsQuery = serviceRequestsQuery.where(f));
+        } else if (srDateFilter) {
+          serviceRequestsQuery = serviceRequestsQuery.where(srDateFilter);
+        }
+        const serviceRequests = await serviceRequestsQuery.first();
+
+        // Utility Readings
+        let utilityQuery = db('utility_readings as ur')
+          .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+          .leftJoin('villages as v', 'a.village_id', 'v.id')
+          .select(
+            db.raw(`COALESCE(SUM(
               CASE 
                 WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL 
                 THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
@@ -47,101 +129,31 @@ router.get(
                 THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
                 ELSE 0 
               END
-            ), 0) as total_utility_readings_egp
-          `)
-        )
-        .groupBy('a.id', 'a.name', 'v.name', 'owner.name', 'owner.id');
-
-      // Apply role-based filtering
-      if (user.role === 'owner') {
-        query = query.where('a.owner_id', user.id);
-      } else if (user.role === 'renter') {
-        // Renters can only see apartments they have bookings for
-        query = query.whereExists(function() {
-          this.select('*')
-              .from('bookings as b')
-              .whereRaw('b.apartment_id = a.id')
-              .where('b.user_id', user.id);
-        });
-      }
-
-      // Apply filters
-      if (village_id) {
-        query = query.where('a.village_id', village_id);
-      }
-
-      // Apply village filter from middleware (for admin users with responsible_village)
-      if (req.villageFilter) {
-        query = query.where('a.village_id', req.villageFilter);
-      }
-
-      if (user_type) {
-        if (user_type === 'owner') {
-          query = query.whereExists(function() {
-            this.select('*')
-                .from('bookings as b')
-                .whereRaw('b.apartment_id = a.id')
-                .where('b.user_type', 'owner');
-          });
-        } else if (user_type === 'renter') {
-          query = query.whereExists(function() {
-            this.select('*')
-                .from('bookings as b')
-                .whereRaw('b.apartment_id = a.id')
-                .where('b.user_type', 'renter');
-          });
-        }
-      }
-
-      // Apply date filters to payments, service requests, and utility readings
-      // Use a simpler approach with separate queries to avoid LEFT JOIN issues
-      let dateFilter = '';
-      let dateParams: any[] = [];
-      
-      if (year) {
-        dateFilter = `
-          (
-            EXTRACT(YEAR FROM p.date) = ? OR 
-            EXTRACT(YEAR FROM sr.date_created) = ? OR 
-            EXTRACT(YEAR FROM ur.created_at) = ?
+            ), 0) as total_utility_readings_egp`)
           )
-        `;
-        dateParams = [year, year, year];
-      } else if (date_from || date_to) {
-        const conditions = [];
-        if (date_from) {
-          conditions.push('(p.date >= ? OR sr.date_created >= ? OR ur.created_at >= ?)');
-          dateParams.push(date_from, date_from, date_from);
+          .where('ur.apartment_id', apt.apartment_id);
+        const urDateFilter = buildDateFilter('ur.created_at');
+        if (Array.isArray(urDateFilter)) {
+          urDateFilter.forEach(f => utilityQuery = utilityQuery.where(f));
+        } else if (urDateFilter) {
+          utilityQuery = utilityQuery.where(urDateFilter);
         }
-        if (date_to) {
-          conditions.push('(p.date <= ? OR sr.date_created <= ? OR ur.created_at <= ?)');
-          dateParams.push(date_to, date_to, date_to);
-        }
-        dateFilter = `(${conditions.join(' AND ')})`;
-      }
+        const utility = await utilityQuery.first();
 
-      // Modify the base query to include date filtering
-      if (dateFilter) {
-        query = query.whereRaw(dateFilter, dateParams);
-      }
-
-      const results = await query;
-
-      // Calculate net amounts
-      const summary = results.map(row => {
-        const paymentsEGP = parseFloat(row.total_payments_egp) || 0;
-        const paymentsGBP = parseFloat(row.total_payments_gbp) || 0;
-        const requestsEGP = parseFloat(row.total_service_requests_egp) || 0;
-        const requestsGBP = parseFloat(row.total_service_requests_gbp) || 0;
-        const utilityEGP = parseFloat(row.total_utility_readings_egp) || 0;
+        // Compose summary row
+        const paymentsEGP = parseFloat(payments?.total_payments_egp || 0);
+        const paymentsGBP = parseFloat(payments?.total_payments_gbp || 0);
+        const requestsEGP = parseFloat(serviceRequests?.total_service_requests_egp || 0);
+        const requestsGBP = parseFloat(serviceRequests?.total_service_requests_gbp || 0);
+        const utilityEGP = parseFloat(utility?.total_utility_readings_egp || 0);
         const utilityGBP = 0; // No utility readings in GBP
 
-        return {
-          apartment_id: row.apartment_id,
-          apartment_name: row.apartment_name,
-          village_name: row.village_name,
-          owner_name: row.owner_name,
-          owner_id: row.owner_id,
+        summary.push({
+          apartment_id: apt.apartment_id,
+          apartment_name: apt.apartment_name,
+          village_name: apt.village_name,
+          owner_name: apt.owner_name,
+          owner_id: apt.owner_id,
           total_money_spent: {
             EGP: paymentsEGP,
             GBP: paymentsGBP
@@ -151,11 +163,11 @@ router.get(
             GBP: requestsGBP + utilityGBP
           },
           net_money: {
-            EGP: requestsEGP + utilityEGP - paymentsEGP,
-            GBP: requestsGBP + utilityGBP - paymentsGBP
+            EGP: (requestsEGP + utilityEGP) - paymentsEGP,
+            GBP: (requestsGBP + utilityGBP) - paymentsGBP
           }
-        };
-      });
+        });
+      }
 
       // Calculate totals
       const totals = summary.reduce((acc, item) => {
