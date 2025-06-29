@@ -44,16 +44,18 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const [users, setUsers] = useState<User[]>([]);
   
   // Form fields
-  const [apartmentIdForm, setApartmentIdForm] = useState<number>(apartmentId || 0);
-  const [userId, setUserId] = useState<number>(0);
-  const [userName, setUserName] = useState<string>('');
-  const [userType, setUserType] = useState<'owner' | 'renter'>('renter');
-  const [numberOfPeople, setNumberOfPeople] = useState<number>(1);
-  const [arrivalDate, setArrivalDate] = useState<Date | null>(null);
-  const [leavingDate, setLeavingDate] = useState<Date | null>(null);
-  const [status, setStatus] = useState<'not_arrived' | 'in_village' | 'left'>('not_arrived');
-  const [notes, setNotes] = useState('');
-  const [flightDetails, setFlightDetails] = useState('');
+  const [formData, setFormData] = useState({
+    apartment_id: apartmentId || 0,
+    user_id: 0,
+    user_name: '',
+    user_type: 'Tenant' as 'Owner' | 'Tenant',
+    number_of_people: 1,
+    arrival_date: null as Date | null,
+    leaving_date: null as Date | null,
+    status: 'Booked' as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled',
+    notes: '',
+    flightDetails: ''
+  });
 
   // Check if user is admin
   useEffect(() => {
@@ -85,28 +87,27 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
 
   // Reset user fields when user type changes
   useEffect(() => {
-    if (userType === 'owner') {
-      setUserName('');
-      setUserId(0);
+    if (formData.user_type === 'Owner') {
+      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
     } else {
-      setUserId(0);
+      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
     }
-  }, [userType]);
+  }, [formData.user_type]);
 
   const validateForm = (): string | null => {
-    if (!apartmentIdForm || apartmentIdForm === 0) return 'Please select an apartment';
+    if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
     
-    if (userType === 'owner') {
-      if (!userId || userId === 0) return 'Please select a user for owner booking';
+    if (formData.user_type === 'Owner') {
+      if (!formData.user_id || formData.user_id === 0) return 'Please select a user for owner booking';
     } else {
-      if (!userName.trim()) return 'Please enter the person name for renter booking';
+      if (!formData.user_name.trim()) return 'Please enter the person name for renter booking';
     }
     
-    if (!arrivalDate) return 'Please select arrival date';
-    if (!leavingDate) return 'Please select leaving date';
-    if (numberOfPeople < 1) return 'Number of people must be at least 1';
+    if (!formData.arrival_date) return 'Please select arrival date';
+    if (!formData.leaving_date) return 'Please select leaving date';
+    if (formData.number_of_people < 1) return 'Number of people must be at least 1';
     
-    if (arrivalDate && leavingDate && arrivalDate >= leavingDate) {
+    if (formData.arrival_date && formData.leaving_date && formData.arrival_date >= formData.leaving_date) {
       return 'Leaving date must be after arrival date';
     }
     
@@ -125,20 +126,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       }
 
       const bookingData: any = {
-        apartment_id: apartmentIdForm,
-        number_of_people: numberOfPeople,
-        arrival_date: arrivalDate!.toISOString(),
-        leaving_date: leavingDate!.toISOString(),
-        status,
-        notes: notes + (flightDetails ? `\n\nFlight Details: ${flightDetails}` : '')
+        apartment_id: formData.apartment_id,
+        number_of_people: formData.number_of_people,
+        arrival_date: formData.arrival_date!.toISOString(),
+        leaving_date: formData.leaving_date!.toISOString(),
+        status: formData.status,
+        notes: formData.notes + (formData.flightDetails ? `\n\nFlight Details: ${formData.flightDetails}` : '')
       };
 
       // Add user data based on type
-      if (userType === 'owner') {
-        bookingData.user_id = userId;
+      if (formData.user_type === 'Owner') {
+        bookingData.user_id = formData.user_id;
       } else {
-        bookingData.user_name = userName.trim();
-        bookingData.user_type = 'renter';
+        bookingData.user_name = formData.user_name.trim();
+        bookingData.user_type = 'Tenant';
       }
 
       await bookingService.createBooking(bookingData);
@@ -166,7 +167,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ width: '100%' }}>
+      <Box sx={{ width: '100%', mt: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
@@ -186,7 +187,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           </Alert>
         )}
 
-        {userType === 'renter' && (
+        {formData.user_type === 'Tenant' && (
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
               <strong>Renter Booking:</strong> When you enter a person's name that doesn't exist in the system, 
@@ -206,9 +207,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               <FormControl fullWidth required>
                 <InputLabel>Related Apartment</InputLabel>
                 <Select
-                  value={apartmentIdForm}
+                  value={formData.apartment_id}
                   label="Related Apartment"
-                  onChange={(e) => setApartmentIdForm(e.target.value as number)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, apartment_id: e.target.value as number }))}
                   disabled={lockApartment}
                 >
                   {apartments.map(apartment => (
@@ -225,25 +226,25 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               <FormControl fullWidth>
                 <InputLabel>User Type</InputLabel>
                 <Select
-                  value={userType}
+                  value={formData.user_type}
                   label="User Type"
-                  onChange={(e) => setUserType(e.target.value as 'owner' | 'renter')}
+                  onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'Owner' | 'Tenant' }))}
                 >
-                  <MenuItem value="owner">Owner</MenuItem>
-                  <MenuItem value="renter">Renter</MenuItem>
+                  <MenuItem value="Owner">Owner</MenuItem>
+                  <MenuItem value="Tenant">Tenant</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
 
             {/* User Selection - Conditional based on user type */}
             <Grid size={{ xs: 12, md: 6 }}>
-              {userType === 'owner' ? (
+              {formData.user_type === 'Owner' ? (
                 <FormControl fullWidth required>
                   <InputLabel>Person Name (Owner)</InputLabel>
                   <Select
-                    value={userId}
+                    value={formData.user_id}
                     label="Person Name (Owner)"
-                    onChange={(e) => setUserId(e.target.value as number)}
+                    onChange={(e) => setFormData(prev => ({ ...prev, user_id: e.target.value as number }))}
                   >
                     <MenuItem value={0}>
                       <em>Select an owner</em>
@@ -260,8 +261,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   fullWidth
                   required
                   label="Person Name (Renter)"
-                  value={userName}
-                  onChange={(e) => setUserName(e.target.value)}
+                  value={formData.user_name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
                   placeholder="Enter the person's name"
                   helperText="Enter the name of the person making the booking. A new user account will be created if they don't exist."
                 />
@@ -273,10 +274,10 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               <TextField
                 fullWidth
                 required
-                label="Number of People"
+                label="Number of Guests"
                 type="number"
-                value={numberOfPeople === 0 ? '' : numberOfPeople}
-                onChange={(e) => setNumberOfPeople(e.target.value === '' ? 0 : parseInt(e.target.value))}
+                value={formData.number_of_people === 0 ? '' : formData.number_of_people}
+                onChange={(e) => setFormData(prev => ({ ...prev, number_of_people: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
                 inputProps={{ min: 1, max: 20 }}
               />
             </Grid>
@@ -285,8 +286,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             <Grid size={{ xs: 12, md: 6 }}>
               <DateTimePicker
                 label="Arrival DateTime"
-                value={arrivalDate}
-                onChange={(date) => setArrivalDate(date)}
+                value={formData.arrival_date}
+                onChange={(date) => setFormData(prev => ({ ...prev, arrival_date: date }))}
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -299,9 +300,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             {/* Leaving Date */}
             <Grid size={{ xs: 12, md: 6 }}>
               <DateTimePicker
-                label="Leaving DateTime"
-                value={leavingDate}
-                onChange={(date) => setLeavingDate(date)}
+                label="Departure DateTime"
+                value={formData.leaving_date}
+                onChange={(date) => setFormData(prev => ({ ...prev, leaving_date: date }))}
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -314,15 +315,16 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             {/* Status */}
             <Grid size={{ xs: 12, md: 6 }}>
               <FormControl fullWidth>
-                <InputLabel>Booking Status</InputLabel>
+                <InputLabel>Status</InputLabel>
                 <Select
-                  value={status}
-                  label="Booking Status"
-                  onChange={(e) => setStatus(e.target.value as 'not_arrived' | 'in_village' | 'left')}
+                  value={formData.status}
+                  label="Status"
+                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled' }))}
                 >
-                  <MenuItem value="not_arrived">Has not Arrived</MenuItem>
-                  <MenuItem value="in_village">In Village</MenuItem>
-                  <MenuItem value="left">Left</MenuItem>
+                  <MenuItem value="Booked">Booked</MenuItem>
+                  <MenuItem value="Checked In">Checked In</MenuItem>
+                  <MenuItem value="Checked Out">Checked Out</MenuItem>
+                  <MenuItem value="Cancelled">Cancelled</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -334,8 +336,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 multiline
                 rows={3}
                 label="Notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                value={formData.notes}
+                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                 placeholder="Any additional notes about this booking..."
               />
             </Grid>
@@ -347,8 +349,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 multiline
                 rows={2}
                 label="Flight Details"
-                value={flightDetails}
-                onChange={(e) => setFlightDetails(e.target.value)}
+                value={formData.flightDetails}
+                onChange={(e) => setFormData(prev => ({ ...prev, flightDetails: e.target.value }))}
                 placeholder="Flight information (optional)"
                 helperText="Include flight numbers, arrival/departure times, etc."
               />
@@ -384,4 +386,4 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       </Box>
     </LocalizationProvider>
   );
-} 
+}

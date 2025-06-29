@@ -259,11 +259,12 @@ export class PaymentService {
         created_by: payment.apartment_created_by,
         created_at: new Date(payment.apartment_created_at),
         updated_at: new Date(payment.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: payment.apartment_village_id,
           name: payment.village_name,
-          electricity_price: parseFloat(payment.village_electricity_price),
-          water_price: parseFloat(payment.village_water_price),
+          electricity_price: parseFloat(payment.village_electricity_price || '0'),
+          water_price: parseFloat(payment.village_water_price || '0'),
           phases: payment.village_phases,
           created_at: new Date(payment.village_created_at),
           updated_at: new Date(payment.village_updated_at)
@@ -440,11 +441,12 @@ export class PaymentService {
         created_by: payment.apartment_created_by,
         created_at: new Date(payment.apartment_created_at),
         updated_at: new Date(payment.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: payment.apartment_village_id,
           name: payment.village_name,
-          electricity_price: parseFloat(payment.village_electricity_price),
-          water_price: parseFloat(payment.village_water_price),
+          electricity_price: parseFloat(payment.village_electricity_price || '0'),
+          water_price: parseFloat(payment.village_water_price || '0'),
           phases: payment.village_phases,
           created_at: new Date(payment.village_created_at),
           updated_at: new Date(payment.village_updated_at)

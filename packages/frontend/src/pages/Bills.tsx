@@ -475,13 +475,13 @@ export default function Bills() {
               
               <Box sx={{ flex: '1 1 200px', minWidth: '150px' }}>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Village</InputLabel>
+                  <InputLabel>Project</InputLabel>
                   <Select
                     value={villageFilter}
-                    label="Village"
+                    label="Project"
                     onChange={handleVillageFilterChange}
                   >
-                    <MenuItem value="">All Villages</MenuItem>
+                    <MenuItem value="">All Projects</MenuItem>
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
                     ))}
@@ -533,7 +533,7 @@ export default function Bills() {
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell>Village</TableCell>
+                  <TableCell>Project</TableCell>
                   <TableCell>Apartment</TableCell>
                   <TableCell>User Name</TableCell>
                   <TableCell align="right">Money Spent (EGP/GBP)</TableCell>

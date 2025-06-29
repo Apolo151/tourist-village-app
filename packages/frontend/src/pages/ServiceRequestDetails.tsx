@@ -37,7 +37,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { serviceRequestService } from '../services/serviceRequestService';
-import type { ServiceRequest, UpdateServiceRequestRequest } from '../services/serviceRequestService';
+import type { ServiceRequest, UpdateServiceRequestRequest, ServiceType } from '../services/serviceRequestService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 import { apartmentService } from '../services/apartmentService';
@@ -53,7 +53,9 @@ export default function ServiceRequestDetails() {
   
   const [serviceRequest, setServiceRequest] = useState<ServiceRequest | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  // Remove unused state variables for apartments and bookings
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -81,9 +83,13 @@ export default function ServiceRequestDetails() {
           apartmentService.getApartments({ limit: 100 })
         ]);
 
+        // Load service types separately
+        const serviceTypesData = await serviceRequestService.getServiceTypes({ limit: 100 });
+
         setServiceRequest(serviceRequestData);
         setUsers(usersData.data);
-        // Removed setApartments because setApartments is not defined or used
+        setApartments(apartmentsData.data);
+        setServiceTypes(serviceTypesData.data);
 
         // Initialize form data
         setFormData({
@@ -104,12 +110,7 @@ export default function ServiceRequestDetails() {
             apartment_id: serviceRequestData.apartment_id,
             limit: 50
           });
-          // Fix: Define and use setBookings, and handle bookingsData type
-          if (bookingsData && Array.isArray(bookingsData.bookings)) {
-            setBookings(bookingsData.bookings);
-          } else {
-            setBookings([]);
-          }
+          setBookings(bookingsData.bookings || []);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load service request');
@@ -286,7 +287,7 @@ export default function ServiceRequestDetails() {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Container maxWidth="md">
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 4, mt: 3 }}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -303,11 +304,15 @@ export default function ServiceRequestDetails() {
                 </Button>
               )}
               {!isEditing && canDelete() && (
-                <Tooltip title="Delete Service Request">
-                  <IconButton color="error" onClick={handleDelete} disabled={submitting}>
-                    <DeleteIcon />
-                  </IconButton>
-                </Tooltip>
+                <Button
+                  variant="contained"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleDelete}
+                  disabled={submitting}
+                >
+                  Delete
+                </Button>
               )}
               {isEditing && (
                 <>
@@ -353,7 +358,25 @@ export default function ServiceRequestDetails() {
               {/* Basic Information */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Service Type</Typography>
+                {isEditing ? (
+                  <FormControl size="small" fullWidth>
+                    <Select
+                      value={(formData.type_id != null && !isNaN(formData.type_id)) ? formData.type_id.toString() : ''}
+                      onChange={(e) => handleSelectChange(e, 'type_id')}
+                    >
+                      <MenuItem value="">
+                        <em>Select Service Type</em>
+                      </MenuItem>
+                      {serviceTypes.map(type => (
+                        <MenuItem key={type.id} value={type.id.toString()}>
+                          {type.name} - {type.cost} {type.currency}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
                 <Typography variant="body1">{serviceRequest.type?.name || 'Unknown'}</Typography>
+                )}
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -365,7 +388,25 @@ export default function ServiceRequestDetails() {
               
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
+                {isEditing ? (
+                  <FormControl size="small" fullWidth>
+                    <Select
+                      value={(formData.apartment_id != null && !isNaN(formData.apartment_id)) ? formData.apartment_id.toString() : ''}
+                      onChange={(e) => handleSelectChange(e, 'apartment_id')}
+                    >
+                      <MenuItem value="">
+                        <em>Select Apartment</em>
+                      </MenuItem>
+                      {apartments.map(apartment => (
+                        <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                          {apartment.name} - {apartment.village?.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
                 <Typography variant="body1">{serviceRequest.apartment?.name || 'Unknown'}</Typography>
+                )}
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -375,16 +416,75 @@ export default function ServiceRequestDetails() {
               
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Requester</Typography>
+                {isEditing ? (
+                  <FormControl size="small" fullWidth>
+                    <Select
+                      value={(formData.requester_id != null && !isNaN(formData.requester_id)) ? formData.requester_id.toString() : ''}
+                      onChange={(e) => handleSelectChange(e, 'requester_id')}
+                    >
+                      <MenuItem value="">
+                        <em>Select Requester</em>
+                      </MenuItem>
+                      {users.map(user => (
+                        <MenuItem key={user.id} value={user.id.toString()}>
+                          {user.name} ({user.role})
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
                 <Typography variant="body1">{serviceRequest.requester?.name || 'Unknown'}</Typography>
+                )}
+              </Grid>
+              
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
+                {isEditing ? (
+                  <FormControl size="small" fullWidth>
+                    <Select
+                      value={(formData.booking_id != null && !isNaN(formData.booking_id)) ? formData.booking_id.toString() : ''}
+                      onChange={(e) => handleSelectChange(e, 'booking_id')}
+                    >
+                      <MenuItem value="">
+                        <em>No Booking</em>
+                      </MenuItem>
+                      {bookings.map(booking => (
+                        <MenuItem key={booking.id} value={booking.id.toString()}>
+                          {booking.user?.name} - {formatDate(booking.arrival_date)} to {formatDate(booking.leaving_date)}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                ) : (
+                  <Typography variant="body1">
+                    {serviceRequest.booking ? 
+                      `${serviceRequest.booking.user?.name} - ${formatDate(serviceRequest.booking.arrival_date)} to ${formatDate(serviceRequest.booking.leaving_date)}` : 
+                      'No booking'
+                    }
+                  </Typography>
+                )}
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Who Pays</Typography>
+                {isEditing ? (
+                  <FormControl size="small" fullWidth>
+                    <Select
+                      value={formData.who_pays || ''}
+                      onChange={(e) => handleSelectChange(e, 'who_pays')}
+                    >
+                      <MenuItem value="owner">Owner</MenuItem>
+                      <MenuItem value="renter">Renter</MenuItem>
+                      <MenuItem value="company">Company</MenuItem>
+                    </Select>
+                  </FormControl>
+                ) : (
                 <Chip 
-                  label={(formData.who_pays ?? '').charAt(0).toUpperCase() + (formData.who_pays ?? '').slice(1)}
+                    label={serviceRequest.who_pays.charAt(0).toUpperCase() + serviceRequest.who_pays.slice(1)}
                   variant="outlined"
                   size="small"
                 />
+                )}
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>
@@ -457,39 +557,6 @@ export default function ServiceRequestDetails() {
                 )}
               </Grid>
               
-              {/* Who Pays */}
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="subtitle2" color="text.secondary">Who Pays</Typography>
-                {isEditing ? (
-                  <FormControl size="small" fullWidth>
-                    <Select
-                      value={formData.who_pays || ''}
-                      onChange={(e) => handleSelectChange(e, 'who_pays')}
-                    >
-                      <MenuItem value="owner">Owner</MenuItem>
-                      <MenuItem value="renter">Renter</MenuItem>
-                      <MenuItem value="company">Company</MenuItem>
-                    </Select>
-                  </FormControl>
-                ) : (
-                  <Chip 
-                    label={serviceRequest.who_pays.charAt(0).toUpperCase() + serviceRequest.who_pays.slice(1)}
-                    variant="outlined"
-                    size="small"
-                  />
-                )}
-              </Grid>
-              
-              {/* Related Booking */}
-              {serviceRequest.booking && (
-                <Grid size={{ xs: 12 }}>
-                  <Typography variant="subtitle2" color="text.secondary">Related Booking</Typography>
-                  <Typography variant="body1">
-                    {serviceRequest.booking.user?.name} - {formatDate(serviceRequest.booking.arrival_date)} to {formatDate(serviceRequest.booking.leaving_date)}
-                  </Typography>
-                </Grid>
-              )}
-              
               {/* Notes */}
               <Grid size={{ xs: 12 }}>
                 <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
@@ -544,8 +611,4 @@ export default function ServiceRequestDetails() {
       </Container>
     </LocalizationProvider>
   );
-} 
-
-function setBookings(data: any) {
-  throw new Error('Function not implemented.');
 }

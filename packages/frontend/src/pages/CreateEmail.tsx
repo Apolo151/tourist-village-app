@@ -13,7 +13,8 @@ import {
   Alert,
   Grid,
   CircularProgress,
-  FormHelperText
+  FormHelperText,
+  Container
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -21,6 +22,7 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import { useAuth } from '../context/AuthContext';
 import { emailService } from '../services/emailService';
 import type { CreateEmailRequest, UpdateEmailRequest, Email, UIEmailType, BackendEmailType } from '../services/emailService';
@@ -30,6 +32,10 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 
 export interface CreateEmailProps {
   apartmentId?: number;
@@ -54,6 +60,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   
   // Data
   const [apartments, setApartments] = useState<Apartment[]>([]);
@@ -279,6 +286,20 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     }
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      setSubmitting(true);
+      await emailService.deleteEmail(parseInt(id));
+      setDeleteDialogOpen(false);
+      navigate('/emails?success=true&message=Email%20deleted%20successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete email');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   // In create/quick action mode (no id), fields are always editable. In view mode, lock fields only in details page.
   const fieldsLocked = isViewing && !onSuccess && !onCancel;
 
@@ -294,7 +315,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   }
 
   return (
-    <Box sx={{ width: '100%' }}>
+    <Container maxWidth="md">
+      <Box sx={{ width: '100%', mt: 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <Button
           startIcon={<ArrowBackIcon />}
@@ -306,8 +328,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         <Typography variant="h4" sx={{ flex: 1 }}>
           {id ? (isViewing ? 'View Email' : isEditing ? 'Edit Email' : 'Create New Email') : 'Create New Email'}
         </Typography>
-        {/* Only show edit button in details page, not in popup/modal (i.e., when onSuccess/onCancel are not provided) */}
         {isViewing && !onSuccess && !onCancel && (
+            <>
           <Button
             startIcon={<EditIcon />}
             onClick={() => navigate(`/emails/${id}/edit`)}
@@ -315,6 +337,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           >
             Edit
           </Button>
+              <Button
+                startIcon={<DeleteIcon />}
+                color="error"
+                variant="contained"
+                onClick={() => setDeleteDialogOpen(true)}
+                sx={{ ml: 2 }}
+              >
+                Delete
+              </Button>
+            </>
         )}
       </Box>
 
@@ -502,7 +534,21 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           </form>
         </LocalizationProvider>
       </Paper>
+
+        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+          <DialogTitle>Delete Email</DialogTitle>
+          <DialogContent>
+            Are you sure you want to delete this email? This action cannot be undone.
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialogOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button onClick={handleDelete} color="error" variant="contained" disabled={submitting}>
+              {submitting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
     </Box>
+    </Container>
   );
 };
 

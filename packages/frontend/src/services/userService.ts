@@ -11,6 +11,13 @@ export interface User {
   last_login?: string;
   is_active: boolean;
   responsible_village?: number;
+  passport_number?: string;
+  passport_expiry_date?: string;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +38,13 @@ export interface CreateUserRequest {
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   responsible_village?: number;
+  passport_number?: string;
+  passport_expiry_date?: string;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 export interface UpdateUserRequest {
@@ -40,6 +54,13 @@ export interface UpdateUserRequest {
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
   is_active?: boolean;
   responsible_village?: number;
+  passport_number?: string;
+  passport_expiry_date?: string;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 export interface PaginatedResponse<T> {

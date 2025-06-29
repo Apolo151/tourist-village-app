@@ -37,6 +37,7 @@ import {
   CalendarToday as CalendarIcon,
   Person as PersonIcon,
   Edit as EditIcon,
+  Delete as DeleteIcon,
   Info as InfoIcon,
   EventAvailable as BookingIcon,
   Engineering as EngineeringIcon,
@@ -59,6 +60,12 @@ import { serviceRequestService, type ServiceRequest } from '../services/serviceR
 import { utilityReadingService, type UtilityReading } from '../services/utilityReadingService';
 import { emailService, type Email } from '../services/emailService';
 import Dialog from '@mui/material/Dialog';
+import {
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+} from '@mui/material';
 import CreateBooking from './CreateBooking';
 import CreateEmail from './CreateEmail';
 import CreatePayment from './CreatePayment';
@@ -103,6 +110,11 @@ export default function ApartmentDetails() {
   const [relatedServiceRequests, setRelatedServiceRequests] = useState<ServiceRequest[]>([]);
   const [relatedUtilityReadings, setRelatedUtilityReadings] = useState<UtilityReading[]>([]);
   const [relatedEmails, setRelatedEmails] = useState<Email[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<{
+    total_money_spent: { EGP: number; GBP: number };
+    total_money_requested: { EGP: number; GBP: number };
+    net_money: { EGP: number; GBP: number };
+  } | null>(null);
 
   // Dialog state for quick actions
   const [dialogState, setDialogState] = useState({
@@ -112,6 +124,10 @@ export default function ApartmentDetails() {
     serviceRequest: false,
     utilityReading: false
   });
+
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Dialog open/close handlers
   const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
@@ -157,6 +173,18 @@ export default function ApartmentDetails() {
         const apartmentData = await apartmentService.getApartmentById(parseInt(id));
         setApartment(apartmentData);
 
+        // Load financial summary
+        try {
+          const summary = await apartmentService.getApartmentFinancialSummary(parseInt(id));
+          setFinancialSummary({
+            total_money_spent: summary.total_money_spent,
+            total_money_requested: summary.total_money_requested,
+            net_money: summary.net_money
+          });
+        } catch (e) {
+          setFinancialSummary(null);
+        }
+
         // Load related data in parallel
         const [bookingsResult, paymentsData, ownerData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
           bookingService.getBookings({ apartment_id: parseInt(id), limit: 50, page: 1 }).then(r => r.bookings).catch(() => []),
@@ -172,7 +200,7 @@ export default function ApartmentDetails() {
             ...booking,
             arrival_date: typeof booking.arrival_date === 'string' ? booking.arrival_date : booking.arrival_date?.toISOString?.() ?? '',
             leaving_date: typeof booking.leaving_date === 'string' ? booking.leaving_date : booking.leaving_date?.toISOString?.() ?? '',
-            status: booking.status === 'not_arrived' ? 'has_not_arrived' : booking.status,
+            status: booking.status,
             user: booking.user,
             apartment: booking.apartment
           }))
@@ -211,6 +239,25 @@ export default function ApartmentDetails() {
   const handleBack = () => navigate('/apartments');
   const handleEdit = () => navigate(`/apartments/${id}/edit`);
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => setTabValue(newValue);
+
+  const handleDelete = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!apartment) return;
+    
+    try {
+      setDeleting(true);
+      await apartmentService.deleteApartment(apartment.id);
+      setDeleteDialogOpen(false);
+      navigate('/apartments?success=true&message=Apartment%20deleted%20successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete apartment');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Quick actions
   const quickActions = [
@@ -265,7 +312,7 @@ export default function ApartmentDetails() {
         ...booking,
         arrival_date: typeof booking.arrival_date === 'string' ? booking.arrival_date : booking.arrival_date?.toISOString?.() ?? '',
         leaving_date: typeof booking.leaving_date === 'string' ? booking.leaving_date : booking.leaving_date?.toISOString?.() ?? '',
-        status: booking.status === 'not_arrived' ? 'has_not_arrived' : booking.status,
+        status: booking.status,
         user: booking.user,
         apartment: booking.apartment
       }))
@@ -343,9 +390,19 @@ export default function ApartmentDetails() {
             )}
           
           {isAdmin && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
               Edit
             </Button>
+              <Button 
+                variant="contained" 
+                color="error" 
+                startIcon={<DeleteIcon />} 
+                onClick={handleDelete}
+              >
+                Delete
+              </Button>
+            </Box>
           )}
           </Box>
         </Box>
@@ -381,7 +438,7 @@ export default function ApartmentDetails() {
                   </ListItem>
                   <ListItem>
                   <ListItemAvatar><Avatar><LocationIcon /></Avatar></ListItemAvatar>
-                  <ListItemText primary="Village" secondary={apartment.village?.name || 'Unknown'} />
+                  <ListItemText primary="Project" secondary={apartment.village?.name || 'Unknown'} />
                   </ListItem>
                   <ListItem>
                   <ListItemAvatar><Avatar><ConstructionIcon /></Avatar></ListItemAvatar>
@@ -428,52 +485,84 @@ export default function ApartmentDetails() {
                       } 
                     />
                   </ListItem>
+                  <ListItem>
+                    <ListItemText
+                      primary="Sales Status"
+                      secondary={
+                        <Chip
+                          label={apartment.sales_status === 'for sale' ? 'For Sale' : 'Not for Sale'}
+                          color={apartment.sales_status === 'for sale' ? 'success' : 'default'}
+                          size="small"
+                          sx={{ mt: 1 }}
+                        />
+                      }
+                    />
+                  </ListItem>
+                  <ListItem>
+                    <ListItemAvatar><Avatar><PersonIcon /></Avatar></ListItemAvatar>
+                    <ListItemText 
+                      primary="Created By" 
+                      secondary={apartment.created_by_user?.name || 'Unknown User'} 
+                    />
+                  </ListItem>
                 </List>
             </Paper>
           </Box>
           
-          {/* Apartment Money Section (admin only) */}
+          {/* Apartment Balance Section (admin only) */}
           {isAdmin && (
             <Box sx={{ flex: 1 }}>
               <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>Apartment Money</Typography>
+                <Typography variant="h6" gutterBottom>Apartment Balance</Typography>
                 <Divider sx={{ mb: 2 }} />
                 
                     <List dense>
                       <ListItem>
                         <ListItemText 
-                          primary="Total Money Spent" 
+                          primary="Total Payment" 
                           secondary={
+                            financialSummary ? (
                             <Box>
-                              <Typography variant="body2">EGP: {totalMoneySpent.EGP.toLocaleString()}</Typography>
-                              <Typography variant="body2">GBP: {totalMoneySpent.GBP.toLocaleString()}</Typography>
+                                <Typography variant="body2">EGP: {financialSummary.total_money_spent.EGP.toLocaleString()}</Typography>
+                                <Typography variant="body2">GBP: {financialSummary.total_money_spent.GBP.toLocaleString()}</Typography>
                             </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                            )
                           } 
                         />
                       </ListItem>
                       <ListItem>
                         <ListItemText 
-                          primary="Total Money Requested" 
+                          primary="Total Outstanding" 
                           secondary={
+                            financialSummary ? (
                             <Box>
-                              <Typography variant="body2">EGP: {totalMoneyRequested.EGP.toLocaleString()}</Typography>
-                              <Typography variant="body2">GBP: {totalMoneyRequested.GBP.toLocaleString()}</Typography>
+                                <Typography variant="body2">EGP: {financialSummary.total_money_requested.EGP.toLocaleString()}</Typography>
+                                <Typography variant="body2">GBP: {financialSummary.total_money_requested.GBP.toLocaleString()}</Typography>
                             </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                            )
                           } 
                         />
                       </ListItem>
                       <ListItem>
                         <ListItemText 
-                          primary="Net Money" 
+                          primary="Net Balance" 
                           secondary={
+                            financialSummary ? (
                             <Box>
-                              <Typography variant="body2" color={netMoney.EGP >= 0 ? 'success.main' : 'error.main'}>
-                                EGP: {netMoney.EGP.toLocaleString()}
+                                <Typography variant="body2" color={financialSummary.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>
+                                  EGP: {financialSummary.net_money.EGP.toLocaleString()}
                               </Typography>
-                              <Typography variant="body2" color={netMoney.GBP >= 0 ? 'success.main' : 'error.main'}>
-                                GBP: {netMoney.GBP.toLocaleString()}
+                                <Typography variant="body2" color={financialSummary.net_money.GBP >= 0 ? 'success.main' : 'error.main'}>
+                                  GBP: {financialSummary.net_money.GBP.toLocaleString()}
                               </Typography>
                             </Box>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">Loading...</Typography>
+                            )
                           } 
                         />
                       </ListItem>
@@ -501,7 +590,7 @@ export default function ApartmentDetails() {
             onChange={handleTabChange}
             variant="scrollable"
             scrollButtons="auto"
-            sx={{ borderBottom: 1, borderColor: 'divider' }}
+            sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
           >
             {getTabsForUserRole()}
           </Tabs>
@@ -519,7 +608,7 @@ export default function ApartmentDetails() {
                     <Typography variant="body1">{apartment.id}</Typography>
                   </Box>
                     <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Village</Typography>
+                    <Typography variant="subtitle2" color="text.secondary">Project</Typography>
                     <Typography variant="body1">{apartment.village?.name || 'Unknown'}</Typography>
                   </Box>
                     <Box>
@@ -573,7 +662,7 @@ export default function ApartmentDetails() {
           {/* Bookings Tab (Admin Only) */}
           {isAdmin && (
           <TabPanel value={tabValue} index={2}>
-            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Related Bookings</Typography>
                 <Button variant="contained" startIcon={<BookingIcon />} onClick={() => openDialog('booking')}>
                 New Booking
@@ -589,8 +678,9 @@ export default function ApartmentDetails() {
                         <TableCell>User Type</TableCell>
                       <TableCell>Arrival Date</TableCell>
                       <TableCell>Leaving Date</TableCell>
+                      <TableCell>Reservation Date</TableCell>
                       <TableCell>Status</TableCell>
-                        <TableCell>Number of People</TableCell>
+                        {/* <TableCell>Number of People</TableCell> */}
                       <TableCell align="right">Actions</TableCell>
                     </TableRow>
                   </TableHead>
@@ -602,22 +692,24 @@ export default function ApartmentDetails() {
                             <Chip 
                               label={booking.user_type} 
                               size="small"
-                              color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                              color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
                             />
                           </TableCell>
                           <TableCell>{booking.arrival_date}</TableCell>
                           <TableCell>{booking.leaving_date}</TableCell>
+                          <TableCell>{new Date(booking.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <Chip 
                               label={booking.status} 
                               color={
-                                  booking.status === 'has_not_arrived' ? 'default' : 
-                                booking.status === 'in_village' ? 'primary' : 'success'
+                                  booking.status === 'Booked' ? 'info' : 
+                                booking.status === 'Checked In' ? 'success' : 
+                                booking.status === 'Checked Out' ? 'default' : 'error'
                               }
                               size="small"
                             />
                           </TableCell>
-                          <TableCell>{booking.number_of_people}</TableCell>
+                          {/* <TableCell>{booking.number_of_people}</TableCell> */}
                           <TableCell align="right">
                             <Button size="small" onClick={() => navigate(`/bookings/${booking.id}`)}>
                               View
@@ -637,7 +729,7 @@ export default function ApartmentDetails() {
           {/* Service Requests Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={3}>
-              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Service Requests</Typography>
                   <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => openDialog('serviceRequest')}>
                   New Service Request
@@ -683,7 +775,7 @@ export default function ApartmentDetails() {
           {/* Emails Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={4}>
-              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Related Emails</Typography>
                   <Button variant="contained" startIcon={<EmailIcon />} onClick={() => openDialog('email')}>
                   New Email
@@ -729,7 +821,7 @@ export default function ApartmentDetails() {
           {/* Utilities Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={5}>
-              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Utility Readings</Typography>
                   <Button variant="contained" startIcon={<WaterDropIcon />} onClick={() => openDialog('utilityReading')}>
                   New Reading
@@ -786,6 +878,30 @@ export default function ApartmentDetails() {
         {renderDialog('serviceRequest', CreateServiceRequest)}
         {renderDialog('utilityReading', CreateUtilityReading)}
       </>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Apartment</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete the apartment "{apartment?.name}"? 
+            This action cannot be undone and will also delete all related bookings, payments, and service requests.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDelete} 
+            color="error" 
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

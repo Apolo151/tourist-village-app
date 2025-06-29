@@ -54,7 +54,7 @@ export const mockBookings = [
     number_of_people: 2,
     arrival_date: '2024-01-01',
     leaving_date: '2024-01-07',
-    status: 'in_village',
+    status: 'Checked In',
     created_by: 1,
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z'

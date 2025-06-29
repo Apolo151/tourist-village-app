@@ -142,7 +142,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       if (selectedBooking) {
         setFormData(prev => ({ 
           ...prev, 
-          who_pays: selectedBooking.user_type === 'owner' ? 'owner' : 'renter' 
+          who_pays: selectedBooking.user_type === 'Owner' ? 'owner' : 'renter' 
         }));
       }
     }
@@ -281,7 +281,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Container maxWidth="md">
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 4, mt: 3 }}>
           {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

@@ -17,7 +17,12 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TableContainer
+  TableContainer,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
 import { useAuth } from '../context/AuthContext';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -32,6 +37,7 @@ const UtilityReadingDetails: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [reading, setReading] = useState<UtilityReading | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -104,6 +110,17 @@ const UtilityReadingDetails: React.FC = () => {
     };
   };
 
+  const handleDelete = async () => {
+    if (!reading) return;
+
+    try {
+      await utilityReadingService.deleteUtilityReading(reading.id);
+      navigate('/utilities');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete utility reading');
+    }
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -156,7 +173,7 @@ const UtilityReadingDetails: React.FC = () => {
           </Typography>
         </Box>
         
-        <Box sx={{ display: 'flex', gap: 1 }}>
+        <Box sx={{ display: 'flex', gap: 1, pr: 2 }}>
           <Button
             variant="outlined"
             startIcon={<EditIcon />}
@@ -168,7 +185,7 @@ const UtilityReadingDetails: React.FC = () => {
             variant="outlined"
             color="error"
             startIcon={<DeleteIcon />}
-            onClick={() => navigate('/utilities')} // Implement delete functionality
+            onClick={() => setDeleteDialogOpen(true)}
           >
             Delete
           </Button>
@@ -387,12 +404,12 @@ const UtilityReadingDetails: React.FC = () => {
             </Card>
           )}
 
-          {/* Village Information */}
+          {/* Project Information */}
           {reading.apartment?.village && (
             <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="h6" color="primary" sx={{ mb: 2 }}>
-                  Village Rates
+                  Project Rates
                 </Typography>
                 
                 <Box sx={{ mb: 1 }}>
@@ -447,6 +464,29 @@ const UtilityReadingDetails: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Utility Reading</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this utility reading? 
+            This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDelete} 
+            color="error" 
+            variant="contained"
+          >
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -34,7 +34,8 @@ import {
   FilterAlt as FilterIcon,
   ClearAll as ClearIcon,
   Visibility as ViewIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Edit as EditIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -45,14 +46,16 @@ import { bookingService } from '../services/bookingService';
 import type { BookingFilters } from '../services/bookingService';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
-import type { Booking, Apartment, Village } from '../types';
+import type { Apartment, Village } from '../types';
+import type { Booking } from '../services/bookingService';
 import ExportButtons from '../components/ExportButtons';
 
 // Booking status colors
-const statusColors: Record<string, 'info' | 'success' | 'default'> = {
-  not_arrived: 'info',
-  in_village: 'success',
-  left: 'default'
+const statusColors: Record<string, 'info' | 'success' | 'default' | 'error'> = {
+  Booked: 'info',
+  'Checked In': 'success',
+  'Checked Out': 'default',
+  Cancelled: 'error'
 };
 
 interface BookingFilter {
@@ -60,6 +63,7 @@ interface BookingFilter {
   apartmentId: string;
   state: string;
   village: string;
+  phase: string;
   userType: string;
   arrivalDateStart: Date | null;
   arrivalDateEnd: Date | null;
@@ -94,6 +98,7 @@ export default function Bookings() {
     apartmentId: '',
     state: '',
     village: '',
+    phase: '',
     userType: '',
     arrivalDateStart: null,
     arrivalDateEnd: null,
@@ -142,7 +147,7 @@ export default function Bookings() {
             'non_payer',
           village: undefined,
           owner: undefined
-        } as Apartment;
+        } as unknown as Apartment;
       }));
       setVillages(villagesResult.data);
     } catch (err) {
@@ -185,7 +190,7 @@ export default function Bookings() {
         apiFilters.apartment_id = parseInt(filters.apartmentId);
       }
       if (filters.state) {
-        apiFilters.status = filters.state as 'not_arrived' | 'in_village' | 'left';
+        apiFilters.status = filters.state as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
       }
       if (filters.village) {
         const village = villages.find(v => v.name === filters.village);
@@ -193,8 +198,19 @@ export default function Bookings() {
           apiFilters.village_id = village.id;
         }
       }
+      // Only send phase if both project and phase are selected
+      if (filters.phase && filters.village) {
+        apiFilters.phase = parseInt(filters.phase);
+      }
       if (filters.userType) {
-        apiFilters.user_type = filters.userType as 'owner' | 'renter';
+        // Convert UI values to backend format
+        const userTypeMap: Record<string, 'owner' | 'tenant'> = {
+          'Owner': 'owner',
+          'Tenant': 'tenant',
+          'owner': 'owner',
+          'tenant': 'tenant'
+        };
+        apiFilters.user_type = userTypeMap[filters.userType] || 'owner';
       }
       if (filters.arrivalDateStart) {
         apiFilters.arrival_date_start = filters.arrivalDateStart.toISOString().split('T')[0];
@@ -262,6 +278,10 @@ export default function Bookings() {
     navigate(`/bookings/${id}`);
   };
 
+  const handleEditBooking = (id: number) => {
+    navigate(`/bookings/${id}/edit`);
+  };
+
   const handleCreateBooking = () => {
     navigate('/bookings/create');
   };
@@ -276,6 +296,7 @@ export default function Bookings() {
       apartmentId: '',
       state: '',
       village: '',
+      phase: '',
       userType: '',
       arrivalDateStart: null,
       arrivalDateEnd: null,
@@ -299,12 +320,14 @@ export default function Bookings() {
 
   const getStatusDisplayName = (status: string) => {
     switch (status) {
-      case 'not_arrived':
-        return 'Has not Arrived';
-      case 'in_village':
-        return 'In Village';
-      case 'left':
-        return 'Left';
+      case 'Booked':
+        return 'Booked';
+      case 'Checked In':
+        return 'Checked In';
+      case 'Checked Out':
+        return 'Checked Out';
+      case 'Cancelled':
+        return 'Cancelled';
       default:
         return status;
     }
@@ -312,10 +335,12 @@ export default function Bookings() {
 
   const getUserTypeDisplay = (userType: string) => {
     switch (userType) {
+      case 'Owner':
       case 'owner':
         return 'Owner';
-      case 'renter':
-        return 'Renter';
+      case 'Tenant':
+      case 'tenant':
+        return 'Tenant';
       default:
         return userType;
     }
@@ -327,15 +352,35 @@ export default function Bookings() {
       id: booking.id,
       apartment: booking.apartment?.name || 'Unknown',
       village: booking.apartment?.village?.name || 'Unknown',
+      phase: booking.apartment?.phase || 'Unknown',
       user: booking.user?.name || 'Unknown',
       user_type: getUserTypeDisplay(booking.user_type),
       number_of_people: booking.number_of_people,
       arrival_date: formatDate(booking.arrival_date),
       leaving_date: formatDate(booking.leaving_date),
+      reservation_date: formatDate(booking.created_at),
       status: getStatusDisplayName(booking.status),
       notes: booking.notes || ''
     }));
   };
+
+  // Compute available phases for the selected village
+  const selectedVillage = villages.find(v => v.name === filters.village);
+  const availablePhases = selectedVillage
+    ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
+    : Array.from({ length: 10 }, (_, i) => i + 1);
+
+  // Reset phase filter if not available in selected project or if project is cleared
+  useEffect(() => {
+    if (!filters.village && filters.phase) {
+      setFilters(prev => ({ ...prev, phase: '' }));
+    } else if (filters.phase && selectedVillage) {
+      const phaseNum = parseInt(filters.phase);
+      if (isNaN(phaseNum) || phaseNum < 1 || phaseNum > selectedVillage.phases) {
+        setFilters(prev => ({ ...prev, phase: '' }));
+      }
+    }
+  }, [filters.village, selectedVillage, filters.phase]);
 
   if (loading && bookings.length === 0) {
     return (
@@ -356,9 +401,9 @@ export default function Bookings() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => navigate('/bookings/new')}
+              onClick={handleCreateBooking}
             >
-              Add Booking
+              Create a new Booking
             </Button>
           </Box>
           
@@ -368,16 +413,8 @@ export default function Bookings() {
             </Alert>
           )}
 
-          {/* Header with Create Button */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={handleCreateBooking}
-            >
-              Create a new Booking
-            </Button>
-            
+          {/* Header with Filter Controls */}
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Tooltip title="Toggle Filters">
                 <IconButton onClick={toggleFilters}>
@@ -442,16 +479,32 @@ export default function Bookings() {
                 </FormControl>
 
                 <FormControl sx={{ flex: '1 1 150px' }}>
-                  <InputLabel>Village</InputLabel>
+                  <InputLabel>Project</InputLabel>
                   <Select
                     value={filters.village}
-                    label="Village"
+                    label="Project"
                     onChange={(e) => handleSelectChange(e, 'village')}
                   >
-                    <MenuItem value="">All Villages</MenuItem>
+                    <MenuItem value="">All Projects</MenuItem>
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.name}>
                         {village.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl sx={{ flex: '1 1 150px' }}>
+                  <InputLabel>Phase</InputLabel>
+                  <Select
+                    value={filters.phase}
+                    label="Phase"
+                    onChange={(e) => handleSelectChange(e, 'phase')}
+                  >
+                    <MenuItem value="">All Phases</MenuItem>
+                    {availablePhases.map(phase => (
+                      <MenuItem key={phase} value={phase.toString()}>
+                        Phase {phase}
                       </MenuItem>
                     ))}
                   </Select>
@@ -467,9 +520,10 @@ export default function Bookings() {
                     onChange={(e) => handleSelectChange(e, 'state')}
                   >
                     <MenuItem value="">All Statuses</MenuItem>
-                    <MenuItem value="not_arrived">Has not Arrived</MenuItem>
-                    <MenuItem value="in_village">In Village</MenuItem>
-                    <MenuItem value="left">Left</MenuItem>
+                    <MenuItem value="Booked">Booked</MenuItem>
+                    <MenuItem value="Checked In">Checked In</MenuItem>
+                    <MenuItem value="Checked Out">Checked Out</MenuItem>
+                    <MenuItem value="Cancelled">Cancelled</MenuItem>
                   </Select>
                 </FormControl>
 
@@ -482,7 +536,7 @@ export default function Bookings() {
                   >
                     <MenuItem value="">All Types</MenuItem>
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="tenant">Tenant</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
@@ -527,7 +581,7 @@ export default function Bookings() {
           )}
 
           {/* Export Buttons */}
-          <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","user","user_type","number_of_people","arrival_date","leaving_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
+          <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","phase","user","user_type","number_of_people","arrival_date","leaving_date","reservation_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
 
           {/* Bookings Table */}
           <Paper>
@@ -541,6 +595,7 @@ export default function Bookings() {
                     <TableCell>Apartment</TableCell>
                     <TableCell>Arrival DateTime</TableCell>
                     <TableCell>Leaving DateTime</TableCell>
+                    <TableCell>Reservation Date</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>People</TableCell>
                     <TableCell align="center">Actions</TableCell>
@@ -575,7 +630,7 @@ export default function Bookings() {
                           <Chip
                             label={getUserTypeDisplay(booking.user_type)}
                             size="small"
-                            color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                            color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
                           />
                         </TableCell>
                         <TableCell>
@@ -583,11 +638,13 @@ export default function Bookings() {
                           {booking.apartment?.village && (
                             <Typography variant="caption" display="block" color="text.secondary">
                               {booking.apartment.village.name}
+                              {booking.apartment.phase && ` - Phase ${booking.apartment.phase}`}
                             </Typography>
                           )}
                         </TableCell>
                         <TableCell>{formatDate(booking.arrival_date)}</TableCell>
                         <TableCell>{formatDate(booking.leaving_date)}</TableCell>
+                        <TableCell>{formatDate(booking.created_at)}</TableCell>
                         <TableCell>
                           <Chip
                             label={getStatusDisplayName(booking.status)}
@@ -607,6 +664,17 @@ export default function Bookings() {
                                 }}
                               >
                                 <ViewIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Edit Booking">
+                              <IconButton
+                                size="small"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditBooking(booking.id);
+                                }}
+                              >
+                                <EditIcon />
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Delete Booking">
@@ -660,4 +728,4 @@ export default function Bookings() {
       </Container>
     </LocalizationProvider>
   );
-} 
+}

@@ -21,6 +21,14 @@ export interface User {
   refresh_token_hash?: string;
   refresh_token_expires_at?: Date;
   responsible_village?: number;
+  // New fields
+  passport_number?: string;
+  passport_expiry_date?: Date;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -35,6 +43,14 @@ export interface PublicUser {
   last_login?: Date;
   is_active: boolean;
   responsible_village?: number;
+  // New fields
+  passport_number?: string;
+  passport_expiry_date?: Date;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -50,6 +66,7 @@ export interface Apartment {
   created_by: number;
   created_at: Date;
   updated_at: Date;
+  sales_status: 'for sale' | 'not for sale';
   
   // Computed fields (not in DB)
   village?: Village;
@@ -63,15 +80,17 @@ export interface Booking {
   id: number;
   apartment_id: number;
   user_id: number;
-  user_type: 'owner' | 'renter';
+  user_type: 'owner' | 'tenant';
   number_of_people: number;
   arrival_date: Date;
   leaving_date: Date;
-  status: 'not_arrived' | 'in_village' | 'left';
+  status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
   created_by: number;
   created_at: Date;
   updated_at: Date;
+  // Alias for frontend display
+  reservation_date?: Date; // Alias for created_at
   user?: User;
   apartment?: Apartment;
   created_by_user?: PublicUser;
@@ -176,6 +195,7 @@ export interface CreateApartmentRequest {
   owner_id: number;
   purchase_date?: string;
   paying_status: 'transfer' | 'rent' | 'non-payer';
+  sales_status?: 'for sale' | 'not for sale';
 }
 
 export interface UpdateApartmentRequest {
@@ -185,6 +205,7 @@ export interface UpdateApartmentRequest {
   owner_id?: number;
   purchase_date?: string;
   paying_status?: 'transfer' | 'rent' | 'non-payer';
+  sales_status?: 'for sale' | 'not for sale';
 }
 
 export interface CreateVillageRequest {
@@ -233,6 +254,14 @@ export interface CreateUserRequest {
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   responsible_village?: number;
+  // New fields
+  passport_number?: string;
+  passport_expiry_date?: string; // ISO date string
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 export interface UpdateUserRequest {
@@ -242,6 +271,14 @@ export interface UpdateUserRequest {
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
   responsible_village?: number;
   password?: string;
+  // New fields
+  passport_number?: string;
+  passport_expiry_date?: string; // ISO date string
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 // Auth-related types
@@ -256,6 +293,14 @@ export interface RegisterRequest {
   password: string;
   phone_number?: string;
   role: 'owner' | 'renter'; // Only allow these roles for self-registration
+  // New fields
+  passport_number?: string;
+  passport_expiry_date?: string; // ISO date string
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 export interface AuthResponse {
@@ -291,24 +336,24 @@ declare global {
 
 export interface CreateBookingRequest {
   apartment_id: number;
-  user_id?: number; // Made optional - can be provided for existing users
-  user_name?: string; // New field for creating bookings with non-existing users (renters only)
-  user_type?: 'owner' | 'renter'; // Made optional - will be auto-determined from user role
-  number_of_people?: number; // Optional - defaults to 1
-  arrival_date: string; // ISO string
-  leaving_date: string; // ISO string
-  status?: 'not_arrived' | 'in_village' | 'left';
+  user_id?: number;
+  user_name?: string;
+  user_type?: 'owner' | 'tenant';
+  number_of_people?: number;
+  arrival_date: string;
+  leaving_date: string;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
 }
 
 export interface UpdateBookingRequest {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'renter';
+  user_type?: 'owner' | 'tenant';
   number_of_people?: number;
-  arrival_date?: string; // ISO string
-  leaving_date?: string; // ISO string
-  status?: 'not_arrived' | 'in_village' | 'left';
+  arrival_date?: string;
+  leaving_date?: string;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
 }
 
@@ -456,6 +501,7 @@ export interface Email {
   subject: string;
   content: string;
   type: 'complaint' | 'inquiry' | 'other';
+  status: 'pending' | 'completed';
   created_by: number;
   created_at: Date;
   updated_at: Date;
@@ -470,6 +516,7 @@ export interface CreateEmailRequest {
   subject: string;
   content: string;
   type: 'complaint' | 'inquiry' | 'other';
+  status?: 'pending' | 'completed';
 }
 
 export interface UpdateEmailRequest {
@@ -481,6 +528,7 @@ export interface UpdateEmailRequest {
   subject?: string;
   content?: string;
   type?: 'complaint' | 'inquiry' | 'other';
+  status?: 'pending' | 'completed';
 }
 
 export interface EmailFilters {
@@ -488,6 +536,7 @@ export interface EmailFilters {
   booking_id?: number;
   village_id?: number;
   type?: 'complaint' | 'inquiry' | 'other';
+  status?: 'pending' | 'completed';
   date_from?: string;
   date_to?: string;
   from?: string;
@@ -566,6 +615,37 @@ export interface PaymentFilters {
   limit?: number;
   sort_by?: string;
   sort_order?: 'asc' | 'desc';
+}
+
+export interface BookingFilters {
+  apartment_id?: number;
+  user_id?: number;
+  user_type?: 'owner' | 'tenant';
+  village_id?: number;
+  phase?: number;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
+  arrival_date_start?: string;
+  arrival_date_end?: string;
+  leaving_date_start?: string;
+  leaving_date_end?: string;
+  search?: string;
+}
+
+export interface BookingStats {
+  total_bookings: number;
+  current_bookings: number;
+  upcoming_bookings: number;
+  past_bookings: number;
+  by_status: {
+    Booked: number;
+    'Checked In': number;
+    'Checked Out': number;
+    Cancelled: number;
+  };
+  by_user_type: {
+    owner: number;
+    tenant: number;
+  };
 }
 
  

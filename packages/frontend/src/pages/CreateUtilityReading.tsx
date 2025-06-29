@@ -145,7 +145,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         setStartDate(new Date(filtered[0].arrival_date));
         setEndDate(new Date(filtered[0].leaving_date));
         // Auto-set who pays based on booking type
-        setWhoPays(filtered[0].user_type === 'owner' ? 'owner' : 'renter');
+        setWhoPays(filtered[0].user_type === 'Owner' ? 'owner' : 'renter');
       }
     } else {
       setFilteredBookings([]);
@@ -162,7 +162,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       if (selectedBooking) {
         setStartDate(new Date(selectedBooking.arrival_date));
         setEndDate(new Date(selectedBooking.leaving_date));
-        setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
+        setWhoPays(selectedBooking.user_type === 'Owner' ? 'owner' : 'renter');
       }
     }
   }, [props.bookingId, bookings, isEditMode]);
@@ -174,7 +174,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       if (selectedBooking) {
         setStartDate(new Date(selectedBooking.arrival_date));
         setEndDate(new Date(selectedBooking.leaving_date));
-        setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
+        setWhoPays(selectedBooking.user_type === 'Owner' ? 'owner' : 'renter');
       }
     }
   }, [bookingId, bookings]);
@@ -302,7 +302,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ width: '100%' }}>
+      <Box sx={{ width: '100%', mt: 3, ml: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
@@ -566,7 +566,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               {selectedApartment?.village && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="caption">
-                    Village Rates: Water {Number(selectedApartment.village.water_price)} EGP/unit, 
+                    Project Rates: Water {Number(selectedApartment.village.water_price)} EGP/unit, 
                     Electricity {Number(selectedApartment.village.electricity_price)} EGP/unit
                   </Typography>
                 </Alert>

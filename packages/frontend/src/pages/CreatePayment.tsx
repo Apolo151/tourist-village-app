@@ -166,7 +166,15 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
     if (bookingId && bookings.length > 0 && formData.booking_id) {
       const selectedBooking = bookings.find(b => b.id === bookingId);
       if (selectedBooking) {
-        setFormData(prev => ({ ...prev, user_type: selectedBooking.user_type }));
+        setFormData(prev => ({
+          ...prev,
+          user_type:
+            selectedBooking.user_type === 'Owner'
+              ? 'owner'
+              : selectedBooking.user_type === 'Tenant'
+              ? 'renter'
+              : (selectedBooking.user_type as 'owner' | 'renter')
+        }));
       }
     }
   }, [bookingId, bookings, formData.booking_id]);
@@ -316,7 +324,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, mt: 3 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>

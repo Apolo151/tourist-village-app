@@ -95,7 +95,14 @@ export default function Users() {
     phone_number: '',
     role: 'renter' as 'super_admin' | 'admin' | 'owner' | 'renter',
     is_active: true,
-    responsible_village: undefined as number | undefined
+    responsible_village: undefined as number | undefined,
+    passport_number: '',
+    passport_expiry_date: '',
+    address: '',
+    next_of_kin_name: '',
+    next_of_kin_address: '',
+    next_of_kin_email: '',
+    next_of_kin_phone: ''
   });
 
   const { currentUser } = useAuth();
@@ -225,7 +232,14 @@ export default function Users() {
       phone_number: user.phone_number || '',
       role: user.role,
       is_active: user.is_active,
-      responsible_village: user.responsible_village
+      responsible_village: user.responsible_village,
+      passport_number: user.passport_number || '',
+      passport_expiry_date: user.passport_expiry_date || '',
+      address: user.address || '',
+      next_of_kin_name: user.next_of_kin_name || '',
+      next_of_kin_address: user.next_of_kin_address || '',
+      next_of_kin_email: user.next_of_kin_email || '',
+      next_of_kin_phone: user.next_of_kin_phone || ''
     });
     setEditDialogOpen(true);
   };
@@ -309,7 +323,14 @@ export default function Users() {
       phone_number: '',
       role: 'renter',
       is_active: true,
-      responsible_village: undefined
+      responsible_village: undefined,
+      passport_number: '',
+      passport_expiry_date: '',
+      address: '',
+      next_of_kin_name: '',
+      next_of_kin_address: '',
+      next_of_kin_email: '',
+      next_of_kin_phone: ''
     });
   };
 
@@ -366,6 +387,13 @@ export default function Users() {
       role: user.role,
       status: user.is_active ? 'Active' : 'Inactive',
       village: villages.find(v => v.id === user.responsible_village)?.name || '',
+      passport_number: user.passport_number || '',
+      passport_expiry_date: user.passport_expiry_date ? formatDate(user.passport_expiry_date) : '',
+      address: user.address || '',
+      next_of_kin_name: user.next_of_kin_name || '',
+      next_of_kin_phone: user.next_of_kin_phone || '',
+      next_of_kin_email: user.next_of_kin_email || '',
+      next_of_kin_address: user.next_of_kin_address || '',
       created_at: formatDate(user.created_at),
       last_login: user.last_login ? formatDate(user.last_login) : 'Never'
     }));
@@ -510,13 +538,13 @@ export default function Users() {
 
             <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
               <FormControl fullWidth size="small">
-                <InputLabel>Village</InputLabel>
+                <InputLabel>Project</InputLabel>
                 <Select
                   value={villageFilter}
-                  label="Village"
+                  label="Project"
                   onChange={handleVillageFilterChange}
                 >
-                  <MenuItem value="">All Villages</MenuItem>
+                  <MenuItem value="">All Projects</MenuItem>
                   {villages.map(village => (
                     <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
                   ))}
@@ -563,7 +591,7 @@ export default function Users() {
         {/* Export Buttons */}
         <ExportButtons 
           data={transformUsersForExport(filteredUsers)} 
-          columns={["name", "email", "phone", "role", "status", "village", "created_at", "last_login"]} 
+          columns={["name", "email", "phone", "role", "status", "village", "passport_number", "passport_expiry_date", "address", "next_of_kin_name", "next_of_kin_phone", "next_of_kin_email", "next_of_kin_address", "created_at", "last_login"]} 
           excelFileName="users.xlsx" 
           pdfFileName="users.pdf" 
         />
@@ -577,7 +605,7 @@ export default function Users() {
                 <TableCell>Contact</TableCell>
                 <TableCell>Role</TableCell>
                 <TableCell>Status</TableCell>
-                <TableCell>Village</TableCell>
+                <TableCell>Project</TableCell>
                 <TableCell>Created</TableCell>
                 <TableCell>Last Login</TableCell>
                 <TableCell align="center">Actions</TableCell>
@@ -758,7 +786,7 @@ export default function Users() {
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Responsible Village</Typography>
+                    <Typography variant="subtitle2" color="text.secondary">Responsible Project</Typography>
                     <Typography variant="body1">
                       {selectedUser.responsible_village 
                         ? villages.find(v => v.id === selectedUser.responsible_village)?.name || 'Unknown'
@@ -775,6 +803,43 @@ export default function Users() {
                     <Typography variant="body1">
                       {selectedUser.last_login ? formatDate(selectedUser.last_login) : 'Never'}
                     </Typography>
+                  </Grid>
+                  
+                  {/* New fields */}
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Passport Number</Typography>
+                    <Typography variant="body1">{selectedUser.passport_number || '-'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Passport Expiry Date</Typography>
+                    <Typography variant="body1">
+                      {selectedUser.passport_expiry_date ? formatDate(selectedUser.passport_expiry_date) : '-'}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Address</Typography>
+                    <Typography variant="body1">{selectedUser.address || '-'}</Typography>
+                  </Grid>
+                  
+                  {/* Next of Kin Information */}
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>Next of Kin Information</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Name</Typography>
+                    <Typography variant="body1">{selectedUser.next_of_kin_name || '-'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Phone</Typography>
+                    <Typography variant="body1">{selectedUser.next_of_kin_phone || '-'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Email</Typography>
+                    <Typography variant="body1">{selectedUser.next_of_kin_email || '-'}</Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Address</Typography>
+                    <Typography variant="body1">{selectedUser.next_of_kin_address || '-'}</Typography>
                   </Grid>
                 </Grid>
               </Box>
@@ -861,10 +926,10 @@ export default function Users() {
               
               {(newUser.role === 'admin') && (
                 <FormControl fullWidth margin="normal">
-                  <InputLabel>Responsible Village</InputLabel>
+                  <InputLabel>Responsible Project</InputLabel>
                   <Select
                     value={newUser.responsible_village?.toString() || ''}
-                    label="Responsible Village"
+                    label="Responsible Project"
                     onChange={(e) => setNewUser({ 
                       ...newUser, 
                       responsible_village: e.target.value ? parseInt(e.target.value) : undefined 
@@ -887,6 +952,76 @@ export default function Users() {
                 }
                 label="Active"
                 sx={{ mt: 1 }}
+              />
+              
+              {/* Passport Information */}
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Passport Information</Typography>
+              <TextField
+                fullWidth
+                label="Passport Number"
+                value={newUser.passport_number}
+                onChange={(e) => setNewUser({ ...newUser, passport_number: e.target.value })}
+                margin="normal"
+              />
+              <DatePicker
+                label="Passport Expiry Date"
+                value={newUser.passport_expiry_date ? new Date(newUser.passport_expiry_date) : null}
+                onChange={(date) => setNewUser({ 
+                  ...newUser, 
+                  passport_expiry_date: date ? date.toISOString().split('T')[0] : '' 
+                })}
+                slotProps={{
+                  textField: {
+                    fullWidth: true,
+                    margin: 'normal'
+                  }
+                }}
+              />
+              
+              {/* Address */}
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Address</Typography>
+              <TextField
+                fullWidth
+                label="Address"
+                multiline
+                rows={3}
+                value={newUser.address}
+                onChange={(e) => setNewUser({ ...newUser, address: e.target.value })}
+                margin="normal"
+              />
+              
+              {/* Next of Kin Information */}
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>Next of Kin Information</Typography>
+              <TextField
+                fullWidth
+                label="Next of Kin Name"
+                value={newUser.next_of_kin_name}
+                onChange={(e) => setNewUser({ ...newUser, next_of_kin_name: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Next of Kin Phone"
+                value={newUser.next_of_kin_phone}
+                onChange={(e) => setNewUser({ ...newUser, next_of_kin_phone: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Next of Kin Email"
+                type="email"
+                value={newUser.next_of_kin_email}
+                onChange={(e) => setNewUser({ ...newUser, next_of_kin_email: e.target.value })}
+                margin="normal"
+              />
+              <TextField
+                fullWidth
+                label="Next of Kin Address"
+                multiline
+                rows={3}
+                value={newUser.next_of_kin_address}
+                onChange={(e) => setNewUser({ ...newUser, next_of_kin_address: e.target.value })}
+                margin="normal"
               />
             </Box>
           </DialogContent>

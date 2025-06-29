@@ -282,7 +282,7 @@ describe('ValidationMiddleware', () => {
           user_type: 'owner',
           arrival_date: '2024-01-10',
           leaving_date: '2024-01-20',
-          status: 'not_arrived',
+          status: 'Booked',
           created_by: typeof userId === 'object' ? userId.id : userId
         })
         .returning('id');

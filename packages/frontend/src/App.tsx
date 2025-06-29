@@ -73,7 +73,7 @@ function App() {
                   <Route path="/bookings" element={<Bookings />} />
                   <Route path="/bookings/create" element={<CreateBooking />} />
                   <Route path="/bookings/:id" element={<BookingDetails />} />
-                  <Route path="/bookings/:id/edit" element={<CreateBooking />} />
+                  <Route path="/bookings/:id/edit" element={<BookingDetails />} />
                 </Route>
                 
                 {/* Services */}

@@ -681,8 +681,8 @@ export class ValidationMiddleware {
     }
 
     // Optional fields validation
-    if (data.status && !['not_arrived', 'in_village', 'left'].includes(data.status)) {
-      errors.push({ field: 'status', message: 'Status must be one of: not_arrived, in_village, left' });
+    if (data.status && !['Booked', 'Checked In', 'Checked Out', 'Cancelled'].includes(data.status)) {
+      errors.push({ field: 'status', message: 'Status must be one of: Booked, Checked In, Checked Out, Cancelled' });
     }
 
     if (data.notes && typeof data.notes !== 'string') {
@@ -746,8 +746,8 @@ export class ValidationMiddleware {
     }
 
     if (data.status !== undefined) {
-      if (!['not_arrived', 'in_village', 'left'].includes(data.status)) {
-        errors.push({ field: 'status', message: 'Status must be one of: not_arrived, in_village, left' });
+      if (!['Booked', 'Checked In', 'Checked Out', 'Cancelled'].includes(data.status)) {
+        errors.push({ field: 'status', message: 'Status must be one of: Booked, Checked In, Checked Out, Cancelled' });
       }
     }
 
@@ -808,8 +808,8 @@ export class ValidationMiddleware {
     }
 
     // Validate status
-    if (query.status && !['not_arrived', 'in_village', 'left'].includes(query.status as string)) {
-      errors.push({ field: 'status', message: 'Status must be one of: not_arrived, in_village, left' });
+    if (query.status && !['Booked', 'Checked In', 'Checked Out', 'Cancelled'].includes(query.status as string)) {
+      errors.push({ field: 'status', message: 'Status must be one of: Booked, Checked In, Checked Out, Cancelled' });
     }
 
     // Validate date filters

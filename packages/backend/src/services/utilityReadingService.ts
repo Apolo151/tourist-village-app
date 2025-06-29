@@ -293,6 +293,7 @@ export class UtilityReadingService {
           created_by: ur.apartment_created_by,
           created_at: new Date(ur.apartment_created_at),
           updated_at: new Date(ur.apartment_updated_at),
+          sales_status: 'for sale' as 'for sale' | 'not for sale',
           village: {
             id: ur.apartment_village_id,
             name: ur.village_name,
@@ -479,6 +480,7 @@ export class UtilityReadingService {
         created_by: utilityReading.apartment_created_by,
         created_at: new Date(utilityReading.apartment_created_at),
         updated_at: new Date(utilityReading.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: utilityReading.apartment_village_id,
           name: utilityReading.village_name,

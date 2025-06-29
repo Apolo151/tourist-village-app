@@ -21,9 +21,9 @@ bookingsRouter.get(
       const filters: BookingFilters = {
         apartment_id: req.query.apartment_id ? parseInt(req.query.apartment_id as string) : undefined,
         user_id: req.query.user_id ? parseInt(req.query.user_id as string) : undefined,
-        user_type: req.query.user_type as 'owner' | 'renter',
+        user_type: req.query.user_type as 'owner' | 'tenant',
         village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
-        status: req.query.status as 'not_arrived' | 'in_village' | 'left',
+        status: req.query.status as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled',
         arrival_date_start: req.query.arrival_date_start as string,
         arrival_date_end: req.query.arrival_date_end as string,
         leaving_date_start: req.query.leaving_date_start as string,

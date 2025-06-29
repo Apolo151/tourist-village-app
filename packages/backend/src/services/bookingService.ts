@@ -5,9 +5,10 @@ import { UserService } from './userService';
 export interface BookingFilters {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'renter';
+  user_type?: 'owner' | 'tenant';
   village_id?: number;
-  status?: 'not_arrived' | 'in_village' | 'left';
+  phase?: number;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   arrival_date_start?: string;
   arrival_date_end?: string;
   leaving_date_start?: string;
@@ -28,13 +29,14 @@ export interface BookingStats {
   upcoming_bookings: number;
   past_bookings: number;
   by_status: {
-    not_arrived: number;
-    in_village: number;
-    left: number;
+    Booked: number;
+    'Checked In': number;
+    'Checked Out': number;
+    Cancelled: number;
   };
   by_user_type: {
     owner: number;
-    renter: number;
+    tenant: number;
   };
 }
 
@@ -107,6 +109,11 @@ export class BookingService {
       query = query.where('a.village_id', filters.village_id);
     }
 
+    // Only filter by phase if both village_id and phase are set
+    if (filters.phase !== undefined && filters.phase !== null && filters.village_id) {
+      query = query.where('a.phase', Number(filters.phase));
+    }
+
     if (filters.status) {
       query = query.where('b.status', filters.status);
     }
@@ -175,6 +182,7 @@ export class BookingService {
       created_by: row.created_by,
       created_at: new Date(row.created_at),
       updated_at: new Date(row.updated_at),
+      reservation_date: new Date(row.created_at),
       user: row.user_name ? {
         id: row.user_id,
         name: row.user_name,
@@ -199,12 +207,14 @@ export class BookingService {
         village: row.village_name ? {
           id: row.apartment_village_id,
           name: row.village_name,
-          electricity_price: 0, // Not fetched in this query
-          water_price: 0, // Not fetched in this query
-          phases: 1, // Not fetched in this query
+          electricity_price: parseFloat(row.village_electricity_price || '0'),
+          water_price: parseFloat(row.village_water_price || '0'),
+          phases: row.village_phases,
           created_at: new Date(), // Not fetched in this query
           updated_at: new Date() // Not fetched in this query
-        } : undefined
+        } : undefined,
+        sales_status: 'for sale',
+        purchase_date: row.apartment_purchase_date ? new Date(row.apartment_purchase_date) : undefined
       } : undefined
     }));
 
@@ -275,6 +285,7 @@ export class BookingService {
       created_by: result.created_by,
       created_at: new Date(result.created_at),
       updated_at: new Date(result.updated_at),
+      reservation_date: new Date(result.created_at),
       user: result.user_name ? {
         id: result.user_id,
         name: result.user_name,
@@ -292,7 +303,6 @@ export class BookingService {
         village_id: result.apartment_village_id,
         phase: result.apartment_phase,
         owner_id: result.apartment_owner_id,
-        purchase_date: result.apartment_purchase_date ? new Date(result.apartment_purchase_date) : undefined,
         paying_status: result.apartment_paying_status,
         created_by: result.apartment_created_by,
         created_at: new Date(result.apartment_created_at),
@@ -305,7 +315,9 @@ export class BookingService {
           phases: result.village_phases,
           created_at: new Date(), // Not fetched in this query
           updated_at: new Date() // Not fetched in this query
-        } : undefined
+        } : undefined,
+        sales_status: 'for sale',
+        purchase_date: result.apartment_purchase_date ? new Date(result.apartment_purchase_date) : undefined
       } : undefined,
       created_by_user: result.creator_name ? {
         id: result.created_by,
@@ -353,7 +365,7 @@ export class BookingService {
     }
 
     let userId: number;
-    let userType: 'owner' | 'renter';
+    let userType: 'owner' | 'tenant';
 
     // Handle user creation/lookup
     if (data.user_id) {
@@ -365,14 +377,14 @@ export class BookingService {
       userId = data.user_id;
       
       // Determine user_type based on apartment ownership
-      userType = data.user_id === apartment.owner_id ? 'owner' : 'renter';
+      userType = data.user_id === apartment.owner_id ? 'owner' : 'tenant';
     } else if (data.user_name) {
-      // Create booking with non-existing user (renters only)
+      // Create booking with non-existing user (tenants only)
       if (data.user_type === 'owner') {
         throw new Error('Cannot create booking with non-existing user for owner type. Owners must be existing users.');
       }
       
-      userType = 'renter';
+      userType = 'tenant';
       
       // Check if user with this name already exists
       const existingUser = await db('users')
@@ -400,7 +412,7 @@ export class BookingService {
 
     // If user_type was provided, validate it matches the determined type
     if (data.user_type && data.user_type !== userType) {
-      const expectedType = userType === 'owner' ? 'owner (owns this apartment)' : 'renter (does not own this apartment)';
+      const expectedType = userType === 'owner' ? 'Owner (owns this apartment)' : 'Tenant (does not own this apartment)';
       throw new Error(`User type mismatch. User should have user_type '${userType}' for this apartment (${expectedType}), but '${data.user_type}' was provided.`);
     }
 
@@ -415,7 +427,7 @@ export class BookingService {
       number_of_people: data.number_of_people || 1,
       arrival_date: arrivalDate,
       leaving_date: leavingDate,
-      status: data.status || 'not_arrived',
+      status: data.status || 'Booked',
       notes: data.notes || null,
       created_by: createdBy
     }).returning('*');
@@ -479,8 +491,8 @@ export class BookingService {
       if (userType === 'owner' && user.role !== 'owner') {
         throw new Error('Selected user is not an owner');
       }
-      if (userType === 'renter' && !['renter', 'admin', 'super_admin'].includes(user.role)) {
-        throw new Error('Selected user cannot make renter bookings');
+      if (userType === 'tenant' && !['renter', 'admin', 'super_admin'].includes(user.role)) {
+        throw new Error('Selected user cannot make tenant bookings');
       }
     }
 
@@ -554,20 +566,20 @@ export class BookingService {
     // Total bookings
     const [totalBookings] = await db('bookings').count('id as count');
 
-    // Current bookings (in_village status)
+    // Current bookings (Checked In status)
     const [currentBookings] = await db('bookings')
-      .where('status', 'in_village')
+      .where('status', 'Checked In')
       .count('id as count');
 
-    // Upcoming bookings (not_arrived and arrival_date in future)
+    // Upcoming bookings (Booked and arrival_date in future)
     const [upcomingBookings] = await db('bookings')
-      .where('status', 'not_arrived')
+      .where('status', 'Booked')
       .where('arrival_date', '>', now)
       .count('id as count');
 
-    // Past bookings (left status)
+    // Past bookings (Checked Out status)
     const [pastBookings] = await db('bookings')
-      .where('status', 'left')
+      .where('status', 'Checked Out')
       .count('id as count');
 
     // By status
@@ -577,9 +589,10 @@ export class BookingService {
       .groupBy('status');
 
     const byStatus = {
-      not_arrived: 0,
-      in_village: 0,
-      left: 0
+      Booked: 0,
+      'Checked In': 0,
+      'Checked Out': 0,
+      Cancelled: 0
     };
 
     statusStats.forEach(stat => {
@@ -594,7 +607,7 @@ export class BookingService {
 
     const byUserType = {
       owner: 0,
-      renter: 0
+      tenant: 0
     };
 
     userTypeStats.forEach(stat => {
@@ -642,7 +655,7 @@ export class BookingService {
       .where('b.apartment_id', apartmentId)
       .where('b.arrival_date', '<=', now)
       .where('b.leaving_date', '>=', now)
-      .where('b.status', '!=', 'left')
+      .where('b.status', '!=', 'Checked Out')
       .orderBy('b.arrival_date', 'desc')
       .first();
 
@@ -663,6 +676,7 @@ export class BookingService {
       created_by: result.created_by,
       created_at: new Date(result.created_at),
       updated_at: new Date(result.updated_at),
+      reservation_date: new Date(result.created_at),
       user: result.user_name ? {
         id: result.user_id,
         name: result.user_name,

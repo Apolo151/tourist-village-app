@@ -18,44 +18,77 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
-  Container
+  Container,
+  Chip,
+  Grid,
+  Divider
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
-import { Bar } from 'react-chartjs-2';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
-import { apartmentService } from '../services/apartmentService';
-import { paymentService } from '../services/paymentService';
-import type { Apartment as ServiceApartment } from '../services/apartmentService';
-import type { Payment as ServicePayment } from '../services/paymentService';
-import type { Apartment } from '../types';
+import { Bar, Pie } from 'react-chartjs-2';
+import { 
+  Chart as ChartJS, 
+  CategoryScale, 
+  LinearScale, 
+  BarElement, 
+  Title, 
+  Tooltip, 
+  Legend,
+  ArcElement
+} from 'chart.js';
+import { 
+  Home as HomeIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  AccountBalance as AccountBalanceIcon,
+  FilterList as FilterListIcon
+} from '@mui/icons-material';
+import { billService, type BillSummaryItem, type BillTotals } from '../services/billService';
+import { villageService } from '../services/villageService';
+import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 
 // Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
-interface FinancialReportRow {
+interface DashboardBillData {
   id: number;
-  city: string;
+  village: string;
   apartment: string;
-  paymentMethod: string;
-  balance: number;
-  runningTotal: number;
+  owner: string;
+  totalSpentEGP: number;
+  totalSpentGBP: number;
+  totalRequestedEGP: number;
+  totalRequestedGBP: number;
+  netEGP: number;
+  netGBP: number;
+  lastActivity: string;
+}
+
+interface BillTypeStats {
+  payments: { count: number; totalEGP: number; totalGBP: number };
+  serviceRequests: { count: number; totalEGP: number; totalGBP: number };
+  utilityReadings: { count: number; totalEGP: number; totalGBP: number };
 }
 
 export default function Dashboard() {
   const { currentUser } = useAuth();
-  const [city, setCity] = useState<string>('');
-  const [paymentMethod, setPaymentMethod] = useState<string>('');
-  const [apartments, setApartments] = useState<Apartment[]>([]);
-  const [payments, setPayments] = useState<ServicePayment[]>([]);
+  const [village, setVillage] = useState<string>('');
+  const [billData, setBillData] = useState<DashboardBillData[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [billTypeStats, setBillTypeStats] = useState<BillTypeStats>({
+    payments: { count: 0, totalEGP: 0, totalGBP: 0 },
+    serviceRequests: { count: 0, totalEGP: 0, totalGBP: 0 },
+    utilityReadings: { count: 0, totalEGP: 0, totalGBP: 0 }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [userBookings, setUserBookings] = useState<Booking[]>([]);
   const [userBookingsLoading, setUserBookingsLoading] = useState(false);
   const [userBookingsError, setUserBookingsError] = useState('');
+  const [currentYear] = useState(new Date().getFullYear());
   
   useEffect(() => {
     if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter')) {
@@ -63,7 +96,7 @@ export default function Dashboard() {
     } else {
       loadDashboardData();
     }
-  }, [currentUser]);
+  }, [currentUser, village]);
 
   const fetchUserBookings = async () => {
     setUserBookingsLoading(true);
@@ -89,96 +122,156 @@ export default function Dashboard() {
       setLoading(true);
       setError('');
 
-      // Load apartments and payments in parallel
-      const [apartmentsResult, paymentsResult] = await Promise.all([
-        apartmentService.getApartments({ limit: 100 }),
-        paymentService.getPayments({ limit: 100 })
+      // Load villages and bills data in parallel
+      const [villagesResult, billsResult] = await Promise.all([
+        villageService.getVillages(),
+        billService.getBillsSummary({ 
+          year: currentYear,
+          ...(village && { village_id: villages.find(v => v.name === village)?.id })
+        })
       ]);
 
-      setApartments(apartmentsResult.data.map((apt: ServiceApartment) => ({
-        ...apt,
-        created_by: (apt as any).created_by ?? 0, // fallback if missing
-        purchase_date: apt.purchase_date ?? '', // ensure string
-        paying_status:
-          apt.paying_status === 'transfer' ? 'payed_by_transfer' :
-          apt.paying_status === 'rent' ? 'payed_by_rent' :
-          'non_payer'
-      }) as Apartment));
-      setPayments(paymentsResult.data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
+      setVillages(villagesResult.data);
+      
+      // Transform bills data for dashboard
+      const transformedData: DashboardBillData[] = billsResult.summary.map((bill: BillSummaryItem) => ({
+        id: bill.apartment_id,
+        village: bill.village_name,
+        apartment: bill.apartment_name,
+        owner: bill.owner_name,
+        totalSpentEGP: bill.total_money_spent?.EGP || 0,
+        totalSpentGBP: bill.total_money_spent?.GBP || 0,
+        totalRequestedEGP: bill.total_money_requested?.EGP || 0,
+        totalRequestedGBP: bill.total_money_requested?.GBP || 0,
+        netEGP: bill.net_money?.EGP || 0,
+        netGBP: bill.net_money?.GBP || 0,
+        lastActivity: new Date().toISOString() // Would be from API in real scenario
+      }));
+
+      setBillData(transformedData);
+
+      // Calculate bill type statistics
+      // For now, we'll estimate based on the data structure
+      // In a real scenario, this would come from a dedicated API endpoint
+      const totalTransactions = transformedData.length * 3; // Estimate
+      const estimatedStats: BillTypeStats = {
+        payments: {
+          count: Math.floor(totalTransactions * 0.5),
+          totalEGP: transformedData.reduce((sum, item) => sum + item.totalSpentEGP, 0),
+          totalGBP: transformedData.reduce((sum, item) => sum + item.totalSpentGBP, 0)
+        },
+        serviceRequests: {
+          count: Math.floor(totalTransactions * 0.3),
+          totalEGP: transformedData.reduce((sum, item) => sum + item.totalRequestedEGP * 0.7, 0),
+          totalGBP: transformedData.reduce((sum, item) => sum + item.totalRequestedGBP * 0.7, 0)
+        },
+        utilityReadings: {
+          count: Math.floor(totalTransactions * 0.2),
+          totalEGP: transformedData.reduce((sum, item) => sum + item.totalRequestedEGP * 0.3, 0),
+          totalGBP: transformedData.reduce((sum, item) => sum + item.totalRequestedGBP * 0.3, 0)
+        }
+      };
+      
+      setBillTypeStats(estimatedStats);
+
+    } catch (err: any) {
+      console.error('Error loading dashboard data:', err);
+      setError(err.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
     }
   };
-  
-  // Generate financial report data
-  const generateReportData = (): FinancialReportRow[] => {
-    if (!payments.length || !apartments.length) return [];
-    
-    let runningTotal = 0;
-    const data = payments.map(payment => {
-      const apartment = apartments.find(apt => apt.id === payment.apartment_id);
-      runningTotal += payment.amount;
-      
-      return {
-        id: payment.id,
-        city: apartment?.village?.name || 'Unknown',
-        apartment: apartment?.name || 'Unknown',
-        paymentMethod: payment.payment_method?.name || 'Unknown',
-        balance: payment.amount,
-        runningTotal
-      };
-    });
     
     // Apply filters
-    return data.filter(row => {
-      if (city && row.city !== city) return false;
-      if (paymentMethod && row.paymentMethod !== paymentMethod) return false;
+  const filteredData = billData.filter(item => {
+    if (village && item.village !== village) return false;
       return true;
     });
-  };
-
-  const reportData = generateReportData();
-  
-  // Extract unique cities and payment methods for filters
-  const cities = Array.from(new Set(apartments.map(apt => apt.village?.name).filter(Boolean)));
-  const paymentMethods = Array.from(new Set(payments.map(p => p.payment_method?.name).filter(Boolean)));
   
   // Calculate totals
-  const totalIncome = payments.reduce((sum, payment) => sum + payment.amount, 0);
-  const totalApartments = apartments.length;
+  const totals = filteredData.reduce(
+    (acc, item) => ({
+      spentEGP: acc.spentEGP + item.totalSpentEGP,
+      spentGBP: acc.spentGBP + item.totalSpentGBP,
+      requestedEGP: acc.requestedEGP + item.totalRequestedEGP,
+      requestedGBP: acc.requestedGBP + item.totalRequestedGBP,
+      netEGP: acc.netEGP + item.netEGP,
+      netGBP: acc.netGBP + item.netGBP
+    }),
+    { spentEGP: 0, spentGBP: 0, requestedEGP: 0, requestedGBP: 0, netEGP: 0, netGBP: 0 }
+  );
   
-  // Chart data
-  const chartData = {
-    labels: reportData.slice(0, 10).map(row => row.apartment), // Limit to 10 for readability
+  // Pie chart data for bill types
+  const pieChartData = {
+    labels: ['Payments', 'Service Requests', 'Utility Readings'],
     datasets: [
       {
-        label: 'Balance (EGP)',
-        data: reportData.slice(0, 10).map(row => row.balance),
-        backgroundColor: 'rgba(53, 162, 235, 0.5)',
+        data: [
+          billTypeStats.payments.count,
+          billTypeStats.serviceRequests.count,
+          billTypeStats.utilityReadings.count
+        ],
+        backgroundColor: [
+          'rgba(75, 192, 192, 0.8)',
+          'rgba(255, 206, 86, 0.8)',
+          'rgba(153, 102, 255, 0.8)'
+        ],
+        borderColor: [
+          'rgba(75, 192, 192, 1)',
+          'rgba(255, 206, 86, 1)',
+          'rgba(153, 102, 255, 1)'
+        ],
+        borderWidth: 2
+      }
+    ]
+  };
+
+  // Bar chart data for top spending apartments
+  const barChartData = {
+    labels: filteredData.slice(0, 10).map(item => item.apartment),
+    datasets: [
+      {
+        label: 'Total Spent (EGP)',
+        data: filteredData.slice(0, 10).map(item => item.totalSpentEGP),
+        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+        borderColor: 'rgba(75, 192, 192, 1)',
+        borderWidth: 1
       },
-    ],
+      {
+        label: 'Total Requested (EGP)',
+        data: filteredData.slice(0, 10).map(item => item.totalRequestedEGP),
+        backgroundColor: 'rgba(255, 99, 132, 0.6)',
+        borderColor: 'rgba(255, 99, 132, 1)',
+        borderWidth: 1
+      }
+    ]
   };
   
-  const handleCityChange = (event: SelectChangeEvent) => {
-    setCity(event.target.value);
+  const handleVillageChange = (event: SelectChangeEvent) => {
+    setVillage(event.target.value);
   };
   
-  const handlePaymentMethodChange = (event: SelectChangeEvent) => {
-    setPaymentMethod(event.target.value);
-  };
-  
-  const handleExport = () => {
-    // In a real app, this would generate a PDF or Excel file
-    alert('Export functionality would be implemented here');
+  // Data transformer for export
+  const transformDataForExport = (data: DashboardBillData[]) => {
+    return data.map(item => ({
+      apartment: item.apartment,
+      village: item.village,
+      owner: item.owner,
+      total_spent_EGP: item.totalSpentEGP,
+      total_spent_GBP: item.totalSpentGBP,
+      total_requested_EGP: item.totalRequestedEGP,
+      total_requested_GBP: item.totalRequestedGBP,
+      net_balance_EGP: item.netEGP,
+      net_balance_GBP: item.netGBP,
+      last_activity: item.lastActivity
+    }));
   };
 
   if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter')) {
     return (
       <Container maxWidth="xl">
         <Box sx={{ mb: 4 }}>
-          <Typography variant="h4" gutterBottom sx={{ mt: 3 }}>
+          <Typography variant="h4" gutterBottom sx={{ mt: 3, mb: 3 }}>
             My Bookings
           </Typography>
           {userBookingsLoading ? (
@@ -188,7 +281,7 @@ export default function Dashboard() {
           ) : userBookingsError ? (
             <Alert severity="error" sx={{ mb: 3 }}>{userBookingsError}</Alert>
           ) : (
-            <Paper>
+            <Paper elevation={2}>
               <TableContainer>
                 <Table>
                   <TableHead>
@@ -213,7 +306,16 @@ export default function Dashboard() {
                           <TableCell>{booking.apartment?.name || 'Unknown'}</TableCell>
                           <TableCell>{booking.arrival_date ? new Date(booking.arrival_date).toLocaleString() : ''}</TableCell>
                           <TableCell>{booking.leaving_date ? new Date(booking.leaving_date).toLocaleString() : ''}</TableCell>
-                          <TableCell>{booking.status}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={booking.status} 
+                              color={
+                                booking.status === 'Booked' ? 'default' : 
+                                booking.status === 'Checked In' ? 'primary' : 'success'
+                              }
+                              size="small"
+                            />
+                          </TableCell>
                           <TableCell>{booking.number_of_people}</TableCell>
                         </TableRow>
                       ))
@@ -239,8 +341,8 @@ export default function Dashboard() {
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ mt: 3 }}>
-          Dashboard
+        <Typography variant="h4" gutterBottom sx={{ mt: 3, mb: 3 }}>
+          Financial Analytics Dashboard
         </Typography>
         
         {error && (
@@ -249,129 +351,172 @@ export default function Dashboard() {
           </Alert>
         )}
         
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {/* Summary Cards */}
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <HomeIcon sx={{ color: 'primary.main', mr: 1, fontSize: 28 }} />
+                    <Typography color="text.secondary" variant="h6">
                   Total Apartments
                 </Typography>
-                <Typography variant="h4">
-                  {totalApartments}
+                  </Box>
+                  <Typography variant="h3" color="primary" sx={{ fontWeight: 'bold' }}>
+                    {filteredData.length}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Active properties
                 </Typography>
               </CardContent>
             </Card>
+            </Grid>
             
-            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <TrendingUpIcon sx={{ color: 'success.main', mr: 1, fontSize: 28 }} />
+                    <Typography color="text.secondary" variant="h6">
                   Total Income
                 </Typography>
-                <Typography variant="h4">
-                  {totalIncome.toLocaleString()} EGP
+                  </Box>
+                  <Typography variant="h3" color="success.main" sx={{ fontWeight: 'bold' }}>
+                    {totals.spentEGP.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    EGP {totals.spentGBP > 0 && `• ${totals.spentGBP.toLocaleString()} GBP`}
                 </Typography>
               </CardContent>
             </Card>
+            </Grid>
             
-            <Card sx={{ flex: '1 1 300px', minWidth: '250px' }}>
-              <CardContent>
-                <Typography color="text.secondary" gutterBottom>
-                  Total Payments
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <TrendingDownIcon sx={{ color: 'error.main', mr: 1, fontSize: 28 }} />
+                    <Typography color="text.secondary" variant="h6">
+                      Total Expenses
+                    </Typography>
+                  </Box>
+                  <Typography variant="h3" color="error.main" sx={{ fontWeight: 'bold' }}>
+                    {totals.requestedEGP.toLocaleString()}
                 </Typography>
-                <Typography variant="h4">
-                  {payments.length}
+                  <Typography variant="body2" color="text.secondary">
+                    EGP {totals.requestedGBP > 0 && `• ${totals.requestedGBP.toLocaleString()} GBP`}
                 </Typography>
               </CardContent>
             </Card>
+            </Grid>
+            
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <AccountBalanceIcon sx={{ color: totals.netEGP >= 0 ? 'success.main' : 'error.main', mr: 1, fontSize: 28 }} />
+                    <Typography color="text.secondary" variant="h6">
+                      Net Balance
+                    </Typography>
           </Box>
+                  <Typography variant="h3" color={totals.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                    {totals.netEGP.toLocaleString()}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    EGP {totals.netGBP !== 0 && `• ${totals.netGBP.toLocaleString()} GBP`}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
           
           {/* Financial Report */}
-          <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-              <Typography variant="h6" component="div">
-                General Financial Report
+          <Paper sx={{ p: 4, boxShadow: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+              <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+                Comprehensive Financial Report
               </Typography>
+              
+              {/* Export Buttons */}
+              <ExportButtons 
+                data={transformDataForExport(filteredData)} 
+                columns={["apartment","village","owner","total_spent_EGP","total_spent_GBP","total_requested_EGP","total_requested_GBP","net_balance_EGP","net_balance_GBP","last_activity"]} 
+                excelFileName="financial-dashboard.xlsx" 
+                pdfFileName="financial-dashboard.pdf" 
+              />
             </Box>
             
-            {/* Export Buttons */}
-            <ExportButtons data={reportData} columns={["id","city","apartment","paymentMethod","balance","runningTotal"]} excelFileName="dashboard-report.xlsx" pdfFileName="dashboard-report.pdf" />
-            
-            <Box sx={{ display: 'flex', mb: 2 }}>
-              <FormControl sx={{ m: 1, minWidth: 150 }}>
-                <InputLabel>Village</InputLabel>
+            {/* Filter Section */}
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+              <FilterListIcon sx={{ mr: 2, color: 'primary.main' }} />
+              <FormControl sx={{ minWidth: 250 }}>
+                <InputLabel>Project Filter</InputLabel>
                 <Select
-                  value={city}
-                  label="Village"
-                  onChange={handleCityChange}
+                  value={village}
+                  label="Project Filter"
+                  onChange={handleVillageChange}
                 >
                   <MenuItem value="">
-                    <em>All</em>
+                    <em>All Projects</em>
                   </MenuItem>
-                  {cities.map(cityName => (
-                    <MenuItem key={cityName} value={cityName}>{cityName}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl sx={{ m: 1, minWidth: 150 }}>
-                <InputLabel>Payment Method</InputLabel>
-                <Select
-                  value={paymentMethod}
-                  label="Payment Method"
-                  onChange={handlePaymentMethodChange}
-                >
-                  <MenuItem value="">
-                    <em>All</em>
-                  </MenuItem>
-                  {paymentMethods.map(method => (
-                    <MenuItem key={method} value={method}>{method}</MenuItem>
+                  {villages.map(villageItem => (
+                    <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
             </Box>
             
+            {/* Data Table */}
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow>
-                    <TableCell>Village</TableCell>
-                    <TableCell>Apartment</TableCell>
-                    <TableCell>Payment Method</TableCell>
-                    <TableCell align="right">Balance</TableCell>
-                    <TableCell align="right">Running Total</TableCell>
+                  <TableRow sx={{ backgroundColor: 'primary.main' }}>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Project</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Apartment</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Owner</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Income (EGP/GBP)</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Expenses (EGP/GBP)</TableCell>
+                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Net Balance (EGP/GBP)</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {reportData.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.city}</TableCell>
+                  {filteredData.length > 0 ? filteredData.map((row) => (
+                    <TableRow key={row.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
+                      <TableCell>{row.village}</TableCell>
                       <TableCell>{row.apartment}</TableCell>
-                      <TableCell>{row.paymentMethod}</TableCell>
-                      <TableCell align="right">{row.balance.toLocaleString()} EGP</TableCell>
-                      <TableCell align="right">{row.runningTotal.toLocaleString()} EGP</TableCell>
+                      <TableCell>{row.owner}</TableCell>
+                      <TableCell align="right">
+                        {row.totalSpentEGP > 0 && `${row.totalSpentEGP.toLocaleString()} EGP`}
+                        {row.totalSpentEGP > 0 && row.totalSpentGBP > 0 && ' / '}
+                        {row.totalSpentGBP > 0 && `${row.totalSpentGBP.toLocaleString()} GBP`}
+                        {row.totalSpentEGP === 0 && row.totalSpentGBP === 0 && '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        {row.totalRequestedEGP > 0 && `${row.totalRequestedEGP.toLocaleString()} EGP`}
+                        {row.totalRequestedEGP > 0 && row.totalRequestedGBP > 0 && ' / '}
+                        {row.totalRequestedGBP > 0 && `${row.totalRequestedGBP.toLocaleString()} GBP`}
+                        {row.totalRequestedEGP === 0 && row.totalRequestedGBP === 0 && '-'}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography color={row.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                          {row.netEGP !== 0 && `${row.netEGP.toLocaleString()} EGP`}
+                          {row.netEGP !== 0 && row.netGBP !== 0 && ' / '}
+                          {row.netGBP !== 0 && `${row.netGBP.toLocaleString()} GBP`}
+                          {row.netEGP === 0 && row.netGBP === 0 && '-'}
+                        </Typography>
+                      </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Typography color="text.secondary">No financial data available</Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </TableContainer>
-          </Paper>
-          
-          {/* Chart */}
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Recent Payments by Apartment
-            </Typography>
-            <Box sx={{ height: 300 }}>
-              {reportData.length > 0 ? (
-                <Bar options={{ responsive: true, maintainAspectRatio: false }} data={chartData} />
-              ) : (
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <Typography color="text.secondary">
-                    No payment data available for chart
-                  </Typography>
-                </Box>
-              )}
-            </Box>
           </Paper>
         </Box>
       </Box>

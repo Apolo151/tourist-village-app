@@ -17,7 +17,7 @@ export class ServiceRequestService {
    * Get all service requests with filtering, sorting, and pagination
    */
   async getServiceRequests(filters: ServiceRequestFilters = {}, villageFilter?: number): Promise<PaginatedResponse<ServiceRequest & { 
-    service_type?: ServiceType; 
+    type?: ServiceType; 
     apartment?: Apartment; 
     booking?: Booking;
     requester?: PublicUser;
@@ -247,7 +247,7 @@ export class ServiceRequestService {
       created_by: sr.created_by,
       created_at: new Date(sr.created_at),
       updated_at: new Date(sr.updated_at),
-      service_type: {
+      type: {
         id: sr.type_id,
         name: sr.service_type_name,
         cost: parseFloat(sr.service_type_cost),
@@ -267,6 +267,7 @@ export class ServiceRequestService {
         created_by: 0, // Not fetched
         created_at: new Date(),
         updated_at: new Date(),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: sr.village_id || 0, // This should be from a.village_id
           name: sr.village_name,
@@ -349,7 +350,7 @@ export class ServiceRequestService {
    * Get service request by ID
    */
   async getServiceRequestById(id: number): Promise<(ServiceRequest & { 
-    service_type?: ServiceType; 
+    type?: ServiceType; 
     apartment?: Apartment; 
     booking?: Booking;
     requester?: PublicUser;
@@ -402,6 +403,7 @@ export class ServiceRequestService {
         'owner.updated_at as owner_updated_at',
         // Booking details (if exists)
         'b.user_id as booking_user_id',
+        'b.number_of_people as booking_number_of_people',
         'b.arrival_date as booking_arrival_date',
         'b.leaving_date as booking_leaving_date',
         'b.status as booking_status',
@@ -456,7 +458,7 @@ export class ServiceRequestService {
       created_by: serviceRequest.created_by,
       created_at: new Date(serviceRequest.created_at),
       updated_at: new Date(serviceRequest.updated_at),
-      service_type: {
+      type: {
         id: serviceRequest.type_id,
         name: serviceRequest.service_type_name,
         cost: parseFloat(serviceRequest.service_type_cost),
@@ -476,11 +478,12 @@ export class ServiceRequestService {
         created_by: serviceRequest.apartment_created_by,
         created_at: new Date(serviceRequest.apartment_created_at),
         updated_at: new Date(serviceRequest.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: serviceRequest.apartment_village_id,
           name: serviceRequest.village_name,
-          electricity_price: parseFloat(serviceRequest.village_electricity_price),
-          water_price: parseFloat(serviceRequest.village_water_price),
+          electricity_price: parseFloat(serviceRequest.village_electricity_price || '0'),
+          water_price: parseFloat(serviceRequest.village_water_price || '0'),
           phases: serviceRequest.village_phases,
           created_at: new Date(serviceRequest.village_created_at),
           updated_at: new Date(serviceRequest.village_updated_at)

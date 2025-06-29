@@ -58,7 +58,10 @@ export class UserService {
     // Now add select to the main query
     let query = baseQuery.select([
       'id', 'name', 'email', 'phone_number', 'role', 
-      'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
+      'last_login', 'is_active', 'responsible_village',
+      'passport_number', 'passport_expiry_date', 'address',
+      'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+      'created_at', 'updated_at'
     ]);
 
     // Apply sorting
@@ -83,6 +86,13 @@ export class UserService {
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
       responsible_village: user.responsible_village || undefined,
+      passport_number: user.passport_number || undefined,
+      passport_expiry_date: user.passport_expiry_date ? new Date(user.passport_expiry_date) : undefined,
+      address: user.address || undefined,
+      next_of_kin_name: user.next_of_kin_name || undefined,
+      next_of_kin_address: user.next_of_kin_address || undefined,
+      next_of_kin_email: user.next_of_kin_email || undefined,
+      next_of_kin_phone: user.next_of_kin_phone || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     }));
@@ -109,7 +119,10 @@ export class UserService {
     const user = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village',
+        'passport_number', 'passport_expiry_date', 'address',
+        'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+        'created_at', 'updated_at'
       ])
       .where('id', id)
       .first();
@@ -127,6 +140,13 @@ export class UserService {
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
       responsible_village: user.responsible_village || undefined,
+      passport_number: user.passport_number || undefined,
+      passport_expiry_date: user.passport_expiry_date ? new Date(user.passport_expiry_date) : undefined,
+      address: user.address || undefined,
+      next_of_kin_name: user.next_of_kin_name || undefined,
+      next_of_kin_address: user.next_of_kin_address || undefined,
+      next_of_kin_email: user.next_of_kin_email || undefined,
+      next_of_kin_phone: user.next_of_kin_phone || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -143,7 +163,10 @@ export class UserService {
     const user = await db('users')
       .select([
         'id', 'name', 'email', 'phone_number', 'role', 
-        'last_login', 'is_active', 'responsible_village', 'created_at', 'updated_at'
+        'last_login', 'is_active', 'responsible_village',
+        'passport_number', 'passport_expiry_date', 'address',
+        'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+        'created_at', 'updated_at'
       ])
       .where('email', email.toLowerCase().trim())
       .first();
@@ -161,6 +184,13 @@ export class UserService {
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       is_active: Boolean(user.is_active),
       responsible_village: user.responsible_village || undefined,
+      passport_number: user.passport_number || undefined,
+      passport_expiry_date: user.passport_expiry_date ? new Date(user.passport_expiry_date) : undefined,
+      address: user.address || undefined,
+      next_of_kin_name: user.next_of_kin_name || undefined,
+      next_of_kin_address: user.next_of_kin_address || undefined,
+      next_of_kin_email: user.next_of_kin_email || undefined,
+      next_of_kin_phone: user.next_of_kin_phone || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -179,6 +209,8 @@ export class UserService {
         'id', 'name', 'email', 'phone_number', 'role', 
         'password_hash', 'last_login', 'is_active', 'responsible_village',
         'refresh_token_hash', 'refresh_token_expires_at',
+        'passport_number', 'passport_expiry_date', 'address',
+        'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
         'created_at', 'updated_at'
       ])
       .where('email', email.toLowerCase().trim())
@@ -200,6 +232,13 @@ export class UserService {
       responsible_village: user.responsible_village || undefined,
       refresh_token_hash: user.refresh_token_hash || undefined,
       refresh_token_expires_at: user.refresh_token_expires_at ? new Date(user.refresh_token_expires_at) : undefined,
+      passport_number: user.passport_number || undefined,
+      passport_expiry_date: user.passport_expiry_date ? new Date(user.passport_expiry_date) : undefined,
+      address: user.address || undefined,
+      next_of_kin_name: user.next_of_kin_name || undefined,
+      next_of_kin_address: user.next_of_kin_address || undefined,
+      next_of_kin_email: user.next_of_kin_email || undefined,
+      next_of_kin_phone: user.next_of_kin_phone || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -258,6 +297,13 @@ export class UserService {
           responsible_village: data.responsible_village || null,
           password_hash: passwordHash,
           is_active: true,
+          passport_number: data.passport_number?.trim() || null,
+          passport_expiry_date: data.passport_expiry_date ? new Date(data.passport_expiry_date) : null,
+          address: data.address?.trim() || null,
+          next_of_kin_name: data.next_of_kin_name?.trim() || null,
+          next_of_kin_address: data.next_of_kin_address?.trim() || null,
+          next_of_kin_email: data.next_of_kin_email?.trim() || null,
+          next_of_kin_phone: data.next_of_kin_phone?.trim() || null,
           created_at: new Date(),
           updated_at: new Date()
         })
@@ -343,6 +389,35 @@ export class UserService {
 
     if (data.responsible_village !== undefined) {
       updateData.responsible_village = data.responsible_village || null;
+    }
+
+    // Handle new fields
+    if (data.passport_number !== undefined) {
+      updateData.passport_number = data.passport_number ? data.passport_number.trim() : null;
+    }
+
+    if (data.passport_expiry_date !== undefined) {
+      updateData.passport_expiry_date = data.passport_expiry_date ? new Date(data.passport_expiry_date) : null;
+    }
+
+    if (data.address !== undefined) {
+      updateData.address = data.address ? data.address.trim() : null;
+    }
+
+    if (data.next_of_kin_name !== undefined) {
+      updateData.next_of_kin_name = data.next_of_kin_name ? data.next_of_kin_name.trim() : null;
+    }
+
+    if (data.next_of_kin_address !== undefined) {
+      updateData.next_of_kin_address = data.next_of_kin_address ? data.next_of_kin_address.trim() : null;
+    }
+
+    if (data.next_of_kin_email !== undefined) {
+      updateData.next_of_kin_email = data.next_of_kin_email ? data.next_of_kin_email.trim() : null;
+    }
+
+    if (data.next_of_kin_phone !== undefined) {
+      updateData.next_of_kin_phone = data.next_of_kin_phone ? data.next_of_kin_phone.trim() : null;
     }
 
     // Handle password update if provided
@@ -441,7 +516,7 @@ export class UserService {
     // Check if user has any active bookings
     const activeBookingCount = await db('bookings')
       .where('user_id', id)
-      .whereIn('status', ['not_arrived', 'in_village'])
+      .whereIn('status', ['Booked', 'Checked In'])
       .count('id as count')
       .first();
 
@@ -489,10 +564,10 @@ export class UserService {
       .where('user_id', id)
       .count('id as count');
 
-    // Get active bookings (in_village)
+    // Get active bookings (Checked In)
     const [{ count: activeBookings }] = await db('bookings')
       .where('user_id', id)
-      .where('status', 'in_village')
+      .where('status', 'Checked In')
       .count('id as count');
 
     // Get records created by this user

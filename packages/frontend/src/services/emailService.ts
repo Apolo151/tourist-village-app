@@ -17,6 +17,7 @@ export interface Email {
   subject: string;
   content: string;
   type: BackendEmailType;
+  status: 'pending' | 'completed';
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -87,6 +88,7 @@ export interface CreateEmailRequest {
   subject: string;
   content: string;
   type: BackendEmailType;
+  status?: 'pending' | 'completed';
 }
 
 export interface UpdateEmailRequest {
@@ -98,6 +100,7 @@ export interface UpdateEmailRequest {
   subject?: string;
   content?: string;
   type?: BackendEmailType;
+  status?: 'pending' | 'completed';
 }
 
 export interface EmailFilters {
@@ -105,6 +108,7 @@ export interface EmailFilters {
   booking_id?: number;
   village_id?: number;
   type?: BackendEmailType;
+  status?: 'pending' | 'completed';
   date_from?: string;
   date_to?: string;
   from?: string;

@@ -1,38 +1,57 @@
 import { apiClient } from './api';
 import type { ApiResponse } from './api';
-import type { Booking, Apartment, User } from '../types';
-export type { Booking };
+import type { Apartment, User } from '../types';
 
 // Backend types (based on backend/src/types/index.ts)
+export interface Booking {
+  id: number;
+  apartment_id: number;
+  user_id: number;
+  user_type: 'Owner' | 'Tenant';
+  number_of_people: number;
+  arrival_date: string;
+  leaving_date: string;
+  status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
+  notes?: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+  reservation_date?: string; // Alias for created_at
+  user?: User;
+  apartment?: Apartment;
+  created_by_user?: User;
+}
+
 export interface CreateBookingRequest {
   apartment_id: number;
   user_id?: number;
   user_name?: string;
-  user_type?: 'owner' | 'renter';
+  user_type?: 'Owner' | 'Tenant';
   number_of_people?: number;
-  arrival_date: string; // ISO string
-  leaving_date: string; // ISO string
-  status?: 'not_arrived' | 'in_village' | 'left';
+  arrival_date: string;
+  leaving_date: string;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
 }
 
 export interface UpdateBookingRequest {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'renter';
+  user_type?: 'Owner' | 'Tenant';
   number_of_people?: number;
-  arrival_date?: string; // ISO string
-  leaving_date?: string; // ISO string
-  status?: 'not_arrived' | 'in_village' | 'left';
+  arrival_date?: string;
+  leaving_date?: string;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
 }
 
 export interface BookingFilters {
   apartment_id?: number;
   user_id?: number;
-  user_type?: 'owner' | 'renter';
+  user_type?: 'owner' | 'tenant';
   village_id?: number;
-  status?: 'not_arrived' | 'in_village' | 'left';
+  phase?: number;
+  status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   arrival_date_start?: string;
   arrival_date_end?: string;
   leaving_date_start?: string;
@@ -50,13 +69,14 @@ export interface BookingStats {
   upcoming_bookings: number;
   past_bookings: number;
   by_status: {
-    not_arrived: number;
-    in_village: number;
-    left: number;
+    Booked: number;
+    'Checked In': number;
+    'Checked Out': number;
+    Cancelled: number;
   };
   by_user_type: {
-    owner: number;
-    renter: number;
+    Owner: number;
+    Tenant: number;
   };
 }
 
@@ -200,7 +220,7 @@ class BookingService {
         apartment_id: apartmentId,
         arrival_date_start: arrivalDate,
         leaving_date_end: leavingDate,
-        status: 'not_arrived' // Only check active bookings
+        status: 'Booked' // Only check active bookings
       };
 
       const result = await this.getBookings(filters);
@@ -220,12 +240,14 @@ class BookingService {
   // Helper to format booking status for display
   formatBookingStatus(status: string): string {
     switch (status) {
-      case 'not_arrived':
-        return 'Has not Arrived';
-      case 'in_village':
-        return 'In Village';
-      case 'left':
-        return 'Left';
+      case 'Booked':
+        return 'Booked';
+      case 'Checked In':
+        return 'Checked In';
+      case 'Checked Out':
+        return 'Checked Out';
+      case 'Cancelled':
+        return 'Cancelled';
       default:
         return status;
     }
@@ -234,10 +256,10 @@ class BookingService {
   // Helper to format user type for display
   formatUserType(userType: string): string {
     switch (userType) {
-      case 'owner':
+      case 'Owner':
         return 'Owner';
-      case 'renter':
-        return 'Renter';
+      case 'Tenant':
+        return 'Tenant';
       default:
         return userType;
     }

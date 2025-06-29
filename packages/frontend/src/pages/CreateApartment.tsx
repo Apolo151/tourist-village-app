@@ -137,6 +137,8 @@ export default function CreateApartment() {
       setFormData(prev => ({ ...prev, phase: parseInt(value) }));
     } else if (name === 'paying_status') {
       setFormData(prev => ({ ...prev, paying_status: value as 'transfer' | 'rent' | 'non-payer' }));
+    } else if (name === 'sales_status') {
+      setFormData(prev => ({ ...prev, sales_status: value as 'for sale' | 'not for sale' }));
     }
     
     // Clear field error for this field
@@ -244,7 +246,7 @@ export default function CreateApartment() {
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, mt: 3 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
@@ -292,16 +294,16 @@ export default function CreateApartment() {
               {/* Village */}
               <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth error={!!fieldErrors.village_id} required>
-                  <InputLabel>Village</InputLabel>
+                  <InputLabel>Project</InputLabel>
                   <Select
                     name="village_id"
                     value={formData.village_id.toString()}
-                    label="Village"
+                    label="Project"
                     onChange={handleSelectChange}
                     disabled={!!currentUser?.responsible_village || saving}
                   >
                     <MenuItem value="0">
-                      <em>Select Village</em>
+                      <em>Select Project</em>
                     </MenuItem>
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.id.toString()}>
@@ -316,12 +318,12 @@ export default function CreateApartment() {
                   )}
                   {currentUser?.responsible_village && (
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      Village pre-filled based on your assigned responsibility
+                      Project pre-filled based on your assigned responsibility
                     </Typography>
                   )}
                   {!currentUser?.responsible_village && !fieldErrors.village_id && (
                     <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                      Select the village where this apartment is located
+                      Select the project where this apartment is located
                     </Typography>
                   )}
                 </FormControl>
@@ -431,26 +433,43 @@ export default function CreateApartment() {
                   </Typography>
                 </FormControl>
               </Grid>
+
+              {/* Sales Status */}
+              <Grid size={{xs: 12}}>
+                <FormControl fullWidth sx={{ mb: 2 }}>
+                  <InputLabel id="sales-status-label">Sales Status</InputLabel>
+                  <Select
+                    labelId="sales-status-label"
+                    name="sales_status"
+                    value={formData.sales_status || 'not for sale'}
+                    label="Sales Status"
+                    onChange={handleSelectChange}
+                  >
+                    <MenuItem value="not for sale">Not for Sale</MenuItem>
+                    <MenuItem value="for sale">For Sale</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
             </Grid>
 
             {/* Action Buttons */}
             <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-              <Button
-                onClick={handleBack}
-                disabled={saving}
+                  <Button
+                    onClick={handleBack}
+                    disabled={saving}
                 variant="outlined"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                variant="contained"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
                 startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-                disabled={saving}
-              >
-                {saving ? 'Creating...' : 'Create Apartment'}
-              </Button>
-            </Box>
+                    disabled={saving}
+                  >
+                    {saving ? 'Creating...' : 'Create Apartment'}
+                  </Button>
+                </Box>
           </form>
         </Paper>
       </Box>

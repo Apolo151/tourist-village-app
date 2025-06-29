@@ -25,6 +25,7 @@ export class EmailService {
       booking_id,
       village_id,
       type,
+      status,
       date_from,
       date_to,
       from,
@@ -151,6 +152,10 @@ export class EmailService {
       });
     }
 
+    if (status) {
+      query = query.where('e.status', status);
+    }
+
     // Apply village filter if provided (for admin users with responsible_village)
     if (villageFilter) {
       query = query.where('a.village_id', villageFilter);
@@ -187,6 +192,10 @@ export class EmailService {
             .orWhere('owner.name', 'ilike', `%${searchTerm}%`)
             .orWhere('booking_user.name', 'ilike', `%${searchTerm}%`);
       });
+    }
+
+    if (status) {
+      countQuery.where('e.status', status);
     }
 
     // Apply village filter to count query if provided
@@ -227,6 +236,7 @@ export class EmailService {
       subject: email.subject,
       content: email.content,
       type: email.type,
+      status: email.status,
       created_by: email.created_by,
       created_at: new Date(email.created_at),
       updated_at: new Date(email.updated_at),
@@ -240,14 +250,15 @@ export class EmailService {
         created_by: email.apartment_created_by,
         created_at: new Date(email.apartment_created_at),
         updated_at: new Date(email.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: email.apartment_village_id,
           name: email.village_name,
-          electricity_price: parseFloat(email.village_electricity_price),
-          water_price: parseFloat(email.village_water_price),
+          electricity_price: parseFloat(email.village_electricity_price || '0'),
+          water_price: parseFloat(email.village_water_price || '0'),
           phases: email.village_phases,
-          created_at: new Date(email.village_created_at),
-          updated_at: new Date(email.village_updated_at)
+          created_at: new Date(),
+          updated_at: new Date()
         },
         owner: email.owner_name ? {
           id: email.apartment_owner_id,
@@ -256,8 +267,8 @@ export class EmailService {
           phone_number: email.owner_phone || undefined,
           role: email.owner_role,
           is_active: Boolean(email.owner_is_active),
-          created_at: new Date(email.owner_created_at),
-          updated_at: new Date(email.owner_updated_at)
+          created_at: email.owner_created_at ? new Date(email.owner_created_at) : new Date(0),
+          updated_at: email.owner_updated_at ? new Date(email.owner_updated_at) : new Date(0)
         } : undefined
       },
       booking: email.booking_arrival_date ? {
@@ -394,6 +405,7 @@ export class EmailService {
       subject: email.subject,
       content: email.content,
       type: email.type,
+      status: email.status,
       created_by: email.created_by,
       created_at: new Date(email.created_at),
       updated_at: new Date(email.updated_at),
@@ -407,14 +419,15 @@ export class EmailService {
         created_by: email.apartment_created_by,
         created_at: new Date(email.apartment_created_at),
         updated_at: new Date(email.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
         village: {
           id: email.apartment_village_id,
           name: email.village_name,
-          electricity_price: parseFloat(email.village_electricity_price),
-          water_price: parseFloat(email.village_water_price),
+          electricity_price: parseFloat(email.village_electricity_price || '0'),
+          water_price: parseFloat(email.village_water_price || '0'),
           phases: email.village_phases,
-          created_at: new Date(email.village_created_at),
-          updated_at: new Date(email.village_updated_at)
+          created_at: new Date(),
+          updated_at: new Date()
         },
         owner: email.owner_name ? {
           id: email.apartment_owner_id,
@@ -423,8 +436,8 @@ export class EmailService {
           phone_number: email.owner_phone || undefined,
           role: email.owner_role,
           is_active: Boolean(email.owner_is_active),
-          created_at: new Date(email.owner_created_at),
-          updated_at: new Date(email.owner_updated_at)
+          created_at: email.owner_created_at ? new Date(email.owner_created_at) : new Date(0),
+          updated_at: email.owner_updated_at ? new Date(email.owner_updated_at) : new Date(0)
         } : undefined
       },
       booking: email.booking_arrival_date ? {
@@ -529,6 +542,7 @@ export class EmailService {
           subject: data.subject.trim(),
           content: data.content.trim(),
           type: data.type,
+          status: data.status || 'pending',
           created_by: createdBy,
           created_at: new Date(),
           updated_at: new Date()
@@ -626,6 +640,7 @@ export class EmailService {
     if (data.subject !== undefined) updateData.subject = data.subject.trim();
     if (data.content !== undefined) updateData.content = data.content.trim();
     if (data.type !== undefined) updateData.type = data.type;
+    if (data.status !== undefined) updateData.status = data.status;
 
     try {
       await db('emails').where('id', id).update(updateData);

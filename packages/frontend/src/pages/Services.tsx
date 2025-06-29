@@ -43,7 +43,8 @@ import {
   Schedule as ScheduleIcon,
   AssignmentLateOutlined as CreatedIcon,
   Visibility as ViewIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { serviceRequestService } from '../services/serviceRequestService';
@@ -287,6 +288,53 @@ export default function Services() {
   
   const handleServiceRequestClick = (id: number) => {
     navigate(`/services/requests/${id}`);
+  };
+  
+  const handleEditServiceRequest = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/services/requests/${id}/edit`);
+  };
+
+  const handleDeleteServiceRequest = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!window.confirm('Are you sure you want to delete this service request? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await serviceRequestService.deleteServiceRequest(id);
+      setSnackbarMessage('Service request deleted successfully');
+      setOpenSnackbar(true);
+      // Reload service requests
+      const currentPage = serviceRequestsPagination.page;
+      setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+      // If we were on page 1, manually reload
+      if (currentPage === 1) {
+        const filters = {
+          page: 1,
+          limit: serviceRequestsPagination.limit,
+          search: searchTerm || undefined,
+          apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+          status: (statusFilter as 'Created' | 'In Progress' | 'Done' | undefined) || undefined,
+          who_pays: (whoPayFilter as 'owner' | 'renter' | 'company' | undefined) || undefined,
+          sort_by: 'date_created',
+          sort_order: 'desc' as const
+        };
+        
+        const response = await serviceRequestService.getServiceRequests(filters);
+        setServiceRequests(response.data || []);
+        setServiceRequestsPagination({
+          page: response.pagination?.page || 1,
+          limit: response.pagination?.limit || 20,
+          total: response.pagination?.total || 0,
+          total_pages: response.pagination?.total_pages || 0
+        });
+      }
+    } catch (err) {
+      setSnackbarMessage(err instanceof Error ? err.message : 'Failed to delete service request');
+      setOpenSnackbar(true);
+    }
   };
   
   const handleServiceTypePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
@@ -641,6 +689,7 @@ export default function Services() {
                           </TableCell>
                       <TableCell>{request.assignee?.name || 'Unassigned'}</TableCell>
                       <TableCell>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
                         <Tooltip title="View Details">
                           <IconButton 
                               size="small"
@@ -652,6 +701,28 @@ export default function Services() {
                             <ViewIcon />
                           </IconButton>
                         </Tooltip>
+                          {isAdmin && (
+                            <>
+                              <Tooltip title="Edit Service Request">
+                                <IconButton 
+                                  size="small"
+                                  onClick={(e) => handleEditServiceRequest(request.id, e)}
+                                >
+                                  <EditIcon />
+                                </IconButton>
+                              </Tooltip>
+                              <Tooltip title="Delete Service Request">
+                                <IconButton 
+                                  size="small"
+                                  color="error"
+                                  onClick={(e) => handleDeleteServiceRequest(request.id, e)}
+                                >
+                                  <DeleteIcon />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                        </Box>
                           </TableCell>
                         </TableRow>
                   ))

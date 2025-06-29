@@ -391,15 +391,15 @@ export default function Apartments() {
             />
             
             <FormControl sx={{ minWidth: 150 }} size="small">
-              <InputLabel>Village</InputLabel>
+              <InputLabel>Project</InputLabel>
               <Select
                 name="village"
                 value={villageFilter}
-                label="Village"
+                label="Project"
                 onChange={handleFilterChange}
               >
                 <MenuItem value="">
-                  <em>All Villages</em>
+                  <em>All Projects</em>
                 </MenuItem>
                 {villages?.map(village => (
                   <MenuItem key={village.id} value={village.id.toString()}>
@@ -489,7 +489,7 @@ export default function Apartments() {
                     onClick={() => handleSortRequest('village_name')}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      Village {renderSortIcon('village_name')}
+                      Project {renderSortIcon('village_name')}
                     </Box>
                   </TableCell>
                   <TableCell 
@@ -526,6 +526,7 @@ export default function Apartments() {
                       Owner {renderSortIcon('owner_name')}
                     </Box>
                   </TableCell>
+                  <TableCell>Sales Status</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -569,6 +570,13 @@ export default function Apartments() {
                       </TableCell>
                     )}
                     <TableCell>{apartment.owner?.name || 'Unknown'}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={apartment.sales_status === 'for sale' ? 'For Sale' : 'Not for Sale'}
+                        color={apartment.sales_status === 'for sale' ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
                     <TableCell align="right">
                       <Tooltip title="View Details">
                         <IconButton 

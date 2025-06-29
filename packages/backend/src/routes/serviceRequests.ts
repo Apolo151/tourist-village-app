@@ -221,7 +221,7 @@ router.put('/:id',
         }
 
         // Non-admin users can only update certain fields
-        const allowedFields = ['notes', 'status'];
+        const allowedFields = ['type_id', 'apartment_id', 'booking_id', 'requester_id', 'date_action', 'status', 'who_pays', 'notes', 'assignee_id'];
         const providedFields = Object.keys(data);
         const invalidFields = providedFields.filter(field => !allowedFields.includes(field));
 

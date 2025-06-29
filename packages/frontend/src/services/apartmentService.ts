@@ -30,7 +30,7 @@ export interface Booking {
   user_type: 'owner' | 'renter';
   arrival_date: string;
   leaving_date: string;
-  status: 'not_arrived' | 'in_village' | 'left';
+  status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -47,6 +47,7 @@ export interface Apartment {
   paying_status: 'transfer' | 'rent' | 'non-payer';
   created_at: string;
   updated_at: string;
+  sales_status: 'for sale' | 'not for sale';
   
   // Computed/joined fields
   village?: {
@@ -56,6 +57,11 @@ export interface Apartment {
     name: string;
   };
   owner?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  created_by_user?: {
     id: number;
     name: string;
     email: string;
@@ -83,6 +89,7 @@ export interface CreateApartmentRequest {
   owner_id: number;
   purchase_date?: string;
   paying_status: 'transfer' | 'rent' | 'non-payer';
+  sales_status?: 'for sale' | 'not for sale';
 }
 
 export interface UpdateApartmentRequest {
@@ -92,6 +99,7 @@ export interface UpdateApartmentRequest {
   owner_id?: number;
   purchase_date?: string;
   paying_status?: 'transfer' | 'rent' | 'non-payer';
+  sales_status?: 'for sale' | 'not for sale';
 }
 
 export interface PaginatedResponse<T> {

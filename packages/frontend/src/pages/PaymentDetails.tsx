@@ -340,11 +340,14 @@ export default function PaymentDetails() {
               </>
             )}
             {!isNew && !isEditing && canDelete && (
-              <Tooltip title="Delete Payment">
-                <IconButton color="error" onClick={() => setDeleteDialogOpen(true)}>
-                  <DeleteIcon />
-                </IconButton>
-              </Tooltip>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={() => setDeleteDialogOpen(true)}
+              >
+                Delete
+              </Button>
             )}
           </Box>
         </Box>

@@ -125,6 +125,8 @@ export default function EditApartment() {
       setFormData(prev => ({ ...prev, phase: parseInt(value) }));
     } else if (name === 'paying_status') {
       setFormData(prev => ({ ...prev, paying_status: value as 'transfer' | 'rent' | 'non-payer' }));
+    } else if (name === 'sales_status') {
+      setFormData(prev => ({ ...prev, sales_status: value as 'for sale' | 'not for sale' }));
     }
     
     if (errors[name]) {
@@ -211,7 +213,7 @@ export default function EditApartment() {
 
   return (
     <Container maxWidth="md">
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, mt: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             variant="text"
@@ -245,15 +247,15 @@ export default function EditApartment() {
 
               <Box sx={{ display: 'flex', gap: 2 }}>
                 <FormControl fullWidth error={!!errors.village_id} required>
-                  <InputLabel>Village</InputLabel>
+                  <InputLabel>Project</InputLabel>
                   <Select
                     name="village_id"
                     value={formData.village_id?.toString() || ''}
-                    label="Village"
+                    label="Project"
                     onChange={handleSelectChange}
                   >
                     <MenuItem value="">
-                      <em>Select Village</em>
+                      <em>Select Project</em>
                     </MenuItem>
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.id.toString()}>
@@ -341,6 +343,20 @@ export default function EditApartment() {
                   </Select>
                 </FormControl>
               </Box>
+
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel id="sales-status-label">Sales Status</InputLabel>
+                <Select
+                  labelId="sales-status-label"
+                  name="sales_status"
+                  value={formData.sales_status || 'not for sale'}
+                  label="Sales Status"
+                  onChange={handleSelectChange}
+                >
+                  <MenuItem value="not for sale">Not for Sale</MenuItem>
+                  <MenuItem value="for sale">For Sale</MenuItem>
+                </Select>
+              </FormControl>
 
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
                 <Button

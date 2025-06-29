@@ -225,6 +225,9 @@ export class ApartmentService {
     // Validate phase is within village phases
     await this.validatePhaseForVillage(data.village_id, data.phase);
 
+    // Validate sales_status
+    const salesStatus = data.sales_status === 'for sale' ? 'for sale' : 'not for sale';
+
     try {
       const [apartmentId] = await db('apartments')
         .insert({
@@ -234,6 +237,7 @@ export class ApartmentService {
           owner_id: data.owner_id,
           purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
           paying_status: data.paying_status,
+          sales_status: salesStatus,
           created_by: createdBy,
           created_at: new Date(),
           updated_at: new Date()
@@ -304,6 +308,12 @@ export class ApartmentService {
       updateData.purchase_date = data.purchase_date ? new Date(data.purchase_date) : null;
     }
     if (data.paying_status !== undefined) updateData.paying_status = data.paying_status;
+    if (data.sales_status !== undefined) {
+      if (data.sales_status !== 'for sale' && data.sales_status !== 'not for sale') {
+        throw new Error('Invalid sales_status value');
+      }
+      updateData.sales_status = data.sales_status;
+    }
 
     try {
       await db('apartments')
@@ -548,7 +558,7 @@ export class ApartmentService {
 
     const [activeBookings] = await db('bookings')
       .where('apartment_id', id)
-      .whereIn('status', ['not_arrived', 'in_village'])
+      .whereIn('status', ['Booked', 'Checked In'])
       .count('id as count');
 
     const [serviceRequests] = await db('service_requests')
@@ -584,6 +594,7 @@ export class ApartmentService {
       created_by: data.created_by,
       created_at: new Date(data.created_at),
       updated_at: new Date(data.updated_at),
+      sales_status: data.sales_status || 'not for sale',
       village: data.village_name ? {
         id: data.village_id,
         name: data.village_name,
@@ -625,7 +636,7 @@ export class ApartmentService {
       .where('apartment_id', apartmentId)
       .where('arrival_date', '<=', now)
       .where('leaving_date', '>=', now)
-      .where('status', '!=', 'left')
+      .where('status', '!=', 'Checked Out')
       .first();
 
     if (!currentBooking) {
@@ -643,7 +654,7 @@ export class ApartmentService {
       .where('b.apartment_id', apartmentId)
       .where('b.arrival_date', '<=', now)
       .where('b.leaving_date', '>=', now)
-      .where('b.status', '!=', 'left')
+      .where('b.status', '!=', 'Checked Out')
       .select(
         'b.*',
         'u.name as user_name',

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -35,7 +35,11 @@ import {
   TableHead,
   TableRow,
   Grid,
-  Dialog
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -47,6 +51,7 @@ import {
   Add as AddIcon,
   ArrowBack as BackIcon,
   Edit as EditIcon,
+  Delete as DeleteIcon,
   Save as SaveIcon,
   Cancel as CancelIcon,
   Person as PersonIcon,
@@ -77,7 +82,7 @@ interface FormData {
   number_of_people: number;
   arrival_date: Date | null;
   leaving_date: Date | null;
-  status: 'not_arrived' | 'in_village' | 'left';
+  status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes: string;
 }
 
@@ -112,6 +117,7 @@ function TabPanel(props: TabPanelProps) {
 const BookingDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const isNew = id === 'new';
   
@@ -128,7 +134,7 @@ const BookingDetails: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
   
   // Edit mode state
-  const [isEditing, setIsEditing] = useState(isNew);
+  const [isEditing, setIsEditing] = useState(isNew || location.pathname.endsWith('/edit'));
   
   // Form state
   const [formData, setFormData] = useState<FormData>({
@@ -137,7 +143,7 @@ const BookingDetails: React.FC = () => {
     number_of_people: 0,
     arrival_date: null,
     leaving_date: null,
-    status: 'not_arrived',
+    status: 'Booked',
     notes: ''
   });
   
@@ -155,6 +161,10 @@ const BookingDetails: React.FC = () => {
   // Bills state
   const [bills, setBills] = useState<BillDetailItem[]>([]);
   const [billsLoading, setBillsLoading] = useState(false);
+  
+  // Delete dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   // Check if user is admin
   useEffect(() => {
@@ -203,7 +213,7 @@ const BookingDetails: React.FC = () => {
             number_of_people: bookingData.number_of_people,
             arrival_date: parseISO(bookingData.arrival_date),
             leaving_date: parseISO(bookingData.leaving_date),
-            status: bookingData.status === 'has_not_arrived' ? 'not_arrived' : bookingData.status,
+            status: bookingData.status,
             notes: bookingData.notes || ''
           });
         } catch (err) {
@@ -313,6 +323,8 @@ const BookingDetails: React.FC = () => {
         setBooking(updatedBooking);
         setIsEditing(false);
         setSuccess(true);
+        // Navigate to view mode after successful update
+        navigate(`/bookings/${id}`);
         setTimeout(() => setSuccess(false), 3000);
       }
     } catch (err) {
@@ -332,17 +344,41 @@ const BookingDetails: React.FC = () => {
           number_of_people: booking.number_of_people,
           arrival_date: parseISO(booking.arrival_date),
           leaving_date: parseISO(booking.leaving_date),
-          status: booking.status === 'has_not_arrived' ? 'not_arrived' : booking.status,
+          status: booking.status,
           notes: booking.notes || ''
         });
       }
       setErrors({});
+      // Navigate to view mode
+      navigate(`/bookings/${id}`);
+    } else {
+      // Navigate to edit mode
+      navigate(`/bookings/${id}/edit`);
     }
     setIsEditing(!isEditing);
   };
   
   const handleBack = () => {
     navigate('/bookings');
+  };
+
+  const handleDelete = () => {
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!booking) return;
+    
+    try {
+      setDeleting(true);
+      await bookingService.deleteBooking(booking.id);
+      setDeleteDialogOpen(false);
+      navigate('/bookings?success=true&message=Booking%20deleted%20successfully');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete booking');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Dialog open/close handlers
@@ -387,8 +423,8 @@ const BookingDetails: React.FC = () => {
     try {
       setBillsLoading(true);
       
-      if (booking.user_type === 'renter') {
-        // For renters: show bills related to this specific booking
+      if (booking.user_type === 'Tenant') {
+        // For tenants: show bills related to this specific booking
         // We'll need to filter the apartment bills by booking_id
         const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
         const bookingBills = apartmentBills.filter(bill => bill.booking_id === booking.id);
@@ -435,18 +471,20 @@ const BookingDetails: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'not_arrived': return 'info';
-      case 'in_village': return 'success';
-      case 'left': return 'default';
+      case 'Booked': return 'info';
+      case 'Checked In': return 'success';
+      case 'Checked Out': return 'default';
+      case 'Cancelled': return 'error';
       default: return 'default';
     }
   };
 
   const getStatusDisplay = (status: string) => {
     switch (status) {
-      case 'not_arrived': return 'Not Arrived';
-      case 'in_village': return 'In Village';
-      case 'left': return 'Left';
+      case 'Booked': return 'Booked';
+      case 'Checked In': return 'Checked In';
+      case 'Checked Out': return 'Checked Out';
+      case 'Cancelled': return 'Cancelled';
       default: return status;
     }
   };
@@ -490,14 +528,26 @@ const BookingDetails: React.FC = () => {
           </Box>
           
             {!isNew && (
-              <Button
-                variant={isEditing ? "outlined" : "contained"}
-                color={isEditing ? "secondary" : "primary"}
-                startIcon={isEditing ? <CancelIcon /> : <EditIcon />}
-                onClick={handleToggleEdit}
-              >
-                {isEditing ? 'Cancel' : 'Edit'}
-              </Button>
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <Button
+                  variant={isEditing ? "outlined" : "contained"}
+                  color={isEditing ? "secondary" : "primary"}
+                  startIcon={isEditing ? <CancelIcon /> : <EditIcon />}
+                  onClick={handleToggleEdit}
+                >
+                  {isEditing ? 'Cancel' : 'Edit'}
+                </Button>
+                {!isEditing && (
+                  <Button
+                    variant="contained"
+                    color="error"
+                    startIcon={<DeleteIcon />}
+                    onClick={handleDelete}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </Box>
             )}
         </Box>
 
@@ -631,9 +681,10 @@ const BookingDetails: React.FC = () => {
                         label="Status"
                         onChange={(e) => handleSelectChange(e, 'status')}
                       >
-                        <MenuItem value="not_arrived">Not Arrived</MenuItem>
-                        <MenuItem value="in_village">In Village</MenuItem>
-                      <MenuItem value="left">Left</MenuItem>
+                        <MenuItem value="Booked">Booked</MenuItem>
+                        <MenuItem value="Checked In">Checked In</MenuItem>
+                        <MenuItem value="Checked Out">Checked Out</MenuItem>
+                        <MenuItem value="Cancelled">Cancelled</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -704,7 +755,7 @@ const BookingDetails: React.FC = () => {
                               <Chip 
                                 label={booking.user_type} 
                                 size="small" 
-                                color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                                color={booking.user_type === 'Owner' ? 'primary' : 'secondary'}
                                 sx={{ ml: 1 }}
                               />
                             </Typography>
@@ -744,6 +795,11 @@ const BookingDetails: React.FC = () => {
                       <Grid size={{xs: 12, md: 6}}>
                         <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
                         <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
+                      </Grid>
+                      
+                      <Grid size={{xs: 12, md: 6}}>
+                        <Typography variant="subtitle2" color="text.secondary">Reservation Date</Typography>
+                        <Typography variant="body1">{formatDate(booking.reservation_date || booking.created_at)}</Typography>
                       </Grid>
                       
                       {booking.notes && (
@@ -953,10 +1009,10 @@ const BookingDetails: React.FC = () => {
                   <TabPanel value={activeTab} index={4}>
                     <Box sx={{ mb: 2 }}>
                       <Typography variant="h6">
-                        {booking?.user_type === 'renter' ? 'Booking Bills' : 'Owner Bills'}
+                        {booking?.user_type === 'Tenant' ? 'Booking Bills' : 'Owner Bills'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {booking?.user_type === 'renter' 
+                        {booking?.user_type === 'Tenant' 
                           ? 'Bills related to this specific booking'
                           : 'All bills for this apartment owner'
                         }
@@ -978,7 +1034,7 @@ const BookingDetails: React.FC = () => {
                               <TableCell>Currency</TableCell>
                               <TableCell>Date</TableCell>
                               <TableCell>User Type</TableCell>
-                              {booking?.user_type === 'renter' && <TableCell>Booking Date</TableCell>}
+                              {booking?.user_type === 'Tenant' && <TableCell>Booking Date</TableCell>}
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -997,12 +1053,12 @@ const BookingDetails: React.FC = () => {
                                 <TableCell>{formatDate(bill.date)}</TableCell>
                                 <TableCell>
                                   <Chip 
-                                    label={bill.user_type === 'owner' ? 'Owner' : 'Renter'} 
+                                    label={bill.user_type === 'owner' ? 'Owner' : 'Tenant'} 
                                     size="small"
                                     color={bill.user_type === 'owner' ? 'primary' : 'secondary'}
                                   />
                                 </TableCell>
-                                {booking?.user_type === 'renter' && (
+                                {booking?.user_type === 'Tenant' && (
                                   <TableCell>
                                     {bill.booking_arrival_date ? formatDate(bill.booking_arrival_date) : 'N/A'}
                                   </TableCell>
@@ -1014,7 +1070,7 @@ const BookingDetails: React.FC = () => {
                       </TableContainer>
                     ) : (
                       <Alert severity="info">
-                        {booking?.user_type === 'renter' 
+                        {booking?.user_type === 'Tenant' 
                           ? 'No bills found for this booking'
                           : 'No bills found for this apartment owner'
                         }
@@ -1050,9 +1106,33 @@ const BookingDetails: React.FC = () => {
         apartmentId: booking?.apartment_id,
         lockApartment: true
       })}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete Booking</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this booking? 
+            This action cannot be undone and will also delete all related payments, service requests, and utility readings.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={confirmDelete} 
+            color="error" 
+            variant="contained"
+            disabled={deleting}
+          >
+            {deleting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
     </LocalizationProvider>
   );
 };
 
-export default BookingDetails; 
+export default BookingDetails;

@@ -334,7 +334,7 @@ export default function Settings() {
             <Tab icon={<SettingsIcon />} iconPosition="start" label="General" />
             <Tab icon={<PersonIcon />} iconPosition="start" label="Manage Users" />
             <Tab icon={<PaymentIcon />} iconPosition="start" label="Payment Methods" />
-            <Tab icon={<HomeIcon />} iconPosition="start" label="Village Details" />
+            <Tab icon={<HomeIcon />} iconPosition="start" label="Project Details" />
           </Tabs>
           
           {/* General Settings Tab */}
@@ -428,17 +428,17 @@ export default function Settings() {
             </Box>
           </TabPanel>
           
-          {/* Villages Tab */}
+          {/* Projects Tab */}
           <TabPanel value={tabValue} index={3}>
             <Box sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Village Details</Typography>
+                <Typography variant="h6">Project Details</Typography>
                 <Button
                   variant="contained"
                   startIcon={<AddIcon />}
                   onClick={handleOpenAddVillageDialog}
                 >
-                  Add Village
+                  Add Project
                 </Button>
               </Box>
               
@@ -537,15 +537,15 @@ export default function Settings() {
         </DialogActions>
       </Dialog>
 
-      {/* Village Dialog */}
+      {/* Project Dialog */}
       <Dialog open={openVillageDialog} onClose={() => setOpenVillageDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>
-          {editingVillage ? 'Edit Village' : 'Add Village'}
+          {editingVillage ? 'Edit Project' : 'Add Project'}
         </DialogTitle>
         <DialogContent>
           <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
             <TextField
-              label="Village Name"
+              label="Project Name"
               name="name"
               value={newVillage.name}
               onChange={handleVillageChange}
@@ -587,7 +587,7 @@ export default function Settings() {
         <DialogActions>
           <Button onClick={() => setOpenVillageDialog(false)}>Cancel</Button>
           <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveVillage}>
-            {editingVillage ? 'Update Village' : 'Add Village'}
+            {editingVillage ? 'Update Project' : 'Add Project'}
           </Button>
         </DialogActions>
       </Dialog>

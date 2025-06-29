@@ -357,16 +357,16 @@ router.get(
           }
 
           return {
-            id: `utility_${ur.id}`,
-            type: 'Utility Reading',
+          id: `utility_${ur.id}`,
+          type: 'Utility Reading',
             description,
             amount: totalCost,
             currency: 'EGP',
-            date: ur.created_at,
-            booking_id: ur.booking_id,
-            booking_arrival_date: ur.booking_arrival_date,
-            person_name: ur.person_name,
-            created_at: ur.created_at
+          date: ur.created_at,
+          booking_id: ur.booking_id,
+          booking_arrival_date: ur.booking_arrival_date,
+          person_name: ur.person_name,
+          created_at: ur.created_at
           };
         })
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

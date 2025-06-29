@@ -69,6 +69,12 @@ export default function Emails() {
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [apartmentFilter, setApartmentFilter] = useState(searchParams.get('apartment') || '');
   const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [bookingFilter, setBookingFilter] = useState(searchParams.get('booking') || '');
+  const [dateFromFilter, setDateFromFilter] = useState(searchParams.get('dateFrom') || '');
+  const [dateToFilter, setDateToFilter] = useState(searchParams.get('dateTo') || '');
+  const [fromFilter, setFromFilter] = useState(searchParams.get('from') || '');
+  const [toFilter, setToFilter] = useState(searchParams.get('to') || '');
   
   // Pagination
   const [pagination, setPagination] = useState({
@@ -113,6 +119,12 @@ export default function Emails() {
           search: searchTerm || undefined,
           apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
           type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
+          status: (statusFilter as 'pending' | 'completed') || undefined,
+          booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+          date_from: dateFromFilter || undefined,
+          date_to: dateToFilter || undefined,
+          from: fromFilter || undefined,
+          to: toFilter || undefined,
           sort_by: 'date',
           sort_order: 'desc' as const
         };
@@ -128,7 +140,7 @@ export default function Emails() {
     };
 
     loadEmails();
-  }, [pagination.page, searchTerm, apartmentFilter, typeFilter]);
+  }, [pagination.page, searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter]);
 
   // Update URL params when filters change
   useEffect(() => {
@@ -136,10 +148,16 @@ export default function Emails() {
     if (searchTerm) params.set('search', searchTerm);
     if (apartmentFilter) params.set('apartment', apartmentFilter);
     if (typeFilter) params.set('type', typeFilter);
+    if (statusFilter) params.set('status', statusFilter);
+    if (bookingFilter) params.set('booking', bookingFilter);
+    if (dateFromFilter) params.set('dateFrom', dateFromFilter);
+    if (dateToFilter) params.set('dateTo', dateToFilter);
+    if (fromFilter) params.set('from', fromFilter);
+    if (toFilter) params.set('to', toFilter);
     if (pagination.page > 1) params.set('page', pagination.page.toString());
     
     setSearchParams(params);
-  }, [searchTerm, apartmentFilter, typeFilter, pagination.page, setSearchParams]);
+  }, [searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter, pagination.page, setSearchParams]);
 
   // Handle filter changes
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,6 +172,36 @@ export default function Emails() {
 
   const handleTypeFilterChange = (e: SelectChangeEvent) => {
     setTypeFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleStatusFilterChange = (e: SelectChangeEvent) => {
+    setStatusFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleBookingFilterChange = (e: SelectChangeEvent) => {
+    setBookingFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleDateFromFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDateFromFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleDateToFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDateToFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleFromFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFromFilter(e.target.value);
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
+  const handleToFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setToFilter(e.target.value);
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -195,6 +243,12 @@ export default function Emails() {
         search: searchTerm || undefined,
         apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
         type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
+        status: (statusFilter as 'pending' | 'completed') || undefined,
+        booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+        date_from: dateFromFilter || undefined,
+        date_to: dateToFilter || undefined,
+        from: fromFilter || undefined,
+        to: toFilter || undefined,
         sort_by: 'date',
         sort_order: 'desc' as const
       };
@@ -228,6 +282,34 @@ export default function Emails() {
   const getApartmentName = (apartmentId: number) => {
     const apartment = apartments.find(apt => apt.id === apartmentId);
     return apartment ? `${apartment.name} - ${apartment.village?.name}` : `Apartment ${apartmentId}`;
+  };
+
+  // Get status color
+  const getStatusColor = (status: 'pending' | 'completed') => {
+    switch (status) {
+      case 'completed':
+        return 'success';
+      case 'pending':
+        return 'warning';
+      default:
+        return 'default';
+    }
+  };
+
+  // Get status display name
+  const getStatusDisplayName = (status: 'pending' | 'completed') => {
+    switch (status) {
+      case 'completed':
+        return 'Completed';
+      case 'pending':
+        return 'Pending';
+      default:
+        return status;
+    }
+  };
+
+  const handleRowClick = (email: Email) => {
+    handleViewEmail(email);
   };
 
   if (loading && emails.length === 0) {
@@ -311,6 +393,51 @@ export default function Emails() {
                 ))}
               </Select>
             </FormControl>
+
+            <FormControl sx={{ minWidth: 150 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusFilter}
+                onChange={handleStatusFilterChange}
+                label="Status"
+              >
+                <MenuItem value="">All Statuses</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="completed">Completed</MenuItem>
+              </Select>
+            </FormControl>
+
+            <TextField
+              label="From Email"
+              value={fromFilter}
+              onChange={handleFromFilterChange}
+              sx={{ minWidth: 200 }}
+            />
+
+            <TextField
+              label="To Email"
+              value={toFilter}
+              onChange={handleToFilterChange}
+              sx={{ minWidth: 200 }}
+            />
+
+            <TextField
+              label="Date From"
+              type="date"
+              value={dateFromFilter}
+              onChange={handleDateFromFilterChange}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 150 }}
+            />
+
+            <TextField
+              label="Date To"
+              type="date"
+              value={dateToFilter}
+              onChange={handleDateToFilterChange}
+              InputLabelProps={{ shrink: true }}
+              sx={{ minWidth: 150 }}
+            />
           </Box>
         </Paper>
 
@@ -328,6 +455,7 @@ export default function Emails() {
                   <TableCell>To</TableCell>
                   <TableCell>Subject</TableCell>
                   <TableCell>Type</TableCell>
+                  <TableCell>Status</TableCell>
                   <TableCell>Apartment</TableCell>
                   <TableCell>Actions</TableCell>
                 </TableRow>
@@ -335,7 +463,7 @@ export default function Emails() {
               <TableBody>
                 {emails.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
                       {loading ? (
                         <CircularProgress size={24} />
                       ) : (
@@ -347,7 +475,12 @@ export default function Emails() {
                   </TableRow>
                 ) : (
                   emails.map((email) => (
-                    <TableRow key={email.id} hover>
+                    <TableRow 
+                      key={email.id} 
+                      hover
+                      onClick={() => handleRowClick(email)}
+                      sx={{ cursor: 'pointer' }}
+                    >
                       <TableCell>
                         {formatDate(email.date)}
                       </TableCell>
@@ -370,6 +503,13 @@ export default function Emails() {
                         />
                       </TableCell>
                       <TableCell>
+                        <Chip
+                          label={getStatusDisplayName(email.status)}
+                          color={getStatusColor(email.status)}
+                          size="small"
+                        />
+                      </TableCell>
+                      <TableCell>
                         <Typography variant="body2">
                           {email.apartment?.name || getApartmentName(email.apartment_id)}
                         </Typography>
@@ -384,7 +524,10 @@ export default function Emails() {
                           <Tooltip title="View Details">
                             <IconButton
                               size="small"
-                              onClick={() => handleViewEmail(email)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewEmail(email);
+                              }}
                             >
                               <ViewIcon />
                             </IconButton>
@@ -392,7 +535,10 @@ export default function Emails() {
                           <Tooltip title="Edit">
                             <IconButton
                               size="small"
-                              onClick={() => handleEditEmail(email)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditEmail(email);
+                              }}
                             >
                               <EditIcon />
                             </IconButton>
@@ -401,7 +547,10 @@ export default function Emails() {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => handleDeleteClick(email)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteClick(email);
+                              }}
                             >
                               <DeleteIcon />
                             </IconButton>

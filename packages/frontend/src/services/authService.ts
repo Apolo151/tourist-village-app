@@ -26,6 +26,13 @@ export interface RegisterRequest {
   password: string;
   phone_number?: string;
   role: 'owner' | 'renter';
+  passport_number?: string;
+  passport_expiry_date?: string;
+  address?: string;
+  next_of_kin_name?: string;
+  next_of_kin_address?: string;
+  next_of_kin_email?: string;
+  next_of_kin_phone?: string;
 }
 
 export interface AuthResponse {
