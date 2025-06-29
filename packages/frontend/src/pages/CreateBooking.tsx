@@ -285,7 +285,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 <TextField
                   fullWidth
                   required
-                  label="Person Name (Renter)"
+                  label="Person Name (Tenant)"
                   value={formData.user_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
                   placeholder="Enter the person's name"

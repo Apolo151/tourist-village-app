@@ -690,7 +690,7 @@ export default function ApartmentDetails() {
                           <TableCell>{booking.user?.name || 'Unknown'}</TableCell>
                           <TableCell>
                             <Chip 
-                              label={booking.user_type} 
+                              label={booking.user_type === 'owner' ? 'Owner' : 'Tenant'} 
                               size="small"
                               color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                             />

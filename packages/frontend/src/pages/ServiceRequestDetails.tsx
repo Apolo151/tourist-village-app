@@ -486,13 +486,17 @@ export default function ServiceRequestDetails() {
                       onChange={(e) => handleSelectChange(e, 'who_pays')}
                     >
                       <MenuItem value="owner">Owner</MenuItem>
-                      <MenuItem value="renter">Renter</MenuItem>
+                      <MenuItem value="renter">Tenant</MenuItem>
                       <MenuItem value="company">Company</MenuItem>
                     </Select>
                   </FormControl>
                 ) : (
                 <Chip 
-                    label={serviceRequest.who_pays.charAt(0).toUpperCase() + serviceRequest.who_pays.slice(1)}
+                  label={
+                    serviceRequest.who_pays === 'renter'
+                      ? 'Tenant'
+                      : serviceRequest.who_pays.charAt(0).toUpperCase() + serviceRequest.who_pays.slice(1)
+                  }
                   variant="outlined"
                   size="small"
                 />

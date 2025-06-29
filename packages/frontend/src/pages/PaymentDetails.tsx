@@ -387,7 +387,7 @@ export default function PaymentDetails() {
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="subtitle2" color="text.secondary">User Type</Typography>
                   <Chip
-                    label={payment.user_type === 'owner' ? 'Owner' : 'Renter'}
+                    label={payment.user_type === 'owner' ? 'Owner' : 'Tenant'}
                     color={paymentService.getUserTypeColor(payment.user_type)}
                     size="small"
                   />
@@ -471,7 +471,7 @@ export default function PaymentDetails() {
                       onChange={handleSelectChange}
                     >
                       <MenuItem value="owner">Owner</MenuItem>
-                      <MenuItem value="renter">Renter</MenuItem>
+                      <MenuItem value="renter">Tenant</MenuItem>
                     </Select>
                     {errors.user_type && <FormHelperText>{errors.user_type}</FormHelperText>}
                   </FormControl>

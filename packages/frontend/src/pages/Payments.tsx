@@ -269,7 +269,7 @@ export default function Payments() {
       amount: paymentService.formatAmount(payment.amount, payment.currency),
       currency: payment.currency,
       method: payment.payment_method?.name || 'Unknown',
-      user_type: payment.user_type === 'owner' ? 'Owner' : 'Renter',
+      user_type: payment.user_type === 'owner' ? 'Owner' : 'Tenant',
       apartment: payment.apartment?.name || 'Unknown',
       village: payment.apartment?.village?.name || 'Unknown',
       booking: payment.booking ? 
@@ -399,7 +399,7 @@ export default function Payments() {
                   <em>All</em>
                 </MenuItem>
                 <MenuItem value="owner">Owner</MenuItem>
-                <MenuItem value="renter">Renter</MenuItem>
+                <MenuItem value="renter">Tenant</MenuItem>
               </Select>
             </FormControl>
             
@@ -498,7 +498,7 @@ export default function Payments() {
                     <TableCell>{payment.payment_method?.name || 'Unknown'}</TableCell>
                     <TableCell>
                       <Chip
-                        label={payment.user_type === 'owner' ? 'Owner' : 'Renter'}
+                        label={payment.user_type === 'owner' ? 'Owner' : 'Tenant'}
                         color={paymentService.getUserTypeColor(payment.user_type)}
                         size="small"
                       />

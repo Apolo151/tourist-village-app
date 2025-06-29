@@ -685,7 +685,7 @@ const BookingDetails: React.FC = () => {
                       onChange={(e) => handleSelectChange(e, 'user_type')}
                     >
                       <MenuItem value="owner">Owner</MenuItem>
-                      <MenuItem value="renter">Renter</MenuItem>
+                      <MenuItem value="renter">Tenant</MenuItem>
                     </Select>
                   </FormControl>
                 </Grid>
@@ -715,7 +715,7 @@ const BookingDetails: React.FC = () => {
                     <TextField
                       fullWidth
                       required
-                      label="Person Name (Renter)"
+                      label="Person Name (Tenant)"
                       value={formData.user_name}
                       onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
                       placeholder="Enter the person's name"
@@ -862,7 +862,7 @@ const BookingDetails: React.FC = () => {
                             <Typography variant="body1">
                               {booking.user?.name} 
                               <Chip 
-                                label={booking.user_type} 
+                                label={booking.user_type === 'owner' ? 'Owner' : 'Tenant'} 
                                 size="small" 
                                 color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
                                 sx={{ ml: 1 }}
@@ -1162,7 +1162,7 @@ const BookingDetails: React.FC = () => {
                                 <TableCell>{formatDate(bill.date)}</TableCell>
                                 <TableCell>
                                   <Chip 
-                                    label={bill.user_type === 'owner' ? 'Owner' : 'Renter'} 
+                                    label={bill.user_type === 'owner' ? 'Owner' : 'Tenant'} 
                                     size="small"
                                     color={bill.user_type === 'owner' ? 'primary' : 'secondary'}
                                   />

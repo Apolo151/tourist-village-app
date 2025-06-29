@@ -430,7 +430,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                     onChange={handleSelectChange}
                   >
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="renter">Tenant</MenuItem>
                   </Select>
                   {errors.user_type && <FormHelperText>{errors.user_type}</FormHelperText>}
                 </FormControl>
@@ -552,7 +552,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                   </Typography>
                 )}
                 <Typography variant="body2">
-                  <strong>User Type:</strong> {formData.user_type === 'owner' ? 'Owner' : 'Renter'}
+                  <strong>User Type:</strong> {formData.user_type === 'owner' ? 'Owner' : 'Tenant'}
                 </Typography>
                 {formData.apartment_id && (
                   <Typography variant="body2">

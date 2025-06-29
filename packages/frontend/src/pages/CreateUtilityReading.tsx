@@ -33,7 +33,7 @@ import SearchableDropdown from '../components/SearchableDropdown';
 
 const WHO_PAYS_OPTIONS = [
   { value: 'owner', label: 'Owner' },
-  { value: 'renter', label: 'Renter' },
+  { value: 'renter', label: 'Tenant' },
   { value: 'company', label: 'Company' }
 ];
 

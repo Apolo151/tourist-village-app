@@ -206,6 +206,7 @@ export default function Bookings() {
         // Convert UI values to backend format
         const userTypeMap: Record<string, 'owner' | 'renter'> = {
           'Owner': 'owner',
+          'Tenant': 'renter',
           'Renter': 'renter',
           'owner': 'owner',
           'renter': 'renter'
@@ -340,7 +341,7 @@ export default function Bookings() {
         return 'Owner';
       case 'Renter':
       case 'renter':
-        return 'Renter';
+        return 'Tenant';
       default:
         return userType;
     }
@@ -536,7 +537,7 @@ export default function Bookings() {
                   >
                     <MenuItem value="">All Types</MenuItem>
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="renter">Tenant</MenuItem>
                   </Select>
                 </FormControl>
               </Box>

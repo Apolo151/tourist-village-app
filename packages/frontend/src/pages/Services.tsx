@@ -391,7 +391,7 @@ export default function Services() {
       date_action: service.date_action ? formatDate(service.date_action) : 'Not scheduled',
       date_created: formatDate(service.date_created),
       who_pays: service.who_pays === 'owner' ? 'Owner' : 
-                service.who_pays === 'renter' ? 'Renter' : 'Company',
+                service.who_pays === 'renter' ? 'Tenant' : 'Company',
       requester: service.requester?.name || 'Unknown'
     }));
   };
@@ -525,7 +525,7 @@ export default function Services() {
                       <em>All</em>
                     </MenuItem>
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="renter">Tenant</MenuItem>
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
@@ -699,10 +699,14 @@ export default function Services() {
                           </TableCell>
                           <TableCell>
                         <Chip 
-                          label={request.who_pays.charAt(0).toUpperCase() + request.who_pays.slice(1)}
-                          variant="outlined"
-                          size="small"
-                        />
+                        label={
+                          request.who_pays === 'renter'
+                            ? 'Tenant'
+                            : request.who_pays.charAt(0).toUpperCase() + request.who_pays.slice(1)
+                        }
+                        variant="outlined"
+                        size="small"
+                      />
                           </TableCell>
                       {/* <TableCell>{request.assignee?.name || 'Unassigned'}</TableCell> */}
                       <TableCell>

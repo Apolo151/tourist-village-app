@@ -443,7 +443,7 @@ export default function Apartments() {
                 </MenuItem>
                 <MenuItem value="Available">Available</MenuItem>
                 <MenuItem value="Occupied by Owner">Occupied by Owner</MenuItem>
-                <MenuItem value="Occupied By Renter">Occupied By Renter</MenuItem>
+                <MenuItem value="Occupied By Renter">Occupied By Tenant</MenuItem>
               </Select>
             </FormControl>
             

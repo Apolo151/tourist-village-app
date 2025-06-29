@@ -439,7 +439,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
                     onChange={(e) => handleSelectChange(e, 'who_pays')}
                   >
                     <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
+                    <MenuItem value="renter">Tenant</MenuItem>
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
