@@ -95,13 +95,26 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     }
   }, [formData.user_type]);
 
+  // Auto-select apartment owner when apartment is selected and user type is owner
+  useEffect(() => {
+    if (formData.user_type === 'owner' && formData.apartment_id) {
+      const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+      if (selectedApartment?.owner_id) {
+        setFormData(prev => ({ ...prev, user_id: selectedApartment.owner_id }));
+      }
+    }
+  }, [formData.apartment_id, formData.user_type, apartments]);
+
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
     
     if (formData.user_type === 'owner') {
       if (!formData.user_id || formData.user_id === 0) return 'Please select a user for owner booking';
     } else {
-      if (!formData.user_name.trim()) return 'Please enter the person name for renter booking';
+      // For renter bookings, user_name must be provided (either from selection or typing)
+      if (!formData.user_name.trim()) {
+        return 'Please enter a tenant name';
+      }
     }
     
     if (!formData.arrival_date) return 'Please select arrival date';
@@ -139,8 +152,15 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       if (formData.user_type === 'owner') {
         bookingData.user_id = formData.user_id;
       } else {
-        bookingData.user_name = formData.user_name.trim();
-        bookingData.user_type = 'renter';
+        // For renter bookings, check if it's an existing user or new user
+        if (formData.user_id && formData.user_id > 0) {
+          // Existing user selected
+          bookingData.user_id = formData.user_id;
+        } else {
+          // New user to be created
+          bookingData.user_name = formData.user_name.trim();
+          bookingData.user_type = 'renter';
+        }
       }
 
       await bookingService.createBooking(bookingData);
@@ -196,8 +216,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         {formData.user_type === 'renter' && (
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="body2">
-              <strong>Renter Booking:</strong> When you enter a person's name that doesn't exist in the system, 
-              a new user account will be automatically created with the following default values:
+              <strong>Tenant Booking:</strong> You can search for existing users in the dropdown or type a new name directly. 
+              When you enter a name that doesn't exist in the system, a new user account will be automatically created with the following default values:
               <br />• Email: [cleanname][timestamp][random]@domain.com
               <br />• Password: renterpassword
               <br />• Role: Renter
@@ -256,19 +276,85 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             <Grid size={{ xs: 12, md: 6 }}>
               {formData.user_type === 'owner' ? (
                 <SearchableDropdown
-                  options={users
-                    .filter(user => user.role === 'owner')
-                    .map(user => ({
+                  options={(() => {
+                    // Get the selected apartment to find its owner
+                    const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+                    const apartmentOwnerId = selectedApartment?.owner_id;
+                    
+                    // Get all owner users
+                    const ownerUsers = users.filter(user => user.role === 'owner');
+                    
+                    // Sort to put the apartment owner first
+                    return ownerUsers.sort((a, b) => {
+                      if (a.id === apartmentOwnerId) return -1;
+                      if (b.id === apartmentOwnerId) return 1;
+                      return a.name.localeCompare(b.name);
+                    }).map(user => ({
                       id: user.id,
-                      label: `${user.name} (${user.email})`,
+                      label: `${user.name} (${user.email})${user.id === apartmentOwnerId ? ' - Apartment Owner' : ''}`,
                       name: user.name,
-                      email: user.email
-                    }))}
+                      email: user.email,
+                      isApartmentOwner: user.id === apartmentOwnerId
+                    }));
+                  })()}
                   value={formData.user_id || null}
                   onChange={(value) => setFormData(prev => ({ ...prev, user_id: value as number || 0 }))}
                   label="Person Name (Owner)"
                   placeholder="Search owners by name or email..."
                   required
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">
+                          {option.name}
+                          {option.isApartmentOwner && (
+                            <Typography component="span" variant="body2" color="primary" sx={{ ml: 1 }}>
+                              (Apartment Owner)
+                            </Typography>
+                          )}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.email}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
+              ) : (
+                <SearchableDropdown
+                  options={users.map(user => ({
+                    id: user.id,
+                    label: `${user.name} (${user.email})`,
+                    name: user.name,
+                    email: user.email
+                  }))}
+                  value={formData.user_id || null}
+                  onChange={(value) => {
+                    if (value) {
+                      // User selected an existing user
+                      const selectedUser = users.find(u => u.id === value);
+                      if (selectedUser) {
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          user_id: selectedUser.id,
+                          user_name: selectedUser.name 
+                        }));
+                      }
+                    } else {
+                      // No user selected, clear user_id but keep user_name for new user
+                      setFormData(prev => ({ ...prev, user_id: 0 }));
+                    }
+                  }}
+                  label="Person Name (Tenant)"
+                  placeholder="Search users or type new name..."
+                  required
+                  freeSolo={true}
+                  onInputChange={(inputValue) => {
+                    // Update user_name with the typed text
+                    setFormData(prev => ({ ...prev, user_name: inputValue }));
+                  }}
+                  inputValue={formData.user_name}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>
@@ -280,16 +366,6 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                       </Box>
                     </li>
                   )}
-                />
-              ) : (
-                <TextField
-                  fullWidth
-                  required
-                  label="Person Name (Tenant)"
-                  value={formData.user_name}
-                  onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
-                  placeholder="Enter the person's name"
-                  helperText="Enter the name of the person making the booking. A new user account will be created if they don't exist."
                 />
               )}
             </Grid>

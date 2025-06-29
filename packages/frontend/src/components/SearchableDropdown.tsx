@@ -35,6 +35,9 @@ export interface SearchableDropdownProps {
   multiple?: boolean;
   multipleValue?: (number | string)[];
   onMultipleChange?: (values: (number | string)[]) => void;
+  freeSolo?: boolean;
+  onInputChange?: (inputValue: string) => void;
+  inputValue?: string;
 }
 
 export default function SearchableDropdown({
@@ -55,7 +58,10 @@ export default function SearchableDropdown({
   clearable = true,
   multiple = false,
   multipleValue = [],
-  onMultipleChange
+  onMultipleChange,
+  freeSolo = false,
+  onInputChange,
+  inputValue
 }: SearchableDropdownProps) {
   const selectedOption = options.find(option => option.id === value);
 
@@ -104,10 +110,26 @@ export default function SearchableDropdown({
         options={options}
         value={selectedOption || null}
         onChange={(_, newValue) => {
-          onChange(newValue?.id || null);
+          if (typeof newValue === 'string') {
+            // Free text input
+            onChange(null);
+          } else {
+            // Option selected
+            onChange(newValue?.id || null);
+          }
         }}
-        getOptionLabel={getOptionLabel}
-        renderOption={renderOption}
+        getOptionLabel={(option) => {
+          if (typeof option === 'string') {
+            return option;
+          }
+          return getOptionLabel(option);
+        }}
+        renderOption={renderOption ? (props, option) => {
+          if (typeof option === 'string') {
+            return <li {...props}>{option}</li>;
+          }
+          return renderOption(props, option);
+        } : undefined}
         filterOptions={filterOptions || defaultFilterOptions}
         renderInput={(params) => (
           <TextField
@@ -121,6 +143,11 @@ export default function SearchableDropdown({
         disabled={disabled}
         clearOnBlur={false}
         size={size}
+        freeSolo={freeSolo}
+        onInputChange={(_, inputValue) => {
+          onInputChange?.(inputValue);
+        }}
+        inputValue={inputValue}
       />
       {helperText && <FormHelperText>{helperText}</FormHelperText>}
     </FormControl>
