@@ -252,6 +252,19 @@ export default function ServiceRequestDetails() {
     return currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   };
 
+  // Find the related booking in the loaded bookings array (for view mode fallback)
+  let relatedBooking: typeof bookings[number] | undefined = undefined;
+  let bookingUserName = 'Unknown';
+  if (serviceRequest) {
+    relatedBooking = bookings.find(
+      b => b.id === serviceRequest.booking?.id
+    );
+    bookingUserName =
+      serviceRequest.booking?.user?.name ||
+      relatedBooking?.user?.name ||
+      'Unknown';
+  }
+
   if (loading) {
     return (
       <Container maxWidth="md">
@@ -457,10 +470,9 @@ export default function ServiceRequestDetails() {
                   </FormControl>
                 ) : (
                   <Typography variant="body1">
-                    {serviceRequest.booking ? 
-                      `${serviceRequest.booking.user?.name || 'Unknown'} - ${formatDate(serviceRequest.booking.arrival_date)} to ${formatDate(serviceRequest.booking.leaving_date)}` : 
-                      'No booking'
-                    }
+                    {serviceRequest?.booking
+                      ? `${bookingUserName} - ${formatDate(serviceRequest.booking?.arrival_date)} to ${formatDate(serviceRequest.booking?.leaving_date)}`
+                      : 'No booking'}
                   </Typography>
                 )}
               </Grid>
