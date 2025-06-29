@@ -677,9 +677,6 @@ export default function ApartmentDetails() {
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Related Bookings</Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button variant="contained" startIcon={<PaymentsIcon />} onClick={() => openDialog('payment')}>
-                    Add Payment
-                  </Button>
                   <Button variant="contained" startIcon={<BookingIcon />} onClick={() => openDialog('booking')}>
                     New Booking
                   </Button>

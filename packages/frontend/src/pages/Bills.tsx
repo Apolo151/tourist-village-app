@@ -96,7 +96,6 @@ export default function Bills() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
-  const [userTypeFilter, setUserTypeFilter] = useState<'owner' | 'renter' | ''>('');
   const [billDisplayData, setBillDisplayData] = useState<BillSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [previousYearTotals, setPreviousYearTotals] = useState<{
@@ -207,7 +206,6 @@ export default function Bills() {
           const selectedVillage = villagesData.data.find(v => v.name === villageFilter);
           if (selectedVillage) filters.village_id = selectedVillage.id;
         }
-        if (userTypeFilter) filters.user_type = userTypeFilter;
         if (startDate && endDate) {
           filters.date_from = format(startDate, 'yyyy-MM-dd');
           filters.date_to = format(endDate, 'yyyy-MM-dd');
@@ -243,7 +241,7 @@ export default function Bills() {
     };
     
     loadData();
-  }, [searchTerm, villageFilter, userTypeFilter, startDate, endDate, currentYear]);
+  }, [searchTerm, villageFilter, startDate, endDate, currentYear]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -251,10 +249,6 @@ export default function Bills() {
   
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
     setVillageFilter(event.target.value);
-  };
-  
-  const handleUserTypeFilterChange = (event: SelectChangeEvent) => {
-    setUserTypeFilter(event.target.value as 'owner' | 'renter' | '');
   };
   
   const handleStartDateChange = (date: Date | null) => {
@@ -494,21 +488,6 @@ export default function Bills() {
                     {villages.map(village => (
                       <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
                     ))}
-                  </Select>
-                </FormControl>
-              </Box>
-              
-              <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
-                <FormControl fullWidth size="small">
-                  <InputLabel>User Type</InputLabel>
-                  <Select
-                    value={userTypeFilter}
-                    label="User Type"
-                    onChange={handleUserTypeFilterChange}
-                  >
-                    <MenuItem value="">All Users</MenuItem>
-                    <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Renter</MenuItem>
                   </Select>
                 </FormControl>
               </Box>

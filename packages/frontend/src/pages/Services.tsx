@@ -133,6 +133,10 @@ export default function Services() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [serviceRequestToDelete, setServiceRequestToDelete] = useState<number | null>(null);
   
+  // Dialog state for service type deletion
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; serviceType: ServiceType | null }>({ open: false, serviceType: null });
+  const [deleting, setDeleting] = useState(false);
+  
   // Load initial data
   useEffect(() => {
     const loadInitialData = async () => {
@@ -416,6 +420,37 @@ export default function Services() {
     }
   }, [searchParams, navigate]);
 
+  const handleDeleteServiceType = async () => {
+    if (!deleteDialog.serviceType) return;
+    setDeleting(true);
+    try {
+      await serviceRequestService.deleteServiceType(deleteDialog.serviceType.id);
+      setDeleteDialog({ open: false, serviceType: null });
+      // Refresh list
+      const filters = {
+        page: serviceTypesPagination.page,
+        limit: serviceTypesPagination.limit,
+        search: searchTerm || undefined,
+        sort_by: 'name',
+        sort_order: 'asc' as const
+      };
+      const response = await serviceRequestService.getServiceTypes(filters);
+      setServiceTypes(response.data || []);
+      if (response.pagination) {
+        setServiceTypesPagination({
+          page: response.pagination.page || 1,
+          limit: response.pagination.limit || 12,
+          total: response.pagination.total || 0,
+          total_pages: response.pagination.total_pages || 0
+        });
+      }
+    } catch (err) {
+      alert('Failed to delete service type');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Container maxWidth="lg">
@@ -603,13 +638,20 @@ export default function Services() {
                       Request Service
                     </Button>
                     {isAdmin && (
-                      <Button 
-                        size="small" 
-                        startIcon={<EditIcon />}
-                        onClick={() => handleServiceTypeClick(service.id)}
-                      >
-                        Edit
-                      </Button>
+                      <>
+                        <Button 
+                          size="small" 
+                          startIcon={<EditIcon />}
+                          onClick={() => handleServiceTypeClick(service.id)}
+                        >
+                          Edit
+                        </Button>
+                        <Tooltip title="Delete Service Type">
+                          <IconButton color="error" onClick={() => setDeleteDialog({ open: true, serviceType: service })}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
                     )}
                   </CardActions>
                 </Card>
@@ -727,7 +769,7 @@ export default function Services() {
                               <Tooltip title="Edit Service Request">
                                 <IconButton 
                                   size="small"
-                                  onClick={(e) => handleEditServiceRequest(request.id, e)}
+                                  onClick={(e) => { e.stopPropagation(); handleEditServiceRequest(request.id, e); }}
                                 >
                                   <EditIcon />
                                 </IconButton>
@@ -792,6 +834,22 @@ export default function Services() {
             <Button onClick={handleDeleteServiceRequestCancel}>Cancel</Button>
             <Button onClick={handleDeleteServiceRequestConfirm} color="error" variant="contained">
               Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
+        
+        {/* Delete Confirmation Dialog for Service Type */}
+        <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, serviceType: null })}>
+          <DialogTitle>Delete Service Type</DialogTitle>
+          <DialogContent>
+            <DialogContentText>
+              Are you sure you want to delete the service type "{deleteDialog.serviceType?.name}"? This action cannot be undone.
+            </DialogContentText>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteDialog({ open: false, serviceType: null })} disabled={deleting}>Cancel</Button>
+            <Button onClick={handleDeleteServiceType} color="error" variant="contained" disabled={deleting}>
+              {deleting ? 'Deleting...' : 'Delete'}
             </Button>
           </DialogActions>
         </Dialog>

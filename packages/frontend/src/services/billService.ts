@@ -47,7 +47,7 @@ export interface BillSummaryResponse {
 
 export interface BillDetailItem {
   id: number;
-  type: 'payment' | 'service_request' | 'utility_reading';
+  type: 'Payment' | 'Service Request' | 'Utility Reading';
   description: string;
   amount: number;
   currency: 'EGP' | 'GBP';

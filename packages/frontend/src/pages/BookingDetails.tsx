@@ -95,6 +95,7 @@ interface FormErrors {
   user_name?: string;
   arrival_date?: string;
   leaving_date?: string;
+  number_of_people?: string;
 }
 
 interface TabPanelProps {
@@ -201,48 +202,47 @@ const BookingDetails: React.FC = () => {
     loadInitialData();
   }, []);
 
-  // Load booking data if editing
+  // Load booking data when apartments are loaded
   useEffect(() => {
     const loadBookingData = async () => {
-    if (!isNew && id) {
-        try {
-          setLoading(true);
-          const [bookingData, relatedBookingData] = await Promise.all([
-            bookingService.getBookingById(parseInt(id)),
-            bookingService.getBookingWithRelatedData(parseInt(id))
-          ]);
-          
-          setBooking(bookingData);
-          setRelatedData(relatedBookingData);
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Load booking with related data
+        const bookingData = await bookingService.getBookingWithRelatedData(parseInt(id!));
+        setBooking(bookingData.booking);
+        setRelatedData(bookingData);
+
+        // Set form data
         setFormData({
-          apartment_id: bookingData.apartment_id,
-          user_id: bookingData.user_id,
-          user_name: bookingData.user?.name || '',
-          user_type: bookingData.user_type === 'owner' ? 'owner' : 'renter',
-          number_of_people: bookingData.number_of_people,
-          arrival_date: parseISO(bookingData.arrival_date),
-          leaving_date: parseISO(bookingData.leaving_date),
-          status: bookingData.status,
-          notes: bookingData.notes || '',
+          apartment_id: bookingData.booking.apartment_id,
+          user_id: bookingData.booking.user_id,
+          user_name: bookingData.booking.user?.name || '',
+          user_type: bookingData.booking.user_type,
+          number_of_people: bookingData.booking.number_of_people,
+          arrival_date: parseISO(bookingData.booking.arrival_date),
+          leaving_date: parseISO(bookingData.booking.leaving_date),
+          status: bookingData.booking.status,
+          notes: bookingData.booking.notes || '',
           flightDetails: ''
         });
 
         // Extract flight details from notes if present
-        if (bookingData.notes && bookingData.notes.includes('Flight Details:')) {
-          const flightMatch = bookingData.notes.match(/Flight Details:\s*(.+)/);
+        if (bookingData.booking.notes && bookingData.booking.notes.includes('Flight Details:')) {
+          const flightMatch = bookingData.booking.notes.match(/Flight Details:\s*(.+)/);
           if (flightMatch) {
             setFormData(prev => ({
               ...prev,
-              notes: bookingData.notes?.replace(/\n\nFlight Details:.*/, '') || '',
+              notes: bookingData.booking.notes?.replace(/\n\nFlight Details:.*/, '') || '',
               flightDetails: flightMatch[1].trim()
             }));
           }
         }
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to load booking data');
-        } finally {
-          setLoading(false);
-        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load booking data');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -322,6 +322,10 @@ const BookingDetails: React.FC = () => {
       if (formData.arrival_date >= formData.leaving_date) {
         newErrors.leaving_date = 'Leaving date must be after arrival date';
       }
+    }
+    
+    if (!formData.number_of_people || formData.number_of_people < 1) {
+      newErrors.number_of_people = 'Number of people must be at least 1';
     }
     
     setErrors(newErrors);
@@ -436,6 +440,17 @@ const BookingDetails: React.FC = () => {
   // Dialog open/close handlers
   const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
   const closeDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: false }));
+  
+  // Refresh related data
+  const refreshRelatedData = async () => {
+    if (!id || isNew) return;
+    try {
+      const bookingData = await bookingService.getBookingWithRelatedData(parseInt(id));
+      setRelatedData(bookingData);
+    } catch (err) {
+      console.error('Failed to refresh related data:', err);
+    }
+  };
 
   // Helper to render dialog
   const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => (
@@ -450,23 +465,6 @@ const BookingDetails: React.FC = () => {
       />
     </Dialog>
   );
-
-  // Refresh related data after quick actions
-  const refreshRelatedData = async () => {
-    if (!isNew && id) {
-      try {
-        const relatedBookingData = await bookingService.getBookingWithRelatedData(parseInt(id));
-        setRelatedData(relatedBookingData);
-        
-        // Also refresh bills if they exist
-        if (bills.length > 0) {
-          await loadBills();
-        }
-      } catch (err) {
-        console.error('Failed to refresh related data:', err);
-      }
-    }
-  };
 
   // Load bills based on booking type
   const loadBills = async () => {
@@ -734,6 +732,8 @@ const BookingDetails: React.FC = () => {
                     value={formData.number_of_people}
                     onChange={handleChange}
                     inputProps={{ min: 1, max: 20 }}
+                    error={!!errors.number_of_people}
+                    helperText={errors.number_of_people}
                   />
                 </Grid>
 
@@ -966,7 +966,7 @@ const BookingDetails: React.FC = () => {
                             {relatedData.payments.map((payment: any) => (
                               <TableRow key={payment.id}>
                                 <TableCell>{formatDate(payment.date)}</TableCell>
-                                <TableCell>{payment.cost}</TableCell>
+                                <TableCell>{payment.amount}</TableCell>
                                 <TableCell>{payment.currency}</TableCell>
                                 <TableCell>{payment.method_name || 'N/A'}</TableCell>
                                 <TableCell>{payment.description}</TableCell>
@@ -1018,7 +1018,7 @@ const BookingDetails: React.FC = () => {
                       <Chip 
                                     label={request.status || 'Pending'} 
                         size="small"
-                                    color={request.status === 'completed' ? 'success' : 'default'}
+                                    color={request.status === 'Done' ? 'success' : request.status === 'In Progress' ? 'warning' : 'default'}
                                   />
                                 </TableCell>
                               </TableRow>
@@ -1151,9 +1151,9 @@ const BookingDetails: React.FC = () => {
                               <TableRow key={bill.id}>
                                 <TableCell>
                                   <Chip 
-                                    label={bill.type.replace('_', ' ')} 
+                                    label={bill.type} 
                                     size="small"
-                                    color={bill.type === 'payment' ? 'success' : 'default'}
+                                    color={bill.type === 'Payment' ? 'success' : bill.type === 'Service Request' ? 'warning' : 'info'}
                                   />
                                 </TableCell>
                                 <TableCell>{bill.description}</TableCell>

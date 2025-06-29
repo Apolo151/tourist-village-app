@@ -92,7 +92,7 @@ export default function Bookings() {
   const [tabValue, setTabValue] = useState<number>(0);
   
   // Filter state
-  const [showFilters, setShowFilters] = useState<boolean>(false);
+  const [showFilters, setShowFilters] = useState<boolean>(true);
   const [filters, setFilters] = useState<BookingFilter>({
     searchTerm: '',
     apartmentId: '',

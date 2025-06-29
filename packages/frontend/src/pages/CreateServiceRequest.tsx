@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -50,6 +50,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentUser } = useAuth();
+  const { id } = useParams<{ id: string }>();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,6 +150,34 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
     }
   }, [bookingId, bookings, formData.booking_id]);
 
+  // Prefill form in edit mode
+  useEffect(() => {
+    const fetchAndPrefill = async () => {
+      if (!id) return;
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await serviceRequestService.getServiceRequestById(Number(id));
+        setFormData({
+          type_id: data.type_id,
+          apartment_id: data.apartment_id,
+          booking_id: data.booking_id,
+          requester_id: data.requester_id,
+          date_action: data.date_action,
+          status: data.status,
+          who_pays: data.who_pays,
+          notes: data.notes,
+          assignee_id: data.assignee_id
+        });
+      } catch (err) {
+        setError('Failed to load service request for editing');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAndPrefill();
+  }, [id]);
+
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData(prev => ({
@@ -210,14 +239,21 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
         apartment_id: formData.apartment_id
       };
 
-      await serviceRequestService.createServiceRequest(requestData);
+      if (id) {
+        // Edit mode - update existing service request
+        await serviceRequestService.updateServiceRequest(Number(id), requestData);
+      } else {
+        // Create mode - create new service request
+        await serviceRequestService.createServiceRequest(requestData);
+      }
+
       if (onSuccess) {
         onSuccess();
       } else {
         navigate('/services?tab=1'); // Navigate to service requests tab
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create service request');
+      setError(err instanceof Error ? err.message : 'Failed to save service request');
     } finally {
       setSubmitting(false);
     }
@@ -288,7 +324,7 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
                 onClick={handleSubmit}
                 disabled={submitting || !formData.type_id || !formData.apartment_id || !formData.requester_id}
               >
-                {submitting ? 'Creating...' : 'Create Request'}
+                {submitting ? (id ? 'Saving...' : 'Creating...') : (id ? 'Edit Request' : 'Create Request')}
               </Button>
               <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
                 Cancel

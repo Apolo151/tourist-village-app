@@ -80,6 +80,10 @@ function App() {
                 <Route path="/services" element={<Services />} />
                 <Route path="/services/requests/:id" element={<ServiceRequestDetails />} />
                 <Route path="/services/requests/create" element={<CreateServiceRequest />} />
+                {/* Admin-only service request edit route */}
+                <Route element={<ProtectedRoute requiredRole="admin" />}> 
+                  <Route path="/services/requests/:id/edit" element={<CreateServiceRequest />} />
+                </Route>
                 
                 {/* Admin-only service routes */}
                 <Route element={<ProtectedRoute requiredRole="admin" />}>
