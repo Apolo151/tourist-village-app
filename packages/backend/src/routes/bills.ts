@@ -94,29 +94,36 @@ router.get(
       }
 
       // Apply date filters to payments, service requests, and utility readings
-      // Temporarily simplified - remove complex OR conditions that may cause issues with LEFT JOINs
-      // if (year) {
-      //   query = query.where(function() {
-      //     this.whereRaw("EXTRACT(YEAR FROM p.date) = ?", [year])
-      //         .orWhereRaw("EXTRACT(YEAR FROM sr.date_created) = ?", [year])
-      //         .orWhereRaw("EXTRACT(YEAR FROM ur.date_created) = ?", [year]);
-      //   });
-      // } else if (date_from || date_to) {
-      //   if (date_from) {
-      //     query = query.where(function() {
-      //       this.where('p.date', '>=', date_from)
-      //           .orWhere('sr.date_created', '>=', date_from)
-      //           .orWhere('ur.date_created', '>=', date_from);
-      //     });
-      //   }
-      //   if (date_to) {
-      //     query = query.where(function() {
-      //       this.where('p.date', '<=', date_to)
-      //           .orWhere('sr.date_created', '<=', date_to)
-      //           .orWhere('ur.date_created', '<=', date_to);
-      //     });
-      //   }
-      // }
+      // Use a simpler approach with separate queries to avoid LEFT JOIN issues
+      let dateFilter = '';
+      let dateParams: any[] = [];
+      
+      if (year) {
+        dateFilter = `
+          (
+            EXTRACT(YEAR FROM p.date) = ? OR 
+            EXTRACT(YEAR FROM sr.date_created) = ? OR 
+            EXTRACT(YEAR FROM ur.created_at) = ?
+          )
+        `;
+        dateParams = [year, year, year];
+      } else if (date_from || date_to) {
+        const conditions = [];
+        if (date_from) {
+          conditions.push('(p.date >= ? OR sr.date_created >= ? OR ur.created_at >= ?)');
+          dateParams.push(date_from, date_from, date_from);
+        }
+        if (date_to) {
+          conditions.push('(p.date <= ? OR sr.date_created <= ? OR ur.created_at <= ?)');
+          dateParams.push(date_to, date_to, date_to);
+        }
+        dateFilter = `(${conditions.join(' AND ')})`;
+      }
+
+      // Modify the base query to include date filtering
+      if (dateFilter) {
+        query = query.whereRaw(dateFilter, dateParams);
+      }
 
       const results = await query;
 
@@ -264,6 +271,9 @@ router.get(
         });
       }
 
+      // Get date filters from query parameters
+      const { year, date_from, date_to } = req.query;
+
       // Get all payments for this apartment
       const payments = await db('payments as p')
         .leftJoin('bookings as b', 'p.booking_id', 'b.id')
@@ -276,6 +286,14 @@ router.get(
           'pm.name as payment_method_name'
         )
         .where('p.apartment_id', apartmentId)
+        .modify(function(qb: any) {
+          if (year) {
+            qb.whereRaw("EXTRACT(YEAR FROM p.date) = ?", [year]);
+          } else if (date_from || date_to) {
+            if (date_from) qb.where('p.date', '>=', date_from);
+            if (date_to) qb.where('p.date', '<=', date_to);
+          }
+        })
         .orderBy('p.date', 'desc');
 
       // Get all service requests for this apartment
@@ -292,6 +310,14 @@ router.get(
           'u.name as person_name'
         )
         .where('sr.apartment_id', apartmentId)
+        .modify(function(qb: any) {
+          if (year) {
+            qb.whereRaw("EXTRACT(YEAR FROM sr.date_created) = ?", [year]);
+          } else if (date_from || date_to) {
+            if (date_from) qb.where('sr.date_created', '>=', date_from);
+            if (date_to) qb.where('sr.date_created', '<=', date_to);
+          }
+        })
         .orderBy('sr.date_created', 'desc');
 
       // Get all utility readings for this apartment
@@ -308,11 +334,19 @@ router.get(
           'v.water_price'
         )
         .where('ur.apartment_id', apartmentId)
+        .modify(function(qb: any) {
+          if (year) {
+            qb.whereRaw("EXTRACT(YEAR FROM ur.created_at) = ?", [year]);
+          } else if (date_from || date_to) {
+            if (date_from) qb.where('ur.created_at', '>=', date_from);
+            if (date_to) qb.where('ur.created_at', '<=', date_to);
+          }
+        })
         .orderBy('ur.created_at', 'desc');
 
       // Combine and format bills
       const bills = [
-        ...payments.map(p => ({
+        ...payments.map((p: any) => ({
           id: `payment_${p.id}`,
           type: 'Payment',
           description: p.description || `Payment via ${p.payment_method_name}`,
@@ -324,7 +358,7 @@ router.get(
           person_name: p.person_name,
           created_at: p.created_at
         })),
-        ...serviceRequests.map(sr => ({
+        ...serviceRequests.map((sr: any) => ({
           id: `service_${sr.id}`,
           type: 'Service Request',
           description: sr.notes || sr.service_name,
@@ -336,7 +370,7 @@ router.get(
           person_name: sr.person_name,
           created_at: sr.created_at
         })),
-        ...utilityReadings.map(ur => {
+        ...utilityReadings.map((ur: any) => {
           // Calculate utility costs
           const waterUsage = (ur.water_end_reading && ur.water_start_reading) ? 
             parseFloat(ur.water_end_reading) - parseFloat(ur.water_start_reading) : 0;
@@ -535,7 +569,7 @@ router.get(
 
       // Combine and format bills
       const bills = [
-        ...payments.map(p => ({
+        ...payments.map((p: any) => ({
           id: `payment_${p.id}`,
           type: 'Payment',
           description: p.description || `Payment via ${p.payment_method_name}`,
@@ -548,7 +582,7 @@ router.get(
           person_name: p.person_name || targetUser.name,
           created_at: p.created_at
         })),
-        ...serviceRequests.map(sr => ({
+        ...serviceRequests.map((sr: any) => ({
           id: `service_${sr.id}`,
           type: 'Service Request',
           description: sr.notes || sr.service_name,

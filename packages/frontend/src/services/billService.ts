@@ -131,7 +131,7 @@ class BillService {
   /**
    * Get detailed bill information for a specific apartment
    */
-  async getApartmentDetails(apartmentId: number): Promise<{
+  async getApartmentDetails(apartmentId: number, filters?: BillsFilters): Promise<{
     apartment: {
       id: number;
       name: string;
@@ -154,6 +154,12 @@ class BillService {
       net_money: BillTotals;
     };
   }> {
+    const params: Record<string, any> = {};
+    
+    if (filters?.year) params.year = filters.year;
+    if (filters?.date_from) params.date_from = filters.date_from;
+    if (filters?.date_to) params.date_to = filters.date_to;
+
     const response = await apiClient.get<ApiResponse<{
       apartment: {
         id: number;
@@ -176,7 +182,7 @@ class BillService {
         total_money_requested: BillTotals;
         net_money: BillTotals;
       };
-    }>>(`/bills/apartment/${apartmentId}`);
+    }>>(`/bills/apartment/${apartmentId}`, params);
     return response.data!;
   }
 }

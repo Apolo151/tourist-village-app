@@ -71,6 +71,7 @@ import CreateEmail from './CreateEmail';
 import CreatePayment from './CreatePayment';
 import CreateServiceRequest from './CreateServiceRequest';
 import CreateUtilityReading from './CreateUtilityReading';
+import { billService } from '../services/billService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -115,6 +116,7 @@ export default function ApartmentDetails() {
     total_money_requested: { EGP: number; GBP: number };
     net_money: { EGP: number; GBP: number };
   } | null>(null);
+  const [relatedBills, setRelatedBills] = useState<any[]>([]);
 
   // Dialog state for quick actions
   const [dialogState, setDialogState] = useState({
@@ -212,6 +214,14 @@ export default function ApartmentDetails() {
         setRelatedUtilityReadings(utilityReadingsData);
         setRelatedEmails(emailsData);
 
+        // Fetch bills for this apartment
+        try {
+          const billDetails = await billService.getApartmentDetails(parseInt(id));
+          setRelatedBills(billDetails.bills || []);
+        } catch (e) {
+          setRelatedBills([]);
+        }
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load apartment data');
       } finally {
@@ -288,9 +298,11 @@ export default function ApartmentDetails() {
       return [
         ...commonTabs,
         <Tab key="bookings" label="Bookings" icon={<CalendarIcon />} iconPosition="start" />,
+        <Tab key="payments" label="Payments" icon={<PaymentsIcon />} iconPosition="start" />,
         <Tab key="services" label="Service Requests" icon={<EngineeringIcon />} iconPosition="start" />,
         <Tab key="emails" label="Emails" icon={<EmailIcon />} iconPosition="start" />,
-        <Tab key="utilities" label="Utilities" icon={<WaterDropIcon />} iconPosition="start" />
+        <Tab key="utilities" label="Utilities" icon={<WaterDropIcon />} iconPosition="start" />,
+        <Tab key="bills" label="Bills" icon={<BillsIcon />} iconPosition="start" />
       ];
     }
     
@@ -664,9 +676,14 @@ export default function ApartmentDetails() {
           <TabPanel value={tabValue} index={2}>
             <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Related Bookings</Typography>
-                <Button variant="contained" startIcon={<BookingIcon />} onClick={() => openDialog('booking')}>
-                New Booking
-              </Button>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button variant="contained" startIcon={<PaymentsIcon />} onClick={() => openDialog('payment')}>
+                    Add Payment
+                  </Button>
+                  <Button variant="contained" startIcon={<BookingIcon />} onClick={() => openDialog('booking')}>
+                    New Booking
+                  </Button>
+                </Box>
             </Box>
             
             {relatedBookings.length > 0 ? (
@@ -726,9 +743,101 @@ export default function ApartmentDetails() {
           </TabPanel>
           )}
           
-          {/* Service Requests Tab (Admin Only) */}
+          {/* Payments Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={3}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
+                <Typography variant="h6">Related Payments</Typography>
+                <Button variant="contained" startIcon={<PaymentsIcon />} onClick={() => openDialog('payment')}>
+                  Add Payment
+                </Button>
+              </Box>
+              {relatedPayments.length > 0 ? (
+                <TableContainer component={Paper}>
+                  <Table sx={{ minWidth: 650 }} aria-label="payments table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Amount</TableCell>
+                        <TableCell>Currency</TableCell>
+                        <TableCell>Method</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {relatedPayments.map(payment => (
+                        <TableRow key={payment.id}>
+                          <TableCell>{new Date(payment.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{payment.amount}</TableCell>
+                          <TableCell>{payment.currency}</TableCell>
+                          <TableCell>{typeof payment.payment_method === 'string' ? payment.payment_method : payment.payment_method?.name || '-'}</TableCell>
+                          <TableCell>{payment.description || '-'}</TableCell>
+                          <TableCell align="right">
+                            <Button size="small" onClick={() => navigate(`/payments/${payment.id}`)}>
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info">No payments found for this apartment</Alert>
+              )}
+            </TabPanel>
+          )}
+          
+          {/* Bills Tab (Admin Only) */}
+          {isAdmin && (
+            <TabPanel value={tabValue} index={7}>
+              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
+                <Typography variant="h6">Related Bills</Typography>
+                <Button variant="outlined" startIcon={<BillsIcon />} onClick={() => navigate(`/bills?apartmentId=${apartment.id}`)}>
+                  View All Bills
+                </Button>
+              </Box>
+              {relatedBills.length > 0 ? (
+                <TableContainer component={Paper}>
+                  <Table sx={{ minWidth: 650 }} aria-label="bills table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Date</TableCell>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Amount</TableCell>
+                        <TableCell>Currency</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {relatedBills.map(bill => (
+                        <TableRow key={bill.id}>
+                          <TableCell>{new Date(bill.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{bill.type}</TableCell>
+                          <TableCell>{bill.amount}</TableCell>
+                          <TableCell>{bill.currency}</TableCell>
+                          <TableCell>{bill.description || '-'}</TableCell>
+                          <TableCell align="right">
+                            <Button size="small" onClick={() => navigate(`/bills/${bill.id}`)}>
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Alert severity="info">No bills found for this apartment</Alert>
+              )}
+            </TabPanel>
+          )}
+          
+          {/* Service Requests Tab (Admin Only) */}
+          {isAdmin && (
+            <TabPanel value={tabValue} index={4}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Service Requests</Typography>
                   <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => openDialog('serviceRequest')}>
@@ -774,7 +883,7 @@ export default function ApartmentDetails() {
           
           {/* Emails Tab (Admin Only) */}
           {isAdmin && (
-            <TabPanel value={tabValue} index={4}>
+            <TabPanel value={tabValue} index={5}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Related Emails</Typography>
                   <Button variant="contained" startIcon={<EmailIcon />} onClick={() => openDialog('email')}>
@@ -820,7 +929,7 @@ export default function ApartmentDetails() {
           
           {/* Utilities Tab (Admin Only) */}
           {isAdmin && (
-            <TabPanel value={tabValue} index={5}>
+            <TabPanel value={tabValue} index={6}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                 <Typography variant="h6">Utility Readings</Typography>
                   <Button variant="contained" startIcon={<WaterDropIcon />} onClick={() => openDialog('utilityReading')}>

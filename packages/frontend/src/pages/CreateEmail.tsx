@@ -77,7 +77,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     to: '',
     subject: '',
     content: '',
-    type: 'inquiry' as BackendEmailType
+    type: 'inquiry' as BackendEmailType,
+    status: 'pending'
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   
@@ -200,6 +201,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     if (!formData.subject) errors.subject = 'Subject is required';
     if (!formData.content) errors.content = 'Content is required';
     if (!formData.date) errors.date = 'Date is required';
+    if (!formData.status) errors.status = 'Status is required';
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -220,6 +222,21 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       return [];
     }
     return bookings.filter(booking => booking.apartment_id === formData.apartment_id);
+  };
+
+  // Get all bookings for display (including the current email's booking)
+  const getAllBookingsForDisplay = () => {
+    const relatedBookings = getRelatedBookings();
+    
+    // If we're viewing an existing email and it has a booking, make sure it's included
+    if (isViewing && formData.booking_id && formData.booking_id !== undefined) {
+      const currentBooking = bookings.find(booking => booking.id === formData.booking_id);
+      if (currentBooking && !relatedBookings.find(b => b.id === currentBooking.id)) {
+        relatedBookings.push(currentBooking);
+      }
+    }
+    
+    return relatedBookings;
   };
 
   // Handle form submission
@@ -243,7 +260,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           to: formData.to,
           subject: formData.subject,
           content: formData.content,
-          type: formData.type
+          type: formData.type,
+          status: formData.status
         };
         await emailService.updateEmail(parseInt(id), updateData);
       } else {
@@ -256,7 +274,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           subject: formData.subject,
           content: formData.content,
           type: formData.type,
-          ...(formData.booking_id ? { booking_id: formData.booking_id } : {})
+          ...(formData.booking_id ? { booking_id: formData.booking_id } : {}),
+          status: formData.status
         };
         await emailService.createEmail(createData);
       }
@@ -404,6 +423,23 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   {formErrors.type && <FormHelperText>{formErrors.type}</FormHelperText>}
                 </FormControl>
               </Grid>
+              {/* Status */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth error={!!formErrors.status} required>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleSelectChange}
+                    label="Status *"
+                    disabled={fieldsLocked}
+                  >
+                    <MenuItem value="pending">Pending</MenuItem>
+                    <MenuItem value="completed">Completed</MenuItem>
+                  </Select>
+                  {formErrors.status && <FormHelperText>{formErrors.status}</FormHelperText>}
+                </FormControl>
+              </Grid>
               {/* Apartment */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <SearchableDropdown
@@ -440,7 +476,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                 <SearchableDropdown
                   options={[
                     { id: '', label: 'No related booking', name: 'No related booking' },
-                    ...getRelatedBookings().map(booking => ({
+                    ...getAllBookingsForDisplay().map(booking => ({
                       id: booking.id,
                       label: `Booking #${booking.id} - ${booking.user?.name} (${booking.user_type})`,
                       name: booking.user?.name || 'Unknown',
@@ -452,9 +488,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
                   label="Related Booking (Optional)"
                   placeholder="Search bookings by user name..."
-                  disabled={!formData.apartment_id}
+                  disabled={fieldsLocked || !formData.apartment_id}
                   error={!!formErrors.booking_id}
-                  helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getRelatedBookings().length === 0 ? 'No bookings found for this apartment' : '')}
+                  helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>

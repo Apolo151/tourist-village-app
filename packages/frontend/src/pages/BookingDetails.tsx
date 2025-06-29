@@ -928,7 +928,7 @@ const BookingDetails: React.FC = () => {
                     onChange={handleTabChange}
                     variant="scrollable"
                     scrollButtons="auto"
-                    sx={{ borderBottom: 1, borderColor: 'divider' }}
+                    sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
                   >
                     <Tab label="Payments" icon={<PaymentIcon />} iconPosition="start" />
                     <Tab label="Service Requests" icon={<ServiceIcon />} iconPosition="start" />
@@ -939,7 +939,7 @@ const BookingDetails: React.FC = () => {
 
                   {/* Related Payments */}
                   <TabPanel value={activeTab} index={0}>
-                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
               <Typography variant="h6">Related Payments</Typography>
               <Button
                 variant="contained"
@@ -982,7 +982,7 @@ const BookingDetails: React.FC = () => {
 
                   {/* Related Service Requests */}
                   <TabPanel value={activeTab} index={1}>
-                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                       <Typography variant="h6">Related Service Requests</Typography>
                       <Button 
                         variant="contained" 
@@ -1033,7 +1033,7 @@ const BookingDetails: React.FC = () => {
 
                   {/* Related Emails */}
                   <TabPanel value={activeTab} index={2}>
-                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                       <Typography variant="h6">Related Emails</Typography>
                       <Button 
                         variant="contained" 
@@ -1071,7 +1071,7 @@ const BookingDetails: React.FC = () => {
 
                   {/* Related Utility Readings */}
                   <TabPanel value={activeTab} index={3}>
-                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
                       <Typography variant="h6">Utility Readings</Typography>
                       <Button 
                         variant="contained" 
@@ -1116,7 +1116,7 @@ const BookingDetails: React.FC = () => {
 
                   {/* Related Bills */}
                   <TabPanel value={activeTab} index={4}>
-                    <Box sx={{ mb: 2 }}>
+                    <Box sx={{ mb: 2, px: 2 }}>
                       <Typography variant="h6">
                         {booking?.user_type === 'renter' ? 'Booking Bills' : 'Owner Bills'}
                       </Typography>

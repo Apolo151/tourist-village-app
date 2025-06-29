@@ -280,7 +280,16 @@ export default function Bills() {
   const handleViewDetails = async (apartmentId: number) => {
     setDetailsLoading(true);
     try {
-      const response = await billService.getApartmentDetails(apartmentId);
+      // Build filters for the apartment details call
+      const filters: any = {};
+      if (startDate && endDate) {
+        filters.date_from = format(startDate, 'yyyy-MM-dd');
+        filters.date_to = format(endDate, 'yyyy-MM-dd');
+      } else {
+        filters.year = currentYear; // Default to current year
+      }
+      
+      const response = await billService.getApartmentDetails(apartmentId, filters);
       
       if (!response || !response.apartment) {
         throw new Error('Invalid response structure from API');
@@ -536,9 +545,9 @@ export default function Bills() {
                   <TableCell>Project</TableCell>
                   <TableCell>Apartment</TableCell>
                   <TableCell>User Name</TableCell>
-                  <TableCell align="right">Money Spent (EGP/GBP)</TableCell>
-                  <TableCell align="right">Money Requested (EGP/GBP)</TableCell>
-                  <TableCell align="right">Net Money (EGP/GBP)</TableCell>
+                  <TableCell align="right">Total Payment (EGP/GBP)</TableCell>
+                  <TableCell align="right">Total Outstanding (EGP/GBP)</TableCell>
+                  <TableCell align="right">Net Balance (EGP/GBP)</TableCell>
                   <TableCell align="center">Details</TableCell>
                 </TableRow>
               </TableHead>
