@@ -416,17 +416,19 @@ export default function Bookings() {
 
           {/* Header with Filter Controls */}
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <Tooltip title="Toggle Filters">
                 <IconButton onClick={toggleFilters}>
                   <FilterIcon />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Clear Filters">
-                <IconButton onClick={clearFilters}>
-                  <ClearIcon />
-                </IconButton>
-              </Tooltip>
+              <Button
+                variant="outlined"
+                startIcon={<FilterIcon />}
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
             </Box>
           </Box>
 
