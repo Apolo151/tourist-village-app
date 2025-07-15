@@ -257,7 +257,6 @@ export default function Bookings() {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setFilters(prev => ({ ...prev, searchTerm: event.target.value }));
-    setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
   };
 
   const handleSelectChange = (event: SelectChangeEvent, filterName: keyof BookingFilter) => {
@@ -422,6 +421,13 @@ export default function Bookings() {
                   <FilterIcon />
                 </IconButton>
               </Tooltip>
+              <Button
+                variant="outlined"
+                startIcon={<ClearIcon />}
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
               <Button
                 variant="outlined"
                 startIcon={<FilterIcon />}

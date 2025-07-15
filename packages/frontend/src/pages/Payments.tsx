@@ -164,7 +164,6 @@ export default function Payments() {
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
-    setPagination(prev => ({ ...prev, page: 1 }));
   };
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
@@ -337,6 +336,13 @@ export default function Payments() {
             <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <FilterIcon /> Filters:
             </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<ClearIcon />}
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </Button>
           </Box>
           
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>

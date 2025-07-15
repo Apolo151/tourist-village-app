@@ -507,6 +507,14 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
             <FilterListIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
             Filters
           </Typography>
+          <Button
+            variant="outlined"
+            startIcon={<ClearIcon />}
+            onClick={clearFilters}
+            sx={{ mt: 1 }}
+          >
+            Clear Filters
+          </Button>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ flex: '1 1 200px', minWidth: '200px' }}>
