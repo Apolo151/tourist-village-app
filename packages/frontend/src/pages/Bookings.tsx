@@ -144,8 +144,8 @@ export default function Bookings() {
           ...rest,
           purchase_date: apartment.purchase_date ?? '',
           paying_status:
-            apartment.paying_status === 'transfer' ? 'payed_by_transfer' :
-            apartment.paying_status === 'rent' ? 'payed_by_rent' :
+            apartment.paying_status === 'transfer' ? 'paid_by_transfer' :
+            apartment.paying_status === 'rent' ? 'paid_by_rent' :
             'non_payer',
           village: undefined,
           owner: undefined

@@ -131,6 +131,9 @@ export default function ApartmentDetails() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Owner details dialog state
+  const [showOwnerDetails, setShowOwnerDetails] = useState(false);
+
   // Dialog open/close handlers
   const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
   const closeDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: false }));
@@ -147,10 +150,6 @@ export default function ApartmentDetails() {
       lockApartment: true,
       ...extraProps
     };
-    // For utilityReading quick action, pass bookingId if only one related booking
-    if (type === 'utilityReading' && relatedBookings.length === 1) {
-      dialogProps.bookingId = relatedBookings[0].id;
-    }
     return (
       <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
         <Component {...dialogProps} />
@@ -269,6 +268,13 @@ export default function ApartmentDetails() {
     }
   };
 
+  // Automated Apartment Status logic
+  const getAutomatedApartmentStatus = () => {
+    if (!relatedBookings.length) return 'Available';
+    if (relatedBookings.some(b => b.status === 'Checked In')) return 'Not Available';
+    return 'Available';
+  };
+
   // Quick actions
   const quickActions = [
     { icon: <BookingIcon />, name: 'Add a new Booking', onClick: () => openDialog('booking'), disabled: !apartment },
@@ -280,8 +286,8 @@ export default function ApartmentDetails() {
   // Helper function to convert paying status for display
   const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
     switch (status) {
-      case 'transfer': return 'Payment By Owner';
-      case 'rent': return 'Payment By Tenant';
+      case 'transfer': return 'Paid By Owner';
+      case 'rent': return 'Paid By Tenant';
       case 'non-payer': return 'Non-Payer';
       default: return status;
     }
@@ -470,11 +476,10 @@ export default function ApartmentDetails() {
                       primary="Status" 
                       secondary={
                         <Chip 
-                        label={apartment.status || 'Unknown'} 
+                          label={getAutomatedApartmentStatus()} 
                           size="small"
                           color={
-                            apartment.status === 'Available' ? 'success' :
-                            apartment.status === 'Occupied by Owner' ? 'primary' : 'warning'
+                            getAutomatedApartmentStatus() === 'Available' ? 'success' : 'warning'
                           }
                           sx={{ mt: 1 }}
                         />
@@ -664,6 +669,32 @@ export default function ApartmentDetails() {
                       <Typography variant="body1">{owner.role}</Typography>
                     </Box>
                   </Box>
+                  <Button sx={{ mt: 2 }} variant="outlined" onClick={() => setShowOwnerDetails(true)}>
+                    More Details
+                  </Button>
+                  <Dialog open={showOwnerDetails} onClose={() => setShowOwnerDetails(false)} maxWidth="sm" fullWidth>
+                    <DialogTitle>Owner Details</DialogTitle>
+                    <DialogContent>
+                      <List>
+                        <ListItem><ListItemText primary="Name" secondary={owner.name} /></ListItem>
+                        <ListItem><ListItemText primary="Email" secondary={owner.email} /></ListItem>
+                        {owner.phone_number && <ListItem><ListItemText primary="Phone" secondary={owner.phone_number} /></ListItem>}
+                        <ListItem><ListItemText primary="Role" secondary={owner.role} /></ListItem>
+                        <ListItem><ListItemText primary="Active" secondary={owner.is_active ? 'Yes' : 'No'} /></ListItem>
+                        {owner.passport_number && <ListItem><ListItemText primary="Passport Number" secondary={owner.passport_number} /></ListItem>}
+                        {owner.passport_expiry_date && <ListItem><ListItemText primary="Passport Expiry Date" secondary={owner.passport_expiry_date} /></ListItem>}
+                        {owner.address && <ListItem><ListItemText primary="Address" secondary={owner.address} /></ListItem>}
+                        {owner.next_of_kin_name && <ListItem><ListItemText primary="Next of Kin Name" secondary={owner.next_of_kin_name} /></ListItem>}
+                        {owner.next_of_kin_address && <ListItem><ListItemText primary="Next of Kin Address" secondary={owner.next_of_kin_address} /></ListItem>}
+                        {owner.next_of_kin_email && <ListItem><ListItemText primary="Next of Kin Email" secondary={owner.next_of_kin_email} /></ListItem>}
+                        {owner.next_of_kin_phone && <ListItem><ListItemText primary="Next of Kin Phone" secondary={owner.next_of_kin_phone} /></ListItem>}
+                        {owner.next_of_kin_will && <ListItem><ListItemText primary="Next of Kin Will" secondary={owner.next_of_kin_will} /></ListItem>}
+                      </List>
+                    </DialogContent>
+                    <DialogActions>
+                      <Button onClick={() => setShowOwnerDetails(false)}>Close</Button>
+                    </DialogActions>
+                  </Dialog>
                 </CardContent>
               </Card>
             ) : (
@@ -691,7 +722,7 @@ export default function ApartmentDetails() {
                         <TableCell>Person Name</TableCell>
                         <TableCell>User Type</TableCell>
                       <TableCell>Arrival Date</TableCell>
-                      <TableCell>Leaving Date</TableCell>
+                      <TableCell>Departure Date</TableCell>
                       <TableCell>Reservation Date</TableCell>
                       <TableCell>Status</TableCell>
                         {/* <TableCell>Number of People</TableCell> */}

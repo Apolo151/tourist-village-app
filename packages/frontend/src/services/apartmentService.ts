@@ -225,9 +225,9 @@ class ApartmentService {
   private convertPayingStatus(status: 'transfer' | 'rent' | 'non-payer'): string {
     switch (status) {
       case 'transfer':
-        return 'Payed By Transfer';
+        return 'Paid By Transfer';
       case 'rent':
-        return 'Payed By Rent';
+        return 'Paid By Rent';
       case 'non-payer':
         return 'Non-Payer';
       default:
@@ -237,9 +237,9 @@ class ApartmentService {
 
   convertFromFrontendPayingStatus(status: string): 'transfer' | 'rent' | 'non-payer' {
     switch (status) {
-      case 'Payed By Transfer':
+      case 'Paid By Transfer':
         return 'transfer';
-      case 'Payed By Rent':
+      case 'Paid By Rent':
         return 'rent';
       case 'Non-Payer':
         return 'non-payer';

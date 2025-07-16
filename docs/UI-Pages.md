@@ -9,7 +9,7 @@
 		- Apartments List
 			- Row Fields: Apartment Name, Apartment Phase, Status (automatically calculated from related Bookings), Paying Status
 				- Status: Available, Occupied by Owner, Occupied By Renter
-				- Paying Status: Payed By Transfer, Payed By Rent, Non-Payer
+				- Paying Status: Paid By Transfer, Paid By Rent, Non-Payer
 		- "Add a new Apartment" Button
 			- Fields: Apartment Name, Owner Name, Village, Apartment Phase (Dropdown from Village Phases), Purchase Date
 	- Sub-Pages:

@@ -61,6 +61,7 @@ export class UserService {
       'last_login', 'is_active', 'responsible_village',
       'passport_number', 'passport_expiry_date', 'address',
       'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+      'next_of_kin_will',
       'created_at', 'updated_at'
     ]);
 
@@ -93,6 +94,7 @@ export class UserService {
       next_of_kin_address: user.next_of_kin_address || undefined,
       next_of_kin_email: user.next_of_kin_email || undefined,
       next_of_kin_phone: user.next_of_kin_phone || undefined,
+      next_of_kin_will: user.next_of_kin_will || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     }));
@@ -122,6 +124,7 @@ export class UserService {
         'last_login', 'is_active', 'responsible_village',
         'passport_number', 'passport_expiry_date', 'address',
         'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+        'next_of_kin_will',
         'created_at', 'updated_at'
       ])
       .where('id', id)
@@ -147,6 +150,7 @@ export class UserService {
       next_of_kin_address: user.next_of_kin_address || undefined,
       next_of_kin_email: user.next_of_kin_email || undefined,
       next_of_kin_phone: user.next_of_kin_phone || undefined,
+      next_of_kin_will: user.next_of_kin_will || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -166,6 +170,7 @@ export class UserService {
         'last_login', 'is_active', 'responsible_village',
         'passport_number', 'passport_expiry_date', 'address',
         'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+        'next_of_kin_will',
         'created_at', 'updated_at'
       ])
       .where('email', email.toLowerCase().trim())
@@ -191,6 +196,7 @@ export class UserService {
       next_of_kin_address: user.next_of_kin_address || undefined,
       next_of_kin_email: user.next_of_kin_email || undefined,
       next_of_kin_phone: user.next_of_kin_phone || undefined,
+      next_of_kin_will: user.next_of_kin_will || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -211,6 +217,7 @@ export class UserService {
         'refresh_token_hash', 'refresh_token_expires_at',
         'passport_number', 'passport_expiry_date', 'address',
         'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+        'next_of_kin_will',
         'created_at', 'updated_at'
       ])
       .where('email', email.toLowerCase().trim())
@@ -239,6 +246,7 @@ export class UserService {
       next_of_kin_address: user.next_of_kin_address || undefined,
       next_of_kin_email: user.next_of_kin_email || undefined,
       next_of_kin_phone: user.next_of_kin_phone || undefined,
+      next_of_kin_will: user.next_of_kin_will || undefined,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
@@ -304,6 +312,7 @@ export class UserService {
           next_of_kin_address: data.next_of_kin_address?.trim() || null,
           next_of_kin_email: data.next_of_kin_email?.trim() || null,
           next_of_kin_phone: data.next_of_kin_phone?.trim() || null,
+          next_of_kin_will: data.next_of_kin_will || null,
           created_at: new Date(),
           updated_at: new Date()
         })
@@ -418,6 +427,10 @@ export class UserService {
 
     if (data.next_of_kin_phone !== undefined) {
       updateData.next_of_kin_phone = data.next_of_kin_phone ? data.next_of_kin_phone.trim() : null;
+    }
+
+    if (data.next_of_kin_will !== undefined) {
+      updateData.next_of_kin_will = data.next_of_kin_will || null;
     }
 
     // Handle password update if provided
@@ -692,4 +705,4 @@ export class UserService {
   private async hashPassword(password: string): Promise<string> {
     return await bcrypt.hash(password, 12);
   }
-} 
+}

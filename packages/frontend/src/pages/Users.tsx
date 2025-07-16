@@ -102,7 +102,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     next_of_kin_name: '',
     next_of_kin_address: '',
     next_of_kin_email: '',
-    next_of_kin_phone: ''
+    next_of_kin_phone: '',
+    next_of_kin_will: ''
   });
 
   const { currentUser } = useAuth();
@@ -248,7 +249,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       next_of_kin_name: user.next_of_kin_name || '',
       next_of_kin_address: user.next_of_kin_address || '',
       next_of_kin_email: user.next_of_kin_email || '',
-      next_of_kin_phone: user.next_of_kin_phone || ''
+      next_of_kin_phone: user.next_of_kin_phone || '',
+      next_of_kin_will: user.next_of_kin_will || ''
     });
     setEditDialogOpen(true);
   };
@@ -339,7 +341,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       next_of_kin_name: '',
       next_of_kin_address: '',
       next_of_kin_email: '',
-      next_of_kin_phone: ''
+      next_of_kin_phone: '',
+      next_of_kin_will: ''
     });
   };
 
@@ -875,6 +878,10 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                     <Typography variant="subtitle2" color="text.secondary">Address</Typography>
                     <Typography variant="body1">{selectedUser.next_of_kin_address || '-'}</Typography>
                   </Grid>
+                  <Grid size={{ xs: 12 }}>
+                    <Typography variant="subtitle2" color="text.secondary">Will</Typography>
+                    <Typography variant="body1">{selectedUser.next_of_kin_will || '-'}</Typography>
+                  </Grid>
                 </Grid>
               </Box>
             )}
@@ -1057,6 +1064,15 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                 onChange={(e) => setNewUser({ ...newUser, next_of_kin_address: e.target.value })}
                 margin="normal"
               />
+              <TextField
+                fullWidth
+                label="Next of Kin Will"
+                multiline
+                rows={3}
+                value={newUser.next_of_kin_will}
+                onChange={(e) => setNewUser({ ...newUser, next_of_kin_will: e.target.value })}
+                margin="normal"
+              />
             </Box>
           </DialogContent>
           <DialogActions>
@@ -1091,4 +1107,4 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       </Box>
     </LocalizationProvider>
   );
-} 
+}

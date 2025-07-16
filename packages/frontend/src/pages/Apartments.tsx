@@ -286,8 +286,8 @@ export default function Apartments() {
 
   const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
     switch (status) {
-      case 'transfer': return 'Payment By Owner';
-      case 'rent': return 'Payment By Tenant';
+      case 'transfer': return 'Paid By Owner';
+      case 'rent': return 'Paid By Tenant';
       case 'non-payer': return 'Non-Payer';
       default: return status;
     }
@@ -332,8 +332,8 @@ export default function Apartments() {
       village: apartment.village?.name || 'Unknown',
       phase: `Phase ${apartment.phase}`,
       owner: apartment.owner?.name || 'Unknown',
-      paying_status: apartment.paying_status === 'transfer' ? 'Payment By Owner' : 
-                     apartment.paying_status === 'rent' ? 'Payment By Tenant' : 'Non-Payer',
+      paying_status: apartment.paying_status === 'transfer' ? 'Paid By Owner' : 
+                     apartment.paying_status === 'rent' ? 'Paid By Tenant' : 'Non-Payer',
       status: apartment.status || 'Unknown',
       balance_EGP: apartment.balance?.EGP || 0,
       balance_GBP: apartment.balance?.GBP || 0
@@ -458,8 +458,8 @@ export default function Apartments() {
                 <MenuItem value="">
                   <em>All Paying Status</em>
                 </MenuItem>
-                <MenuItem value="transfer">Payed By Owner</MenuItem>
-                <MenuItem value="rent">Payment By Tenant</MenuItem>
+                <MenuItem value="transfer">Paid By Owner</MenuItem>
+                <MenuItem value="rent">Paid By Tenant</MenuItem>
                 <MenuItem value="non-payer">Non-Payer</MenuItem>
               </Select>
             </FormControl>

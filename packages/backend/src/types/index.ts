@@ -29,6 +29,7 @@ export interface User {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string; // New field
   created_at: Date;
   updated_at: Date;
 }
@@ -51,6 +52,7 @@ export interface PublicUser {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string; // New field
   created_at: Date;
   updated_at: Date;
 }
@@ -262,6 +264,7 @@ export interface CreateUserRequest {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string; // New field
 }
 
 export interface UpdateUserRequest {
@@ -279,6 +282,7 @@ export interface UpdateUserRequest {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string; // New field
 }
 
 // Auth-related types
@@ -648,4 +652,3 @@ export interface BookingStats {
   };
 }
 
- 

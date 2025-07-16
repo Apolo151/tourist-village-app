@@ -337,8 +337,8 @@ export default function EditApartment() {
                     label="Paying Status"
                     onChange={handleSelectChange}
                   >
-                    <MenuItem value="transfer">Payed By Transfer</MenuItem>
-                    <MenuItem value="rent">Payed By Rent</MenuItem>
+                    <MenuItem value="transfer">Paid By Transfer</MenuItem>
+                    <MenuItem value="rent">Paid By Rent</MenuItem>
                     <MenuItem value="non-payer">Non-Payer</MenuItem>
                   </Select>
                 </FormControl>

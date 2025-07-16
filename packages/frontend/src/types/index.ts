@@ -240,7 +240,7 @@ export interface Apartment {
   owner_id: number;
   phase: number;
   purchase_date: string;
-  paying_status: 'payed_by_transfer' | 'payed_by_rent' | 'non_payer';
+  paying_status: 'paid_by_transfer' | 'paid_by_rent' | 'non_payer';
   created_by: number;
   created_at: string;
   updated_at: string;

@@ -18,6 +18,7 @@ export interface User {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +46,7 @@ export interface CreateUserRequest {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string;
 }
 
 export interface UpdateUserRequest {
@@ -61,6 +63,7 @@ export interface UpdateUserRequest {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
+  next_of_kin_will?: string;
 }
 
 export interface PaginatedResponse<T> {
