@@ -608,15 +608,15 @@ export default function Services() {
             <Table>
                 <TableHead>
                   <TableRow>
-                  <TableCell>ID</TableCell>
-                  <TableCell>Service Type</TableCell>
+                    {/* <TableCell>ID</TableCell> */}
+                    <TableCell>Service Type</TableCell>
                     <TableCell>Apartment</TableCell>
-                  <TableCell>Requester</TableCell>
-                  <TableCell>Action Date</TableCell>
+                    <TableCell>Requester</TableCell>
+                    <TableCell>Action Date</TableCell>
                     <TableCell>Status</TableCell>
-                  <TableCell>Who Pays</TableCell>
-                  {/* <TableCell>Assignee</TableCell> */}
-                  <TableCell>Actions</TableCell>
+                    <TableCell>Who Pays</TableCell>
+                    {/* <TableCell>Assignee</TableCell> */}
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -628,7 +628,7 @@ export default function Services() {
                       onClick={() => handleServiceRequestClick(request.id)}
                       sx={{ cursor: 'pointer' }}
                     >
-                      <TableCell>{request.id}</TableCell>
+                      {/* <TableCell>{request.id}</TableCell> */}
                       <TableCell>{request.type?.name || 'Unknown'}</TableCell>
                       <TableCell>{request.apartment?.name || 'Unknown'}</TableCell>
                       <TableCell>{request.requester?.name || 'Unknown'}</TableCell>
@@ -694,7 +694,7 @@ export default function Services() {
                   ))
                   ) : (
                     <TableRow>
-                    <TableCell colSpan={9} align="center">
+                    <TableCell colSpan={8} align="center">
                         No service requests found matching your criteria.
                       </TableCell>
                     </TableRow>

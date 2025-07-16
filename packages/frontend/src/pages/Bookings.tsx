@@ -595,7 +595,7 @@ export default function Bookings() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Booking ID</TableCell>
+                    {/* <TableCell>Booking ID</TableCell> */}
                     <TableCell>User Name</TableCell>
                     <TableCell>User Type</TableCell>
                     <TableCell>Apartment</TableCell>
@@ -610,13 +610,13 @@ export default function Bookings() {
                 <TableBody>
                   {loading && apartments.length > 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={9} align="center">
                         <CircularProgress />
                       </TableCell>
                     </TableRow>
                   ) : bookings.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} align="center">
+                      <TableCell colSpan={9} align="center">
                         <Typography color="text.secondary">
                           No bookings found
                         </Typography>
@@ -630,7 +630,7 @@ export default function Bookings() {
                         sx={{ cursor: 'pointer' }}
                         onClick={() => handleBookingClick(booking.id)}
                       >
-                        <TableCell>#{booking.id}</TableCell>
+                        {/* <TableCell>#{booking.id}</TableCell> */}
                         <TableCell>{booking.user?.name || 'Unknown User'}</TableCell>
                         <TableCell>
                           <Chip

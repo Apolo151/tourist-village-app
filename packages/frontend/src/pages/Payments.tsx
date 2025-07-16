@@ -481,7 +481,7 @@ export default function Payments() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>ID</TableCell>
+                {/* <TableCell>ID</TableCell> */}
                 <TableCell>Date</TableCell>
                 <TableCell>Description</TableCell>
                 <TableCell>Amount</TableCell>
@@ -502,7 +502,7 @@ export default function Payments() {
                     onClick={() => handlePaymentClick(payment.id)}
                     sx={{ cursor: 'pointer' }}
                   >
-                    <TableCell>{payment.id}</TableCell>
+                    {/* <TableCell>{payment.id}</TableCell> */}
                     <TableCell>{formatDate(payment.date)}</TableCell>
                     <TableCell>{payment.description || 'No description'}</TableCell>
                     <TableCell>
@@ -573,7 +573,7 @@ export default function Payments() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={10} align="center">
+                  <TableCell colSpan={9} align="center">
                     No payments found matching your criteria.
                   </TableCell>
                 </TableRow>
@@ -642,4 +642,4 @@ export default function Payments() {
       </Box>
     </Container>
   );
-} 
+}
