@@ -193,25 +193,26 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ width: '100%', mt: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <Button
-            startIcon={<ArrowBackIcon />}
-            onClick={() => onCancel ? onCancel() : navigate('/bookings')}
-            sx={{ mr: 2 }}
-          >
-            Back
-          </Button>
-          <Typography variant="h4">
-            Create New Booking
-          </Typography>
-        </Box>
+      <Box sx={{ width: '100%', mt: 3, display: 'flex', justifyContent: 'center' }}>
+        <Box sx={{ width: '100%', maxWidth: '1200px' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Button
+              startIcon={<ArrowBackIcon />}
+              onClick={() => onCancel ? onCancel() : navigate('/bookings')}
+              sx={{ mr: 2 }}
+            >
+              Back
+            </Button>
+            <Typography variant="h4">
+              Create New Booking
+            </Typography>
+          </Box>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            {error}
-          </Alert>
-        )}
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
         {formData.user_type === 'renter' && (
           <Alert severity="info" sx={{ mb: 3 }}>
@@ -226,10 +227,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           </Alert>
         )}
 
-        <Paper sx={{ p: 3 }}>
+        <Paper sx={{ p: 4, borderRadius: 2, boxShadow: 3 }}>
+          <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', fontWeight: 'medium', borderBottom: '1px solid', borderColor: 'divider', pb: 1 }}>
+            Booking Information
+          </Typography>
           <Grid container spacing={3}>
+            {/* Property & Guest Section */}
+            <Grid size = {{xs:12}}>
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>Property Details</Typography>
+              </Box>
+            </Grid>
+            
             {/* Apartment Selection */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <SearchableDropdown
                 options={apartments.map(apartment => ({
                   id: apartment.id,
@@ -258,7 +269,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* User Type */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <FormControl fullWidth>
                 <InputLabel>User Type</InputLabel>
                 <Select
@@ -272,8 +283,16 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               </FormControl>
             </Grid>
 
+            {/* Guest Details Section */}
+            <Grid size = {{xs:12}}>
+              <Box sx={{ mt: 3, mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>Guest Details</Typography>
+                <Box sx={{ borderTop: '1px solid', borderColor: 'divider', width: '100%' }}></Box>
+              </Box>
+            </Grid>
+
             {/* User Selection - Conditional based on user type */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               {formData.user_type === 'owner' ? (
                 <SearchableDropdown
                   options={(() => {
@@ -371,7 +390,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* Number of People */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <TextField
                 fullWidth
                 required
@@ -383,8 +402,16 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               />
             </Grid>
 
+            {/* Booking Period Section */}
+            <Grid size = {{xs:12}}>
+              <Box sx={{ mt: 3, mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>Booking Period</Typography>
+                <Box sx={{ borderTop: '1px solid', borderColor: 'divider', width: '100%' }}></Box>
+              </Box>
+            </Grid>
+
             {/* Arrival Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <DateTimePicker
                 label="Arrival DateTime"
                 value={formData.arrival_date}
@@ -399,7 +426,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* Leaving Date */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <DateTimePicker
                 label="Departure DateTime"
                 value={formData.leaving_date}
@@ -414,7 +441,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* Status */}
-            <Grid size={{ xs: 12, md: 6 }}>
+            <Grid size = {{xs:12, md:6}}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -430,12 +457,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               </FormControl>
             </Grid>
 
+            {/* Additional Information Section */}
+            <Grid size = {{xs:12}}>
+              <Box sx={{ mt: 3, mb: 2 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>Additional Information</Typography>
+                <Box sx={{ borderTop: '1px solid', borderColor: 'divider', width: '100%' }}></Box>
+              </Box>
+            </Grid>
+
             {/* Notes */}
-            <Grid size={{ xs: 12 }}>
+            <Grid size = {{xs:12, md:6}}>
               <TextField
                 fullWidth
                 multiline
-                rows={3}
+                rows={4}
                 label="Notes"
                 value={formData.notes}
                 onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
@@ -444,11 +479,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* Flight Details */}
-            <Grid size={{ xs: 12 }}>
+            <Grid size = {{xs:12, md:6}}>
               <TextField
                 fullWidth
                 multiline
-                rows={2}
+                rows={4}
                 label="Flight Details"
                 value={formData.flightDetails}
                 onChange={(e) => setFormData(prev => ({ ...prev, flightDetails: e.target.value }))}
@@ -458,12 +493,13 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* Submit Buttons */}
-            <Grid size={{ xs: 12 }}>
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Grid size = {{xs:12}}>
+              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
                 <Button
                   variant="outlined"
                   onClick={() => onCancel ? onCancel() : navigate('/bookings')}
                   disabled={submitting}
+                  size="large"
                 >
                   Cancel
                 </Button>
@@ -471,6 +507,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   variant="contained"
                   onClick={handleSubmit}
                   disabled={submitting}
+                  size="large"
+                  color="primary"
                 >
                   {submitting ? <CircularProgress size={24} /> : 'Create Booking'}
                 </Button>
@@ -479,11 +517,12 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           </Grid>
         </Paper>
 
-        <Alert severity="info" sx={{ mt: 3 }}>
+        <Alert severity="info" sx={{ mt: 3, mb: 3 }}>
           <Typography variant="body2">
             <strong>Note:</strong> The system will automatically check for booking conflicts and prevent overlapping bookings for the same apartment.
           </Typography>
         </Alert>
+        </Box>
       </Box>
     </LocalizationProvider>
   );
