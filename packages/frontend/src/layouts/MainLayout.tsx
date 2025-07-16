@@ -49,7 +49,7 @@ export default function MainLayout() {
     { text: 'Services', icon: <Engineering />, link: '/services' },
     { text: 'Utilities', icon: <WaterDrop />, link: '/utilities', adminOnly: true },
     { text: 'Payments', icon: <Payments />, link: '/payments' },
-    { text: 'Bills', icon: <Receipt />, link: '/bills' },
+    { text: 'Invoices', icon: <Receipt />, link: '/invoices' },
     { text: 'Emails', icon: <Email />, link: '/emails', adminOnly: true },
     { text: 'Settings', icon: <Settings />, link: '/settings' },
   ];

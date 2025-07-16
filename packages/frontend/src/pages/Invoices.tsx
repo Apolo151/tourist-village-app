@@ -47,33 +47,33 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { billService, type BillSummaryItem, type BillTotals, type RenterSummaryResponse } from '../services/billService';
+import { invoiceService, type InvoiceSummaryItem, type InvoiceTotals, type RenterSummaryResponse } from '../services/invoiceService';
 import { villageService } from '../services/villageService';
 import { apartmentService } from '../services/apartmentService';
 import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
 
-interface HighlightedBillSummary {
+interface HighlightedInvoiceSummary {
   ownerSummary: {
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
     userName: string;
   };
   renterSummary?: {
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
     userName: string;
   };
 }
 
-interface ApartmentBillDetails {
+interface ApartmentInvoiceDetails {
   apartment: {
     id: number;
     name: string;
   };
-  bills: Array<{
+  invoices: Array<{
     id: string;
     type: 'Payment' | 'Service Request' | 'Utility Reading';
     description: string;
@@ -86,48 +86,48 @@ interface ApartmentBillDetails {
     created_at: string;
   }>;
   totals: {
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
   };
 }
 
-export default function Bills() {
+export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
-  // Track all bill data from API (unfiltered)
-  const [allBillData, setAllBillData] = useState<BillSummaryItem[]>([]);
-  // Filtered bill data displayed in the UI
-  const [billDisplayData, setBillDisplayData] = useState<BillSummaryItem[]>([]);
+  // Track all invoice data from API (unfiltered)
+  const [allInvoiceData, setAllInvoiceData] = useState<InvoiceSummaryItem[]>([]);
+  // Filtered invoice data displayed in the UI
+  const [invoiceDisplayData, setInvoiceDisplayData] = useState<InvoiceSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [previousYearTotals, setPreviousYearTotals] = useState<{
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
   } | null>(null);
   const [currentYear] = useState(new Date().getFullYear());
   const [startDate, setStartDate] = useState<Date | null>(new Date(currentYear, 0, 1));
   const [endDate, setEndDate] = useState<Date | null>(new Date(currentYear, 11, 31));
-  const [highlightedBill, setHighlightedBill] = useState<number | null>(null);
-  const [highlightedBillSummary, setHighlightedBillSummary] = useState<HighlightedBillSummary | null>(null);
+  const [highlightedInvoice, setHighlightedInvoice] = useState<number | null>(null);
+  const [highlightedInvoiceSummary, setHighlightedInvoiceSummary] = useState<HighlightedInvoiceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // New state for detailed bill information
+  // New state for detailed invoice information
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [detailedBillData, setDetailedBillData] = useState<ApartmentBillDetails | null>(null);
+  const [detailedInvoiceData, setDetailedInvoiceData] = useState<ApartmentInvoiceDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
   // Effect to apply search filter whenever search term changes
   useEffect(() => {
-    if (allBillData.length > 0 && !loading) {
-      filterBillData();
+    if (allInvoiceData.length > 0 && !loading) {
+      filterInvoiceData();
     }
-  }, [searchTerm, allBillData, loading]);
+  }, [searchTerm, allInvoiceData, loading]);
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -140,7 +140,7 @@ export default function Bills() {
           if (apartment) {
             setSearchTerm(apartment.name);
             // Also highlight this apartment if it's in the results
-            setHighlightedBill(apartment.id);
+            setHighlightedInvoice(apartment.id);
           }
         } catch (error) {
           console.error('Error fetching apartment for URL filter:', error);
@@ -153,24 +153,24 @@ export default function Bills() {
     handleUrlParams();
   }, [searchParams]);
 
-  // Define handleHighlightBill function
-  const handleHighlightBill = async (apartmentId: number) => {
-    // Find the bill for this apartment
-    const bill = allBillData.find(b => b.apartment_id === apartmentId);
-    if (!bill) return;
+  // Define handleHighlightInvoice function
+  const handleHighlightInvoice = async (apartmentId: number) => {
+    // Find the invoice for this apartment
+    const invoice = allInvoiceData.find(i => i.apartment_id === apartmentId);
+    if (!invoice) return;
     
-    setHighlightedBill(apartmentId);
+    setHighlightedInvoice(apartmentId);
     
     try {
       // Fetch renter summary for this apartment
-      const renterResponse = await billService.getRenterSummary(apartmentId);
+      const renterResponse = await invoiceService.getRenterSummary(apartmentId);
       
-      const summary: HighlightedBillSummary = {
+      const summary: HighlightedInvoiceSummary = {
         ownerSummary: {
-          total_money_spent: bill.total_money_spent,
-          total_money_requested: bill.total_money_requested,
-          net_money: bill.net_money,
-          userName: bill.owner_name
+          total_money_spent: invoice.total_money_spent,
+          total_money_requested: invoice.total_money_requested,
+          net_money: invoice.net_money,
+          userName: invoice.owner_name
         },
       };
 
@@ -184,23 +184,23 @@ export default function Bills() {
         };
       }
 
-      setHighlightedBillSummary(summary);
+      setHighlightedInvoiceSummary(summary);
     } catch (error) {
       console.error('Error fetching renter summary:', error);
       // Still show owner summary even if renter fetch fails
-      const summary: HighlightedBillSummary = {
+      const summary: HighlightedInvoiceSummary = {
         ownerSummary: {
-          total_money_spent: bill.total_money_spent,
-          total_money_requested: bill.total_money_requested,
-          net_money: bill.net_money,
-          userName: bill.owner_name
+          total_money_spent: invoice.total_money_spent,
+          total_money_requested: invoice.total_money_requested,
+          net_money: invoice.net_money,
+          userName: invoice.owner_name
         },
       };
-      setHighlightedBillSummary(summary);
+      setHighlightedInvoiceSummary(summary);
     }
   };
 
-  // Load bill data from API
+  // Load invoice data from API
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -224,22 +224,22 @@ export default function Bills() {
           filters.year = currentYear; // Default to current year
         }
         
-        // Load bill summary data
-        const billsResponse = await billService.getBillsSummary(filters);
+        // Load invoice summary data
+        const invoicesResponse = await invoiceService.getInvoicesSummary(filters);
         
         // Store the full data set
-        setAllBillData(billsResponse.summary);
+        setAllInvoiceData(invoicesResponse.summary);
         
         // Apply current search filter to the new data
-        filterBillData(searchTerm, billsResponse.summary);
+        filterInvoiceData(searchTerm, invoicesResponse.summary);
         
         // Load previous years totals
-        const prevTotals = await billService.getPreviousYearsTotals(currentYear);
+        const prevTotals = await invoiceService.getPreviousYearsTotals(currentYear);
         setPreviousYearTotals(prevTotals);
         
       } catch (err: any) {
-        console.error('Error loading bills data:', err);
-        setError(err.message || 'Failed to load bills data');
+        console.error('Error loading invoices data:', err);
+        setError(err.message || 'Failed to load invoices data');
       } finally {
         setLoading(false);
       }
@@ -253,24 +253,24 @@ export default function Bills() {
     setSearchTerm(value);
   };
   
-  // Function to filter bill data based on search term
-  const filterBillData = (term = searchTerm, data = allBillData) => {
+  // Function to filter invoice data based on search term
+  const filterInvoiceData = (term = searchTerm, data = allInvoiceData) => {
     // Make sure we have data to filter
     if (!data.length) return;
     
     // Apply search filter on frontend
-    const filteredData = data.filter(bill => {
+    const filteredData = data.filter(invoice => {
       if (!term) return true;
       
       const searchLower = term.toLowerCase();
       return (
-        bill.apartment_name.toLowerCase().includes(searchLower) ||
-        bill.owner_name.toLowerCase().includes(searchLower) ||
-        bill.village_name.toLowerCase().includes(searchLower)
+        invoice.apartment_name.toLowerCase().includes(searchLower) ||
+        invoice.owner_name.toLowerCase().includes(searchLower) ||
+        invoice.village_name.toLowerCase().includes(searchLower)
       );
     });
     
-    setBillDisplayData(filteredData);
+    setInvoiceDisplayData(filteredData);
   };
   
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
@@ -316,30 +316,30 @@ export default function Bills() {
         filters.year = currentYear; // Default to current year
       }
       
-      const response = await billService.getApartmentDetails(apartmentId, filters);
+      const response = await invoiceService.getApartmentDetails(apartmentId, filters);
       
       if (!response || !response.apartment) {
         throw new Error('Invalid response structure from API');
       }
       
-      // Transform the response data to match the expected ApartmentBillDetails type
-      const transformedData: ApartmentBillDetails = {
+      // Transform the response data to match the expected ApartmentInvoiceDetails type
+      const transformedData: ApartmentInvoiceDetails = {
         apartment: response.apartment,
-        bills: response.bills.map((bill: any) => ({
-          ...bill,
-          id: String(bill.id),
+        invoices: response.invoices.map((invoice: any) => ({
+          ...invoice,
+          id: String(invoice.id),
           type:
-            bill.type === 'payment'
+            invoice.type === 'payment'
               ? 'Payment'
-              : bill.type === 'service_request'
+              : invoice.type === 'service_request'
               ? 'Service Request'
-              : bill.type === 'utility_reading'
+              : invoice.type === 'utility_reading'
               ? 'Utility Reading'
-              : bill.type,
+              : invoice.type,
         })),
         totals: response.totals
       };
-      setDetailedBillData(transformedData);
+      setDetailedInvoiceData(transformedData);
       setDetailsDialogOpen(true);
     } catch (error: any) {
       console.error('Error fetching apartment details:', error);
@@ -351,7 +351,7 @@ export default function Bills() {
 
   const handleCloseDetails = () => {
     setDetailsDialogOpen(false);
-    setDetailedBillData(null);
+    setDetailedInvoiceData(null);
   };
   
   const formatDate = (dateString: string) => {
@@ -363,17 +363,17 @@ export default function Bills() {
   };
 
   // Data transformer for export
-  const transformBillsForExport = (billsData: any[]) => {
-    return billsData.map(bill => ({
-      apartment: bill.apartment_name || 'Unknown',
-      village: bill.village_name || 'Unknown',
-      owner: bill.owner_name || 'Unknown',
-      total_money_spent_EGP: bill.total_money_spent?.EGP ?? 0,
-      total_money_spent_GBP: bill.total_money_spent?.GBP ?? 0,
-      total_money_requested_EGP: bill.total_money_requested?.EGP ?? 0,
-      total_money_requested_GBP: bill.total_money_requested?.GBP ?? 0,
-      net_money_EGP: bill.net_money?.EGP ?? 0,
-      net_money_GBP: bill.net_money?.GBP ?? 0
+  const transformInvoicesForExport = (invoicesData: any[]) => {
+    return invoicesData.map(invoice => ({
+      apartment: invoice.apartment_name || 'Unknown',
+      village: invoice.village_name || 'Unknown',
+      owner: invoice.owner_name || 'Unknown',
+      total_money_spent_EGP: invoice.total_money_spent?.EGP ?? 0,
+      total_money_spent_GBP: invoice.total_money_spent?.GBP ?? 0,
+      total_money_requested_EGP: invoice.total_money_requested?.EGP ?? 0,
+      total_money_requested_GBP: invoice.total_money_requested?.GBP ?? 0,
+      net_money_EGP: invoice.net_money?.EGP ?? 0,
+      net_money_GBP: invoice.net_money?.GBP ?? 0
     }));
   };
 
@@ -438,23 +438,23 @@ export default function Bills() {
           </Alert>
           )}
 
-          {/* Highlighted Bill Summary */}
-          {highlightedBillSummary && (
+          {/* Highlighted Invoice Summary */}
+          {highlightedInvoiceSummary && (
             <Paper sx={{ p: 2, mb: 3 }}>
               <Typography variant="h6" gutterBottom>Selected Apartment Summary</Typography>
               <Box sx={{ display: 'flex', gap: 4 }}>
                 <Box>
-                  <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedBillSummary.ownerSummary.userName}</Typography>
-                  <Typography>Total Payment: {highlightedBillSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
-                  <Typography>Total Outstanding: {highlightedBillSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
-                  <Typography>Net Balance: {highlightedBillSummary.ownerSummary.net_money.EGP} EGP / {highlightedBillSummary.ownerSummary.net_money.GBP} GBP</Typography>
+                  <Typography variant="subtitle1" color="primary">Owner Summary - {highlightedInvoiceSummary.ownerSummary.userName}</Typography>
+                  <Typography>Total Payment: {highlightedInvoiceSummary.ownerSummary.total_money_spent.EGP} EGP / {highlightedInvoiceSummary.ownerSummary.total_money_spent.GBP} GBP</Typography>
+                  <Typography>Total Outstanding: {highlightedInvoiceSummary.ownerSummary.total_money_requested.EGP} EGP / {highlightedInvoiceSummary.ownerSummary.total_money_requested.GBP} GBP</Typography>
+                  <Typography>Net Balance: {highlightedInvoiceSummary.ownerSummary.net_money.EGP} EGP / {highlightedInvoiceSummary.ownerSummary.net_money.GBP} GBP</Typography>
                 </Box>
-                {highlightedBillSummary.renterSummary && (
+                {highlightedInvoiceSummary.renterSummary && (
                   <Box>
-                    <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedBillSummary.renterSummary.userName}</Typography>
-                    <Typography>Total Payment: {highlightedBillSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
-                    <Typography>Total Outstanding: {highlightedBillSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedBillSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
-                    <Typography>Net Balance: {highlightedBillSummary.renterSummary.net_money.EGP} EGP / {highlightedBillSummary.renterSummary.net_money.GBP} GBP</Typography>
+                    <Typography variant="subtitle1" color="secondary">Renter Summary - {highlightedInvoiceSummary.renterSummary.userName}</Typography>
+                    <Typography>Total Payment: {highlightedInvoiceSummary.renterSummary.total_money_spent.EGP} EGP / {highlightedInvoiceSummary.renterSummary.total_money_spent.GBP} GBP</Typography>
+                    <Typography>Total Outstanding: {highlightedInvoiceSummary.renterSummary.total_money_requested.EGP} EGP / {highlightedInvoiceSummary.renterSummary.total_money_requested.GBP} GBP</Typography>
+                    <Typography>Net Balance: {highlightedInvoiceSummary.renterSummary.net_money.EGP} EGP / {highlightedInvoiceSummary.renterSummary.net_money.GBP} GBP</Typography>
                   </Box>
                 )}
               </Box>
@@ -466,15 +466,15 @@ export default function Bills() {
             <Alert severity="info" sx={{ mb: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography>
-                  Showing bills for apartment: <strong>{searchTerm}</strong>
+                  Showing invoices for apartment: <strong>{searchTerm}</strong>
                 </Typography>
                 <Button 
                   size="small" 
                   onClick={() => {
                     setSearchParams({});
                     setSearchTerm('');
-                    setHighlightedBill(null);
-                    setHighlightedBillSummary(null);
+                    setHighlightedInvoice(null);
+                    setHighlightedInvoiceSummary(null);
                   }}
                 >
                   Clear Filter
@@ -559,9 +559,9 @@ export default function Bills() {
           </Paper>
           
           {/* Export Buttons */}
-          <ExportButtons data={transformBillsForExport(billDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="bills.xlsx" pdfFileName="bills.pdf" />
+          <ExportButtons data={transformInvoicesForExport(invoiceDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="invoices.xlsx" pdfFileName="invoices.pdf" />
           
-          {/* Bills Table */}
+          {/* Invoices Table */}
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
@@ -576,14 +576,14 @@ export default function Bills() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {billDisplayData.length > 0 ? (
-                  billDisplayData.map((bill) => (
+                {invoiceDisplayData.length > 0 ? (
+                  invoiceDisplayData.map((invoice) => (
                     <TableRow 
-                      key={bill.apartment_id}
-                      selected={bill.apartment_id === highlightedBill}
+                      key={invoice.apartment_id}
+                      selected={invoice.apartment_id === highlightedInvoice}
                     >
-                      <TableCell>{bill.village_name}</TableCell>
-                      <TableCell>{bill.apartment_name}</TableCell>
+                      <TableCell>{invoice.village_name}</TableCell>
+                      <TableCell>{invoice.apartment_name}</TableCell>
                       <TableCell>
                         <Tooltip title="Click to view financial summary for this apartment" arrow>
                           <Box 
@@ -623,7 +623,7 @@ export default function Bills() {
                                 transform: 'translateY(0px)',
                                 boxShadow: '0 1px 4px rgba(0,0,0,0.1)'
                               },
-                              ...(bill.apartment_id === highlightedBill && {
+                              ...(invoice.apartment_id === highlightedInvoice && {
                                 backgroundColor: 'primary.main',
                                 color: 'primary.contrastText',
                                 boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
@@ -637,7 +637,7 @@ export default function Bills() {
                                 }
                               })
                             }}
-                            onClick={() => handleHighlightBill(bill.apartment_id)}
+                            onClick={() => handleHighlightInvoice(invoice.apartment_id)}
                           >
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
                               <Typography 
@@ -648,7 +648,7 @@ export default function Bills() {
                                   color: 'text.primary'
                                 }}
                               >
-                                {bill.owner_name}
+                                {invoice.owner_name}
                               </Typography>
                               <Chip 
                                 label="Owner" 
@@ -668,7 +668,7 @@ export default function Bills() {
                                 opacity: 0.6,
                                 color: 'text.secondary',
                                 transition: 'all 0.2s ease-in-out',
-                                ...(bill.apartment_id === highlightedBill && {
+                                ...(invoice.apartment_id === highlightedInvoice && {
                                   opacity: 1,
                                   color: 'primary.contrastText'
                                 })
@@ -678,28 +678,28 @@ export default function Bills() {
                         </Tooltip>
                       </TableCell>
                       <TableCell align="right">
-                        {bill.total_money_spent.EGP > 0 && `${bill.total_money_spent.EGP.toLocaleString()} EGP`}
-                        {bill.total_money_spent.EGP > 0 && bill.total_money_spent.GBP > 0 && ' / '}
-                        {bill.total_money_spent.GBP > 0 && `${bill.total_money_spent.GBP.toLocaleString()} GBP`}
-                        {bill.total_money_spent.EGP === 0 && bill.total_money_spent.GBP === 0 && '-'}
+                        {invoice.total_money_spent.EGP > 0 && `${invoice.total_money_spent.EGP.toLocaleString()} EGP`}
+                        {invoice.total_money_spent.EGP > 0 && invoice.total_money_spent.GBP > 0 && ' / '}
+                        {invoice.total_money_spent.GBP > 0 && `${invoice.total_money_spent.GBP.toLocaleString()} GBP`}
+                        {invoice.total_money_spent.EGP === 0 && invoice.total_money_spent.GBP === 0 && '-'}
                       </TableCell>
                       <TableCell align="right">
-                        {bill.total_money_requested.EGP > 0 && `${bill.total_money_requested.EGP.toLocaleString()} EGP`}
-                        {bill.total_money_requested.EGP > 0 && bill.total_money_requested.GBP > 0 && ' / '}
-                        {bill.total_money_requested.GBP > 0 && `${bill.total_money_requested.GBP.toLocaleString()} GBP`}
-                        {bill.total_money_requested.EGP === 0 && bill.total_money_requested.GBP === 0 && '-'}
+                        {invoice.total_money_requested.EGP > 0 && `${invoice.total_money_requested.EGP.toLocaleString()} EGP`}
+                        {invoice.total_money_requested.EGP > 0 && invoice.total_money_requested.GBP > 0 && ' / '}
+                        {invoice.total_money_requested.GBP > 0 && `${invoice.total_money_requested.GBP.toLocaleString()} GBP`}
+                        {invoice.total_money_requested.EGP === 0 && invoice.total_money_requested.GBP === 0 && '-'}
                       </TableCell>
                       <TableCell align="right">
-                        {bill.net_money.EGP > 0 && `${bill.net_money.EGP.toLocaleString()} EGP`}
-                        {bill.net_money.EGP > 0 && bill.net_money.GBP > 0 && ' / '}
-                        {bill.net_money.GBP > 0 && `${bill.net_money.GBP.toLocaleString()} GBP`}
-                        {bill.net_money.EGP === 0 && bill.net_money.GBP === 0 && '-'}
+                        {invoice.net_money.EGP > 0 && `${invoice.net_money.EGP.toLocaleString()} EGP`}
+                        {invoice.net_money.EGP > 0 && invoice.net_money.GBP > 0 && ' / '}
+                        {invoice.net_money.GBP > 0 && `${invoice.net_money.GBP.toLocaleString()} GBP`}
+                        {invoice.net_money.EGP === 0 && invoice.net_money.GBP === 0 && '-'}
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="View detailed transactions">
                           <IconButton
                             size="small"
-                            onClick={() => handleViewDetails(bill.apartment_id)}
+                            onClick={() => handleViewDetails(invoice.apartment_id)}
                             disabled={detailsLoading}
                             color="primary"
                           >
@@ -711,7 +711,7 @@ export default function Bills() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">No bills found matching your criteria.</TableCell>
+                    <TableCell colSpan={7} align="center">No invoices found matching your criteria.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -727,7 +727,7 @@ export default function Bills() {
           >
             <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="h6">
-                {detailedBillData ? `Bill Details - ${detailedBillData.apartment.name}` : 'Bill Details'}
+                {detailedInvoiceData ? `Invoice Details - ${detailedInvoiceData.apartment.name}` : 'Invoice Details'}
               </Typography>
               <IconButton onClick={handleCloseDetails} size="small">
                 <CloseIcon />
@@ -739,7 +739,7 @@ export default function Bills() {
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
                   <CircularProgress />
                 </Box>
-              ) : detailedBillData ? (
+              ) : detailedInvoiceData ? (
                 <Box>
                   {/* Totals Summary */}
                   <Paper sx={{ p: 2, mb: 3, backgroundColor: 'background.default' }}>
@@ -748,28 +748,28 @@ export default function Bills() {
                       <Box>
                         <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
                         <Typography>
-                          {detailedBillData.totals.total_money_spent.EGP > 0 && `${detailedBillData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
-                          {detailedBillData.totals.total_money_spent.EGP > 0 && detailedBillData.totals.total_money_spent.GBP > 0 && ' / '}
-                          {detailedBillData.totals.total_money_spent.GBP > 0 && `${detailedBillData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
-                          {detailedBillData.totals.total_money_spent.EGP === 0 && detailedBillData.totals.total_money_spent.GBP === 0 && '-'}
+                          {detailedInvoiceData.totals.total_money_spent.EGP > 0 && `${detailedInvoiceData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
+                          {detailedInvoiceData.totals.total_money_spent.EGP > 0 && detailedInvoiceData.totals.total_money_spent.GBP > 0 && ' / '}
+                          {detailedInvoiceData.totals.total_money_spent.GBP > 0 && `${detailedInvoiceData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
+                          {detailedInvoiceData.totals.total_money_spent.EGP === 0 && detailedInvoiceData.totals.total_money_spent.GBP === 0 && '-'}
                         </Typography>
                       </Box>
                       <Box>
                         <Typography variant="subtitle2" color="error.main">Total Outstanding</Typography>
                         <Typography>
-                          {detailedBillData.totals.total_money_requested.EGP > 0 && `${detailedBillData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
-                          {detailedBillData.totals.total_money_requested.EGP > 0 && detailedBillData.totals.total_money_requested.GBP > 0 && ' / '}
-                          {detailedBillData.totals.total_money_requested.GBP > 0 && `${detailedBillData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
-                          {detailedBillData.totals.total_money_requested.EGP === 0 && detailedBillData.totals.total_money_requested.GBP === 0 && '-'}
+                          {detailedInvoiceData.totals.total_money_requested.EGP > 0 && `${detailedInvoiceData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
+                          {detailedInvoiceData.totals.total_money_requested.EGP > 0 && detailedInvoiceData.totals.total_money_requested.GBP > 0 && ' / '}
+                          {detailedInvoiceData.totals.total_money_requested.GBP > 0 && `${detailedInvoiceData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
+                          {detailedInvoiceData.totals.total_money_requested.EGP === 0 && detailedInvoiceData.totals.total_money_requested.GBP === 0 && '-'}
                         </Typography>
                       </Box>
                       <Box>
-                        <Typography variant="subtitle2" color={detailedBillData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
+                        <Typography variant="subtitle2" color={detailedInvoiceData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
                         <Typography>
-                          {detailedBillData.totals.net_money.EGP !== 0 && `${detailedBillData.totals.net_money.EGP.toLocaleString()} EGP`}
-                          {detailedBillData.totals.net_money.EGP !== 0 && detailedBillData.totals.net_money.GBP !== 0 && ' / '}
-                          {detailedBillData.totals.net_money.GBP !== 0 && `${detailedBillData.totals.net_money.GBP.toLocaleString()} GBP`}
-                          {detailedBillData.totals.net_money.EGP === 0 && detailedBillData.totals.net_money.GBP === 0 && '-'}
+                          {detailedInvoiceData.totals.net_money.EGP !== 0 && `${detailedInvoiceData.totals.net_money.EGP.toLocaleString()} EGP`}
+                          {detailedInvoiceData.totals.net_money.EGP !== 0 && detailedInvoiceData.totals.net_money.GBP !== 0 && ' / '}
+                          {detailedInvoiceData.totals.net_money.GBP !== 0 && `${detailedInvoiceData.totals.net_money.GBP.toLocaleString()} GBP`}
+                          {detailedInvoiceData.totals.net_money.EGP === 0 && detailedInvoiceData.totals.net_money.GBP === 0 && '-'}
                         </Typography>
                       </Box>
                     </Box>
@@ -777,7 +777,7 @@ export default function Bills() {
 
                   {/* Detailed Transactions */}
                   <Typography variant="h6" gutterBottom>Transaction Details</Typography>
-                  {detailedBillData.bills.length > 0 ? (
+                  {detailedInvoiceData.invoices.length > 0 ? (
                     <TableContainer component={Paper}>
                       <Table size="small">
                         <TableHead>
@@ -791,34 +791,34 @@ export default function Bills() {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {detailedBillData.bills.map((bill) => (
-                            <TableRow key={bill.id}>
+                          {detailedInvoiceData.invoices.map((invoice) => (
+                            <TableRow key={invoice.id}>
                               <TableCell>
                                 <Chip 
-                                  label={bill.type}
+                                  label={invoice.type}
                                   color={
-                                    bill.type === 'Payment' ? 'success' :
-                                    bill.type === 'Service Request' ? 'warning' : 'info'
+                                    invoice.type === 'Payment' ? 'success' :
+                                    invoice.type === 'Service Request' ? 'warning' : 'info'
                                   }
                                   size="small"
                                 />
                               </TableCell>
-                              <TableCell>{bill.description}</TableCell>
-                              <TableCell>{formatDate(bill.date)}</TableCell>
+                              <TableCell>{invoice.description}</TableCell>
+                              <TableCell>{formatDate(invoice.date)}</TableCell>
                               <TableCell align="right">
                                 <Typography 
-                                  color={bill.type === 'Payment' ? 'success.main' : 'error.main'}
+                                  color={invoice.type === 'Payment' ? 'success.main' : 'error.main'}
                                   fontWeight="medium"
                                 >
-                                  {bill.type === 'Payment' ? '+' : '-'}{bill.amount.toLocaleString()} {bill.currency}
+                                  {invoice.type === 'Payment' ? '+' : '-'}{invoice.amount.toLocaleString()} {invoice.currency}
                                 </Typography>
                               </TableCell>
-                              <TableCell>{bill.person_name || '-'}</TableCell>
+                              <TableCell>{invoice.person_name || '-'}</TableCell>
                               <TableCell>
-                                {bill.booking_id ? `Booking #${bill.booking_id}` : '-'}
-                                {bill.booking_arrival_date && (
+                                {invoice.booking_id ? `Booking #${invoice.booking_id}` : '-'}
+                                {invoice.booking_arrival_date && (
                                   <Typography variant="caption" display="block">
-                                    {formatDate(bill.booking_arrival_date)}
+                                    {formatDate(invoice.booking_arrival_date)}
                                   </Typography>
                                 )}
                               </TableCell>
@@ -846,4 +846,4 @@ export default function Bills() {
       </Container>
     </LocalizationProvider>
   );
-}
+} 

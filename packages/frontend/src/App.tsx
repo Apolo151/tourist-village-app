@@ -23,8 +23,8 @@ import PaymentDetails from './pages/PaymentDetails';
 import Emails from './pages/Emails';
 import CreateEmail from './pages/CreateEmail';
 import Settings from './pages/Settings';
-import Bills from './pages/Bills';
-import BillDetails from './pages/BillDetails';
+import Invoices from './pages/Invoices';
+import InvoiceDetails from './pages/InvoiceDetails';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
@@ -118,9 +118,9 @@ function App() {
                 <Route path="/payments/:id/edit" element={<CreatePayment />} />
                 <Route path="/payments/:id" element={<PaymentDetails />} />
                 
-                {/* Bills */}
-                <Route path="/bills" element={<Bills />} />
-                <Route path="/bills/:id" element={<BillDetails />} />
+                {/* Invoices */}
+                <Route path="/invoices" element={<Invoices />} />
+                <Route path="/invoices/:id" element={<InvoiceDetails />} />
               </Route>
             </Route>
             

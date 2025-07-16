@@ -5,8 +5,8 @@ import { db } from '../database/connection';
 const router = Router();
 
 /**
- * GET /api/bills/summary
- * Get financial summary for bills page with apartment-level aggregations
+ * GET /api/invoices/summary
+ * Get financial summary for invoices page with apartment-level aggregations
  */
 router.get(
   '/summary',
@@ -208,19 +208,19 @@ router.get(
         }
       });
     } catch (error: any) {
-      console.error('Error fetching bills summary:', error);
+      console.error('Error fetching invoices summary:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error',
-        message: 'Failed to fetch bills summary'
+        message: 'Failed to fetch invoices summary'
       });
     }
   }
 );
 
 /**
- * GET /api/bills/apartment/:id
- * Get detailed bills for a specific apartment
+ * GET /api/invoices/apartment/:id
+ * Get detailed invoices for a specific apartment
  */
 router.get(
   '/apartment/:id',
@@ -257,7 +257,7 @@ router.get(
         return res.status(403).json({
           success: false,
           error: 'Access denied',
-          message: 'You can only access bills for your own apartments'
+          message: 'You can only access invoices for your own apartments'
         });
       } else if (user.role === 'renter') {
         const hasBooking = await db('bookings')
@@ -269,7 +269,7 @@ router.get(
           return res.status(403).json({
             success: false,
             error: 'Access denied',
-            message: 'You can only access bills for apartments you have bookings for'
+            message: 'You can only access invoices for apartments you have bookings for'
           });
         }
       }
@@ -279,7 +279,7 @@ router.get(
         return res.status(403).json({
           success: false,
           error: 'Access denied',
-          message: 'You can only access bills for apartments in your responsible village'
+          message: 'You can only access invoices for apartments in your responsible village'
         });
       }
 
@@ -356,8 +356,8 @@ router.get(
         })
         .orderBy('ur.created_at', 'desc');
 
-      // Combine and format bills
-      const bills = [
+      // Combine and format invoices
+      const invoices = [
         ...payments.map((p: any) => ({
           id: `payment_${p.id}`,
           type: 'Payment',
@@ -418,13 +418,13 @@ router.get(
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Calculate totals
-      const totals = bills.reduce((acc, bill) => {
-        if (bill.type === 'Payment') {
-          if (bill.currency === 'EGP') acc.total_spent_egp += bill.amount;
-          else acc.total_spent_gbp += bill.amount;
+      const totals = invoices.reduce((acc, invoice) => {
+        if (invoice.type === 'Payment') {
+          if (invoice.currency === 'EGP') acc.total_spent_egp += invoice.amount;
+          else acc.total_spent_gbp += invoice.amount;
         } else {
-          if (bill.currency === 'EGP') acc.total_requested_egp += bill.amount;
-          else acc.total_requested_gbp += bill.amount;
+          if (invoice.currency === 'EGP') acc.total_requested_egp += invoice.amount;
+          else acc.total_requested_gbp += invoice.amount;
         }
         return acc;
       }, {
@@ -441,7 +441,7 @@ router.get(
             id: apartment.id,
             name: apartment.name
           },
-          bills,
+          invoices,
           totals: {
             total_money_spent: {
               EGP: totals.total_spent_egp,
@@ -459,19 +459,19 @@ router.get(
         }
       });
     } catch (error: any) {
-      console.error('Error fetching apartment bills:', error);
+      console.error('Error fetching apartment invoices:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error',
-        message: 'Failed to fetch apartment bills'
+        message: 'Failed to fetch apartment invoices'
       });
     }
   }
 );
 
 /**
- * GET /api/bills/user/:id
- * Get detailed bills for a specific user across all their apartments/bookings
+ * GET /api/invoices/user/:id
+ * Get detailed invoices for a specific user across all their apartments/bookings
  */
 router.get(
   '/user/:id',
@@ -494,7 +494,7 @@ router.get(
         return res.status(403).json({
           success: false,
           error: 'Access denied',
-          message: 'You can only access your own bills'
+          message: 'You can only access your own invoices'
         });
       }
 
@@ -511,7 +511,7 @@ router.get(
         });
       }
 
-      // Get bills based on user role
+      // Get invoices based on user role
       let payments = [];
       let serviceRequests = [];
 
@@ -579,8 +579,8 @@ router.get(
           .orderBy('sr.date_created', 'desc');
       }
 
-      // Combine and format bills
-      const bills = [
+      // Combine and format invoices
+      const invoices = [
         ...payments.map((p: any) => ({
           id: `payment_${p.id}`,
           type: 'Payment',
@@ -610,13 +610,13 @@ router.get(
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       // Calculate totals
-      const totals = bills.reduce((acc, bill) => {
-        if (bill.type === 'Payment') {
-          if (bill.currency === 'EGP') acc.total_spent_egp += bill.amount;
-          else acc.total_spent_gbp += bill.amount;
+      const totals = invoices.reduce((acc, invoice) => {
+        if (invoice.type === 'Payment') {
+          if (invoice.currency === 'EGP') acc.total_spent_egp += invoice.amount;
+          else acc.total_spent_gbp += invoice.amount;
         } else {
-          if (bill.currency === 'EGP') acc.total_requested_egp += bill.amount;
-          else acc.total_requested_gbp += bill.amount;
+          if (invoice.currency === 'EGP') acc.total_requested_egp += invoice.amount;
+          else acc.total_requested_gbp += invoice.amount;
         }
         return acc;
       }, {
@@ -635,7 +635,7 @@ router.get(
             email: targetUser.email,
             role: targetUser.role
           },
-          bills,
+          invoices,
           totals: {
             total_money_spent: {
               EGP: totals.total_spent_egp,
@@ -653,18 +653,18 @@ router.get(
         }
       });
     } catch (error: any) {
-      console.error('Error fetching user bills:', error);
+      console.error('Error fetching user invoices:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error',
-        message: 'Failed to fetch user bills'
+        message: 'Failed to fetch user invoices'
       });
     }
   }
 );
 
 /**
- * GET /api/bills/previous-years
+ * GET /api/invoices/previous-years
  * Get financial totals for years before the specified year
  */
 router.get(
@@ -767,8 +767,8 @@ router.get(
 );
 
 /**
- * GET /api/bills/renter-summary/:apartmentId
- * Get renter summary for a specific apartment bill
+ * GET /api/invoices/renter-summary/:apartmentId
+ * Get renter summary for a specific apartment invoice
  */
 router.get(
   '/renter-summary/:apartmentId',
@@ -805,7 +805,7 @@ router.get(
         return res.status(403).json({
           success: false,
           error: 'Access denied',
-          message: 'You can only access bills for apartments in your responsible village'
+          message: 'You can only access invoices for apartments in your responsible village'
         });
       }
 

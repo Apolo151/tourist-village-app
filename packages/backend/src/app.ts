@@ -14,7 +14,7 @@ import utilityReadingsRouter from './routes/utilityReadings';
 import emailsRouter from './routes/emails';
 import paymentMethodsRouter from './routes/paymentMethods';
 import paymentsRouter from './routes/payments';
-import billsRouter from './routes/bills';
+import invoicesRouter from './routes/invoices';
 
 /**
  * Create and configure Express application
@@ -56,7 +56,7 @@ app.use('/utility-readings', utilityReadingsRouter);
 app.use('/emails', emailsRouter);
 app.use('/payment-methods', paymentMethodsRouter);
 app.use('/payments', paymentsRouter);
-app.use('/bills', billsRouter);
+app.use('/invoices', invoicesRouter);
 
 // Root endpoint - API documentation
 app.get('/', (req, res) => {

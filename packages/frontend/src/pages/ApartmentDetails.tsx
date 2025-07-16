@@ -45,7 +45,7 @@ import {
   WaterDrop as WaterDropIcon,
   Payments as PaymentsIcon,
   RequestPage as RequestPageIcon,
-  ArticleOutlined as BillsIcon,
+  ArticleOutlined as InvoiceIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
@@ -71,7 +71,7 @@ import CreateEmail from './CreateEmail';
 import CreatePayment from './CreatePayment';
 import CreateServiceRequest from './CreateServiceRequest';
 import CreateUtilityReading from './CreateUtilityReading';
-import { billService } from '../services/billService';
+import { invoiceService } from '../services/invoiceService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -116,7 +116,7 @@ export default function ApartmentDetails() {
     total_money_requested: { EGP: number; GBP: number };
     net_money: { EGP: number; GBP: number };
   } | null>(null);
-  const [relatedBills, setRelatedBills] = useState<any[]>([]);
+  const [relatedInvoices, setRelatedInvoices] = useState<any[]>([]);
 
   // Dialog state for quick actions
   const [dialogState, setDialogState] = useState({
@@ -214,12 +214,12 @@ export default function ApartmentDetails() {
         setRelatedUtilityReadings(utilityReadingsData);
         setRelatedEmails(emailsData);
 
-        // Fetch bills for this apartment
+        // Fetch invoices for this apartment
         try {
-          const billDetails = await billService.getApartmentDetails(parseInt(id));
-          setRelatedBills(billDetails.bills || []);
+          const invoiceDetails = await invoiceService.getApartmentDetails(parseInt(id));
+          setRelatedInvoices(invoiceDetails.invoices || []);
         } catch (e) {
-          setRelatedBills([]);
+          setRelatedInvoices([]);
         }
 
       } catch (err) {
@@ -302,7 +302,7 @@ export default function ApartmentDetails() {
         <Tab key="services" label="Service Requests" icon={<EngineeringIcon />} iconPosition="start" />,
         <Tab key="emails" label="Emails" icon={<EmailIcon />} iconPosition="start" />,
         <Tab key="utilities" label="Utilities" icon={<WaterDropIcon />} iconPosition="start" />,
-        <Tab key="bills" label="Bills" icon={<BillsIcon />} iconPosition="start" />
+        <Tab key="invoices" label="Invoices" icon={<InvoiceIcon />} iconPosition="start" />
       ];
     }
     
@@ -583,11 +583,11 @@ export default function ApartmentDetails() {
                     <Box sx={{ mt: 2 }}>
                       <Button
                         variant="outlined"
-                        startIcon={<BillsIcon />}
-                        onClick={() => navigate(`/bills?apartmentId=${id}`)}
+                        startIcon={<InvoiceIcon />}
+                        onClick={() => navigate(`/invoices?apartmentId=${id}`)}
                         fullWidth
                       >
-                        View all Bills
+                        View all Invoices
                       </Button>
                     </Box>
                   </Paper>
@@ -786,18 +786,18 @@ export default function ApartmentDetails() {
             </TabPanel>
           )}
           
-          {/* Bills Tab (Admin Only) */}
+          {/* Invoices Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={7}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
-                <Typography variant="h6">Related Bills</Typography>
-                <Button variant="outlined" startIcon={<BillsIcon />} onClick={() => navigate(`/bills?apartmentId=${apartment.id}`)}>
-                  View All Bills
+                <Typography variant="h6">Related Invoices</Typography>
+                <Button variant="outlined" startIcon={<InvoiceIcon />} onClick={() => navigate(`/invoices?apartmentId=${apartment.id}`)}>
+                  View All Invoices
                 </Button>
               </Box>
-              {relatedBills.length > 0 ? (
+              {relatedInvoices.length > 0 ? (
                 <TableContainer component={Paper}>
-                  <Table sx={{ minWidth: 650 }} aria-label="bills table">
+                  <Table sx={{ minWidth: 650 }} aria-label="invoices table">
                     <TableHead>
                       <TableRow>
                         <TableCell>Date</TableCell>
@@ -809,15 +809,15 @@ export default function ApartmentDetails() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {relatedBills.map(bill => (
-                        <TableRow key={bill.id}>
-                          <TableCell>{new Date(bill.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{bill.type}</TableCell>
-                          <TableCell>{bill.amount}</TableCell>
-                          <TableCell>{bill.currency}</TableCell>
-                          <TableCell>{bill.description || '-'}</TableCell>
+                      {relatedInvoices.map(invoice => (
+                        <TableRow key={invoice.id}>
+                          <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                          <TableCell>{invoice.type}</TableCell>
+                          <TableCell>{invoice.amount}</TableCell>
+                          <TableCell>{invoice.currency}</TableCell>
+                          <TableCell>{invoice.description || '-'}</TableCell>
                           <TableCell align="right">
-                            <Button size="small" onClick={() => navigate(`/bills/${bill.id}`)}>
+                            <Button size="small" onClick={() => navigate(`/invoices/${invoice.id}`)}>
                               View
                             </Button>
                           </TableCell>
@@ -827,7 +827,7 @@ export default function ApartmentDetails() {
                   </Table>
                 </TableContainer>
               ) : (
-                <Alert severity="info">No bills found for this apartment</Alert>
+                <Alert severity="info">No invoices found for this apartment</Alert>
               )}
             </TabPanel>
           )}

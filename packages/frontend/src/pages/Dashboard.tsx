@@ -42,7 +42,7 @@ import {
   AccountBalance as AccountBalanceIcon,
   FilterList as FilterListIcon
 } from '@mui/icons-material';
-import { billService, type BillSummaryItem, type BillTotals } from '../services/billService';
+import { invoiceService, type InvoiceSummaryItem, type InvoiceTotals } from '../services/invoiceService';
 import { villageService } from '../services/villageService';
 import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
@@ -53,7 +53,7 @@ import type { Booking } from '../services/bookingService';
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
 
-interface DashboardBillData {
+interface DashboardInvoiceData {
   id: number;
   village: string;
   apartment: string;
@@ -67,7 +67,7 @@ interface DashboardBillData {
   lastActivity: string;
 }
 
-interface BillTypeStats {
+interface InvoiceTypeStats {
   payments: { count: number; totalEGP: number; totalGBP: number };
   serviceRequests: { count: number; totalEGP: number; totalGBP: number };
   utilityReadings: { count: number; totalEGP: number; totalGBP: number };
@@ -76,183 +76,118 @@ interface BillTypeStats {
 export default function Dashboard() {
   const { currentUser } = useAuth();
   const [village, setVillage] = useState<string>('');
-  const [billData, setBillData] = useState<DashboardBillData[]>([]);
+  const [invoiceData, setInvoiceData] = useState<DashboardInvoiceData[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
-  const [billTypeStats, setBillTypeStats] = useState<BillTypeStats>({
+  const [invoiceTypeStats, setInvoiceTypeStats] = useState<InvoiceTypeStats>({
     payments: { count: 0, totalEGP: 0, totalGBP: 0 },
     serviceRequests: { count: 0, totalEGP: 0, totalGBP: 0 },
     utilityReadings: { count: 0, totalEGP: 0, totalGBP: 0 }
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
-  const [userBookings, setUserBookings] = useState<Booking[]>([]);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [userBookingsLoading, setUserBookingsLoading] = useState(false);
   const [userBookingsError, setUserBookingsError] = useState('');
-  const [currentYear] = useState(new Date().getFullYear());
-  
+
+  const currentYear = new Date().getFullYear();
+
+  // Load user bookings
   useEffect(() => {
-    if (currentUser && (currentUser.role === 'owner' || currentUser.role === 'renter')) {
-      fetchUserBookings();
-    } else {
-      loadDashboardData();
-    }
-  }, [currentUser, village]);
+    const loadUserBookings = async () => {
+      if (!currentUser) return;
+      
+      setUserBookingsLoading(true);
+      setUserBookingsError('');
+      
+      try {
+        const response = await bookingService.getBookings({ 
+          limit: 50 
+        });
+        setRecentBookings(response.bookings);
+      } catch (err) {
+        setUserBookingsError(err instanceof Error ? err.message : 'Failed to load bookings');
+      } finally {
+        setUserBookingsLoading(false);
+      }
+    };
 
-  const fetchUserBookings = async () => {
-    setUserBookingsLoading(true);
-    setUserBookingsError('');
-    try {
-      if (!currentUser) throw new Error('No user');
-      const response = await bookingService.getBookings({ 
-        user_id: currentUser.id, 
-        sort_by: 'leaving_date', 
-        sort_order: 'desc', 
-        limit: 50 
-      });
-      setUserBookings(response.bookings);
-    } catch (err) {
-      setUserBookingsError(err instanceof Error ? err.message : 'Failed to load bookings');
-    } finally {
-      setUserBookingsLoading(false);
-    }
-  };
+    loadUserBookings();
+  }, [currentUser]);
 
-  const loadDashboardData = async () => {
-    try {
+  // Load dashboard data
+  useEffect(() => {
+    const loadData = async () => {
       setLoading(true);
       setError('');
-
-      // Load villages and bills data in parallel
-      const [villagesResult, billsResult] = await Promise.all([
-        villageService.getVillages(),
-        billService.getBillsSummary({ 
-          year: currentYear,
-          ...(village && { village_id: villages.find(v => v.name === village)?.id })
-        })
-      ]);
-
-      setVillages(villagesResult.data);
       
-      // Transform bills data for dashboard
-      const transformedData: DashboardBillData[] = billsResult.summary.map((bill: BillSummaryItem) => ({
-        id: bill.apartment_id,
-        village: bill.village_name,
-        apartment: bill.apartment_name,
-        owner: bill.owner_name,
-        totalSpentEGP: bill.total_money_spent?.EGP || 0,
-        totalSpentGBP: bill.total_money_spent?.GBP || 0,
-        totalRequestedEGP: bill.total_money_requested?.EGP || 0,
-        totalRequestedGBP: bill.total_money_requested?.GBP || 0,
-        netEGP: bill.net_money?.EGP || 0,
-        netGBP: bill.net_money?.GBP || 0,
-        lastActivity: new Date().toISOString() // Would be from API in real scenario
-      }));
-
-      setBillData(transformedData);
-
-      // Calculate bill type statistics
-      // For now, we'll estimate based on the data structure
-      // In a real scenario, this would come from a dedicated API endpoint
-      const totalTransactions = transformedData.length * 3; // Estimate
-      const estimatedStats: BillTypeStats = {
-        payments: {
-          count: Math.floor(totalTransactions * 0.5),
-          totalEGP: transformedData.reduce((sum, item) => sum + item.totalSpentEGP, 0),
-          totalGBP: transformedData.reduce((sum, item) => sum + item.totalSpentGBP, 0)
-        },
-        serviceRequests: {
-          count: Math.floor(totalTransactions * 0.3),
-          totalEGP: transformedData.reduce((sum, item) => sum + item.totalRequestedEGP * 0.7, 0),
-          totalGBP: transformedData.reduce((sum, item) => sum + item.totalRequestedGBP * 0.7, 0)
-        },
-        utilityReadings: {
-          count: Math.floor(totalTransactions * 0.2),
-          totalEGP: transformedData.reduce((sum, item) => sum + item.totalRequestedEGP * 0.3, 0),
-          totalGBP: transformedData.reduce((sum, item) => sum + item.totalRequestedGBP * 0.3, 0)
-        }
-      };
-      
-      setBillTypeStats(estimatedStats);
-
-    } catch (err: any) {
-      console.error('Error loading dashboard data:', err);
-      setError(err.message || 'Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        // Load villages first
+        const villagesResult = await villageService.getVillages();
+        setVillages(villagesResult.data);
+        
+        // Load villages and invoices data in parallel
+        const [invoicesResult] = await Promise.all([
+          invoiceService.getInvoicesSummary({ 
+            year: currentYear,
+            ...(village && { village_id: villagesResult.data.find(v => v.name === village)?.id })
+          })
+        ]);
+        
+        // Transform invoices data for dashboard
+        const transformedData: DashboardInvoiceData[] = invoicesResult.summary.map((invoice: InvoiceSummaryItem) => ({
+          id: invoice.apartment_id,
+          village: invoice.village_name,
+          apartment: invoice.apartment_name,
+          owner: invoice.owner_name,
+          totalSpentEGP: invoice.total_money_spent?.EGP || 0,
+          totalSpentGBP: invoice.total_money_spent?.GBP || 0,
+          totalRequestedEGP: invoice.total_money_requested?.EGP || 0,
+          totalRequestedGBP: invoice.total_money_requested?.GBP || 0,
+          netEGP: invoice.net_money?.EGP || 0,
+          netGBP: invoice.net_money?.GBP || 0,
+          lastActivity: new Date().toISOString() // Would be from API in real scenario
+        }));
+        
+        setInvoiceData(transformedData);
+        
+        // Calculate invoice type statistics
+        const stats: InvoiceTypeStats = {
+          payments: { count: 0, totalEGP: 0, totalGBP: 0 },
+          serviceRequests: { count: 0, totalEGP: 0, totalGBP: 0 },
+          utilityReadings: { count: 0, totalEGP: 0, totalGBP: 0 }
+        };
+        
+        transformedData.forEach(item => {
+          stats.payments.totalEGP += item.totalSpentEGP;
+          stats.payments.totalGBP += item.totalSpentGBP;
+          stats.serviceRequests.totalEGP += item.totalRequestedEGP;
+          stats.serviceRequests.totalGBP += item.totalRequestedGBP;
+        });
+        
+        setInvoiceTypeStats(stats);
+        
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
+    };
     
-    // Apply filters
-  const filteredData = billData.filter(item => {
-    if (village && item.village !== village) return false;
-      return true;
-    });
-  
-  // Calculate totals
-  const totals = filteredData.reduce(
-    (acc, item) => ({
-      spentEGP: acc.spentEGP + item.totalSpentEGP,
-      spentGBP: acc.spentGBP + item.totalSpentGBP,
-      requestedEGP: acc.requestedEGP + item.totalRequestedEGP,
-      requestedGBP: acc.requestedGBP + item.totalRequestedGBP,
-      netEGP: acc.netEGP + item.netEGP,
-      netGBP: acc.netGBP + item.netGBP
-    }),
-    { spentEGP: 0, spentGBP: 0, requestedEGP: 0, requestedGBP: 0, netEGP: 0, netGBP: 0 }
-  );
-  
-  // Pie chart data for bill types
-  const pieChartData = {
-    labels: ['Payments', 'Service Requests', 'Utility Readings'],
-    datasets: [
-      {
-        data: [
-          billTypeStats.payments.count,
-          billTypeStats.serviceRequests.count,
-          billTypeStats.utilityReadings.count
-        ],
-        backgroundColor: [
-          'rgba(75, 192, 192, 0.8)',
-          'rgba(255, 206, 86, 0.8)',
-          'rgba(153, 102, 255, 0.8)'
-        ],
-        borderColor: [
-          'rgba(75, 192, 192, 1)',
-          'rgba(255, 206, 86, 1)',
-          'rgba(153, 102, 255, 1)'
-        ],
-        borderWidth: 2
-      }
-    ]
-  };
+    loadData();
+  }, [village, currentYear]);
 
-  // Bar chart data for top spending apartments
-  const barChartData = {
-    labels: filteredData.slice(0, 10).map(item => item.apartment),
-    datasets: [
-      {
-        label: 'Total Spent (EGP)',
-        data: filteredData.slice(0, 10).map(item => item.totalSpentEGP),
-        backgroundColor: 'rgba(75, 192, 192, 0.6)',
-        borderColor: 'rgba(75, 192, 192, 1)',
-        borderWidth: 1
-      },
-      {
-        label: 'Total Requested (EGP)',
-        data: filteredData.slice(0, 10).map(item => item.totalRequestedEGP),
-        backgroundColor: 'rgba(255, 99, 132, 0.6)',
-        borderColor: 'rgba(255, 99, 132, 1)',
-        borderWidth: 1
-      }
-    ]
-  };
-  
   const handleVillageChange = (event: SelectChangeEvent) => {
     setVillage(event.target.value);
   };
-  
+
+  // Apply filters
+  const filteredData = invoiceData.filter(item => {
+    if (village && item.village !== village) return false;
+    return true;
+  });
+
   // Data transformer for export
-  const transformDataForExport = (data: DashboardBillData[]) => {
+  const transformDataForExport = (data: DashboardInvoiceData[]) => {
     return data.map(item => ({
       apartment: item.apartment,
       village: item.village,
@@ -261,9 +196,8 @@ export default function Dashboard() {
       total_spent_GBP: item.totalSpentGBP,
       total_requested_EGP: item.totalRequestedEGP,
       total_requested_GBP: item.totalRequestedGBP,
-      net_balance_EGP: item.netEGP,
-      net_balance_GBP: item.netGBP,
-      last_activity: item.lastActivity
+      net_EGP: item.netEGP,
+      net_GBP: item.netGBP
     }));
   };
 
@@ -294,14 +228,14 @@ export default function Dashboard() {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {userBookings.length === 0 ? (
+                    {recentBookings.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} align="center">
                           <Typography color="text.secondary">No past bookings found</Typography>
                         </TableCell>
                       </TableRow>
                     ) : (
-                      userBookings.map((booking) => (
+                      recentBookings.map((booking) => (
                         <TableRow key={booking.id}>
                           <TableCell>{booking.apartment?.name || 'Unknown'}</TableCell>
                           <TableCell>{booking.arrival_date ? new Date(booking.arrival_date).toLocaleString() : ''}</TableCell>
@@ -384,10 +318,10 @@ export default function Dashboard() {
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
                     <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
-                      {totals.spentEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                      {invoiceTypeStats.payments.totalEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
                     </Typography>
                     <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
-                      {totals.spentGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                      {invoiceTypeStats.payments.totalGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
@@ -408,10 +342,10 @@ export default function Dashboard() {
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
                     <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
-                      {totals.requestedEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                      {invoiceTypeStats.serviceRequests.totalEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
                     </Typography>
                     <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
-                      {totals.requestedGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                      {invoiceTypeStats.serviceRequests.totalGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
@@ -425,17 +359,17 @@ export default function Dashboard() {
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <AccountBalanceIcon sx={{ color: totals.netEGP >= 0 ? 'success.main' : 'error.main', mr: 1, fontSize: 28 }} />
+                    <AccountBalanceIcon sx={{ color: invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP >= 0 ? 'success.main' : 'error.main', mr: 1, fontSize: 28 }} />
                     <Typography color="text.secondary" variant="h6">
                       Net Balance
                     </Typography>
           </Box>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
-                    <Typography variant="h4" color={totals.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                      {totals.netEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
+                    <Typography variant="h4" color={invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                      {(invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP).toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
                     </Typography>
-                    <Typography variant="h4" color={totals.netGBP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                      {totals.netGBP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                    <Typography variant="h4" color={invoiceTypeStats.payments.totalGBP - invoiceTypeStats.serviceRequests.totalGBP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
+                      {(invoiceTypeStats.payments.totalGBP - invoiceTypeStats.serviceRequests.totalGBP).toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
@@ -456,7 +390,7 @@ export default function Dashboard() {
               {/* Export Buttons */}
               <ExportButtons 
                 data={transformDataForExport(filteredData)} 
-                columns={["apartment","village","owner","total_spent_EGP","total_spent_GBP","total_requested_EGP","total_requested_GBP","net_balance_EGP","net_balance_GBP","last_activity"]} 
+                columns={["apartment","village","owner","total_spent_EGP","total_spent_GBP","total_requested_EGP","total_requested_GBP","net_EGP","net_GBP"]} 
                 excelFileName="financial-dashboard.xlsx" 
                 pdfFileName="financial-dashboard.pdf" 
               />

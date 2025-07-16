@@ -69,8 +69,8 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
-import { billService } from '../services/billService';
-import type { BillDetailItem } from '../services/billService';
+import { invoiceService } from '../services/invoiceService';
+import type { InvoiceDetailItem } from '../services/invoiceService';
 import CreateUtilityReading from './CreateUtilityReading';
 import CreatePayment from './CreatePayment';
 import CreateEmail from './CreateEmail';
@@ -166,9 +166,9 @@ const BookingDetails: React.FC = () => {
     serviceRequest: false
   });
 
-  // Bills state
-  const [bills, setBills] = useState<BillDetailItem[]>([]);
-  const [billsLoading, setBillsLoading] = useState(false);
+  // Invoices state
+  const [invoices, setInvoices] = useState<InvoiceDetailItem[]>([]);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -251,10 +251,10 @@ const BookingDetails: React.FC = () => {
     }
   }, [isNew, id, apartments.length]);
 
-  // Load bills when booking data is loaded
+  // Load invoices when booking data is loaded
   useEffect(() => {
     if (booking && !isNew) {
-      loadBills();
+      loadInvoices();
     }
   }, [booking]);
 
@@ -466,28 +466,28 @@ const BookingDetails: React.FC = () => {
     </Dialog>
   );
 
-  // Load bills based on booking type
-  const loadBills = async () => {
+  // Load invoices based on booking type
+  const loadInvoices = async () => {
     if (!booking) return;
     
     try {
-      setBillsLoading(true);
+      setInvoicesLoading(true);
       
       if (booking.user_type === 'renter') {
-        // For renters: show bills related to this specific booking
-        // We'll need to filter the apartment bills by booking_id
-        const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
-        const bookingBills = apartmentBills.filter(bill => bill.booking_id === booking.id);
-        setBills(bookingBills);
+        // For renters: show invoices related to this specific booking
+        // We'll need to filter the apartment invoices by booking_id
+        const apartmentInvoices = await invoiceService.getApartmentInvoices(booking.apartment_id);
+        const bookingInvoices = apartmentInvoices.filter(invoice => invoice.booking_id === booking.id);
+        setInvoices(bookingInvoices);
       } else {
-        // For owners: show all bills related to this owner (not just this booking)
-        const apartmentBills = await billService.getApartmentBills(booking.apartment_id);
-        setBills(apartmentBills);
+        // For owners: show all invoices related to this owner (not just this booking)
+        const apartmentInvoices = await invoiceService.getApartmentInvoices(booking.apartment_id);
+        setInvoices(apartmentInvoices);
       }
     } catch (err) {
-      console.error('Failed to load bills:', err);
+      console.error('Failed to load invoices:', err);
     } finally {
-      setBillsLoading(false);
+      setInvoicesLoading(false);
     }
   };
 
@@ -934,7 +934,7 @@ const BookingDetails: React.FC = () => {
                     <Tab label="Service Requests" icon={<ServiceIcon />} iconPosition="start" />
                     <Tab label="Emails" icon={<EmailIcon />} iconPosition="start" />
                     <Tab label="Utility Readings" icon={<UtilityIcon />} iconPosition="start" />
-                    <Tab label="Bills" icon={<BillIcon />} iconPosition="start" />
+                    <Tab label="Invoices" icon={<BillIcon />} iconPosition="start" />
                   </Tabs>
 
                   {/* Related Payments */}
@@ -1114,76 +1114,65 @@ const BookingDetails: React.FC = () => {
                     )}
                   </TabPanel>
 
-                  {/* Related Bills */}
+                  {/* Related Invoices */}
                   <TabPanel value={activeTab} index={4}>
                     <Box sx={{ mb: 2, px: 2 }}>
                       <Typography variant="h6">
-                        {booking?.user_type === 'renter' ? 'Booking Bills' : 'Owner Bills'}
+                        {booking?.user_type === 'renter' ? 'Booking Invoices' : 'Owner Invoices'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         {booking?.user_type === 'renter' 
-                          ? 'Bills related to this specific booking'
-                          : 'All bills for this apartment owner'
+                          ? 'Invoices related to this specific booking'
+                          : 'All invoices for this apartment owner'
                         }
                       </Typography>
                     </Box>
                     
-                    {billsLoading ? (
+                    {invoicesLoading ? (
                       <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
                         <CircularProgress />
                       </Box>
-                    ) : bills.length > 0 ? (
-                      <TableContainer>
-                        <Table>
-                          <TableHead>
-                            <TableRow>
-                              <TableCell>Type</TableCell>
-                              <TableCell>Description</TableCell>
-                              <TableCell>Amount</TableCell>
-                              <TableCell>Currency</TableCell>
-                              <TableCell>Date</TableCell>
-                              <TableCell>User Type</TableCell>
-                              {booking?.user_type === 'renter' && <TableCell>Booking Date</TableCell>}
-                            </TableRow>
-                          </TableHead>
-                          <TableBody>
-                            {bills.map((bill) => (
-                              <TableRow key={bill.id}>
-                                <TableCell>
-                                  <Chip 
-                                    label={bill.type} 
-                                    size="small"
-                                    color={bill.type === 'Payment' ? 'success' : bill.type === 'Service Request' ? 'warning' : 'info'}
-                                  />
-                                </TableCell>
-                                <TableCell>{bill.description}</TableCell>
-                                <TableCell>{bill.amount}</TableCell>
-                                <TableCell>{bill.currency}</TableCell>
-                                <TableCell>{formatDate(bill.date)}</TableCell>
-                                <TableCell>
-                                  <Chip 
-                                    label={bill.user_type === 'owner' ? 'Owner' : 'Tenant'} 
-                                    size="small"
-                                    color={bill.user_type === 'owner' ? 'primary' : 'secondary'}
-                                  />
-                                </TableCell>
-                                {booking?.user_type === 'renter' && (
-                                  <TableCell>
-                                    {bill.booking_arrival_date ? formatDate(bill.booking_arrival_date) : 'N/A'}
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </TableContainer>
                     ) : (
-                      <Alert severity="info">
-                        {booking?.user_type === 'renter' 
-                          ? 'No bills found for this booking'
-                          : 'No bills found for this apartment owner'
-                        }
-                      </Alert>
+                      <Box sx={{ px: 2 }}>
+                        {invoices.length > 0 ? (
+                          <TableContainer component={Paper}>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell>Type</TableCell>
+                                  <TableCell>Description</TableCell>
+                                  <TableCell>Amount</TableCell>
+                                  <TableCell>Date</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {invoices.map((invoice) => (
+                                  <TableRow key={invoice.id}>
+                                    <TableCell>
+                                      <Chip 
+                                        label={invoice.type}
+                                        color={invoice.type === 'Payment' ? 'success' : 'warning'}
+                                        size="small"
+                                      />
+                                    </TableCell>
+                                    <TableCell>{invoice.description}</TableCell>
+                                    <TableCell>
+                                      {invoice.amount.toLocaleString()} {invoice.currency}
+                                    </TableCell>
+                                    <TableCell>
+                                      {new Date(invoice.date).toLocaleDateString()}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        ) : (
+                          <Alert severity="info">
+                            No invoices found for this {booking?.user_type === 'renter' ? 'booking' : 'owner'}.
+                          </Alert>
+                        )}
+                      </Box>
                     )}
                   </TabPanel>
                 </Paper>

@@ -1,51 +1,46 @@
 import { apiClient } from './api';
 import type { ApiResponse } from './api';
 
-export interface BillSummaryItem {
+export interface InvoiceSummaryItem {
   apartment_id: number;
   apartment_name: string;
   village_name: string;
   owner_name: string;
   owner_id: number;
-  total_money_spent: BillTotals;
-  total_money_requested: BillTotals;
-  net_money: BillTotals;
+  total_money_spent: InvoiceTotals;
+  total_money_requested: InvoiceTotals;
+  net_money: InvoiceTotals;
 }
 
-export interface BillTotals {
+export interface InvoiceTotals {
   EGP: number;
   GBP: number;
-}
-
-export interface RenterSummary {
-  total_money_spent: BillTotals;
-  total_money_requested: BillTotals;
-  net_money: BillTotals;
-  userName: string;
-  userId: number;
-  bookingId?: number;
-  bookingDates?: {
-    arrival: string;
-    leaving: string;
-  };
 }
 
 export interface RenterSummaryResponse {
   apartmentId: number;
   apartmentName: string;
-  renterSummary: RenterSummary | null;
+  renterSummary: {
+    userName: string;
+    userId: number;
+    bookingId: number | null;
+    bookingDates: string | null;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
+  } | null;
 }
 
-export interface BillSummaryResponse {
-  summary: BillSummaryItem[];
+export interface InvoiceSummaryResponse {
+  summary: InvoiceSummaryItem[];
   totals: {
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
   };
 }
 
-export interface BillDetailItem {
+export interface InvoiceDetailItem {
   id: number;
   type: 'Payment' | 'Service Request' | 'Utility Reading';
   description: string;
@@ -60,7 +55,7 @@ export interface BillDetailItem {
   created_at: string;
 }
 
-export interface BillsFilters {
+export interface InvoicesFilters {
   village_id?: number;
   user_type?: 'owner' | 'renter';
   year?: number;
@@ -68,11 +63,11 @@ export interface BillsFilters {
   date_to?: string;
 }
 
-class BillService {
+class InvoiceService {
   /**
-   * Get bills summary with apartment-level aggregations
+   * Get invoices summary with apartment-level aggregations
    */
-  async getBillsSummary(filters?: BillsFilters): Promise<BillSummaryResponse> {
+  async getInvoicesSummary(filters?: InvoicesFilters): Promise<InvoiceSummaryResponse> {
     const params: Record<string, any> = {};
     
     if (filters?.village_id) params.village_id = filters.village_id;
@@ -81,42 +76,42 @@ class BillService {
     if (filters?.date_from) params.date_from = filters.date_from;
     if (filters?.date_to) params.date_to = filters.date_to;
 
-    const response = await apiClient.get<ApiResponse<BillSummaryResponse>>('/bills/summary', params);
+    const response = await apiClient.get<ApiResponse<InvoiceSummaryResponse>>('/invoices/summary', params);
     return response.data!;
   }
 
   /**
-   * Get detailed bills for a specific apartment
+   * Get detailed invoices for a specific apartment
    */
-  async getApartmentBills(apartmentId: number): Promise<BillDetailItem[]> {
+  async getApartmentInvoices(apartmentId: number): Promise<InvoiceDetailItem[]> {
     const response = await apiClient.get<ApiResponse<{
       apartment: {
         id: number;
         name: string;
       };
-      bills: BillDetailItem[];
+      invoices: InvoiceDetailItem[];
       totals: {
-        total_money_spent: BillTotals;
-        total_money_requested: BillTotals;
-        net_money: BillTotals;
+        total_money_spent: InvoiceTotals;
+        total_money_requested: InvoiceTotals;
+        net_money: InvoiceTotals;
       };
-    }>>(`/bills/apartment/${apartmentId}`);
-    return response.data!.bills;
+    }>>(`/invoices/apartment/${apartmentId}`);
+    return response.data!.invoices;
   }
 
   /**
    * Get previous years total for display
    */
   async getPreviousYearsTotals(beforeYear: number): Promise<{
-    total_money_spent: BillTotals;
-    total_money_requested: BillTotals;
-    net_money: BillTotals;
+    total_money_spent: InvoiceTotals;
+    total_money_requested: InvoiceTotals;
+    net_money: InvoiceTotals;
   }> {
     const response = await apiClient.get<ApiResponse<{
-      total_money_spent: BillTotals;
-      total_money_requested: BillTotals;
-      net_money: BillTotals;
-    }>>('/bills/previous-years', { before_year: beforeYear });
+      total_money_spent: InvoiceTotals;
+      total_money_requested: InvoiceTotals;
+      net_money: InvoiceTotals;
+    }>>('/invoices/previous-years', { before_year: beforeYear });
     return response.data!;
   }
 
@@ -124,19 +119,19 @@ class BillService {
    * Get renter summary for a specific apartment
    */
   async getRenterSummary(apartmentId: number): Promise<RenterSummaryResponse> {
-    const response = await apiClient.get<ApiResponse<RenterSummaryResponse>>(`/bills/renter-summary/${apartmentId}`);
+    const response = await apiClient.get<ApiResponse<RenterSummaryResponse>>(`/invoices/renter-summary/${apartmentId}`);
     return response.data!;
   }
 
   /**
-   * Get detailed bill information for a specific apartment
+   * Get detailed invoice information for a specific apartment
    */
-  async getApartmentDetails(apartmentId: number, filters?: BillsFilters): Promise<{
+  async getApartmentDetails(apartmentId: number, filters?: InvoicesFilters): Promise<{
     apartment: {
       id: number;
       name: string;
     };
-    bills: Array<{
+    invoices: Array<{
       id: string;
       type: 'Payment' | 'Service Request' | 'Utility Reading';
       description: string;
@@ -149,9 +144,9 @@ class BillService {
       created_at: string;
     }>;
     totals: {
-      total_money_spent: BillTotals;
-      total_money_requested: BillTotals;
-      net_money: BillTotals;
+      total_money_spent: InvoiceTotals;
+      total_money_requested: InvoiceTotals;
+      net_money: InvoiceTotals;
     };
   }> {
     const params: Record<string, any> = {};
@@ -165,7 +160,7 @@ class BillService {
         id: number;
         name: string;
       };
-      bills: Array<{
+      invoices: Array<{
         id: string;
         type: 'Payment' | 'Service Request' | 'Utility Reading';
         description: string;
@@ -178,13 +173,13 @@ class BillService {
         created_at: string;
       }>;
       totals: {
-        total_money_spent: BillTotals;
-        total_money_requested: BillTotals;
-        net_money: BillTotals;
+        total_money_spent: InvoiceTotals;
+        total_money_requested: InvoiceTotals;
+        net_money: InvoiceTotals;
       };
-    }>>(`/bills/apartment/${apartmentId}`, params);
+    }>>(`/invoices/apartment/${apartmentId}`, params);
     return response.data!;
   }
 }
 
-export const billService = new BillService(); 
+export const invoiceService = new InvoiceService(); 
