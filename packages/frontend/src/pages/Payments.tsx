@@ -38,7 +38,7 @@ import {
   Visibility as ViewIcon, 
   Edit as EditIcon,
   Delete as DeleteIcon,
-  FilterList as FilterIcon
+  FilterList as FilterListIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { paymentService } from '../services/paymentService';
@@ -313,6 +313,17 @@ export default function Payments() {
     );
   }
 
+  function clearFilters(event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    event.preventDefault();
+    setSearchTerm('');
+    setApartmentFilter('');
+    setUserFilter('');
+    setUserTypeFilter('');
+    setBookingFilter('');
+    setCurrencyFilter('');
+    setMethodFilter('');
+    setPagination(prev => ({ ...prev, page: 1 }));
+  }
   return (
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
@@ -334,11 +345,11 @@ export default function Payments() {
         <Paper sx={{ p: 2, mb: 3 }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
             <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <FilterIcon /> Filters:
+              <FilterListIcon /> Filters:
             </Typography>
             <Button
               variant="outlined"
-              startIcon={<ClearIcon />}
+              startIcon={<FilterListIcon />}
               onClick={clearFilters}
             >
               Clear Filters

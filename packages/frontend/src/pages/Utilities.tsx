@@ -36,7 +36,8 @@ import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as ViewIcon
+  Visibility as ViewIcon,
+  FilterList as FilterListIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { utilityReadingService } from '../services/utilityReadingService';
@@ -307,7 +308,16 @@ export default function Utilities() {
 
         {/* Filters */}
         <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Filters</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Typography variant="h6">Filters</Typography>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </Button>
+          </Box>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
@@ -521,15 +531,6 @@ export default function Utilities() {
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <Button
-                variant="outlined"
-                onClick={clearFilters}
-                fullWidth
-              >
-                Clear Filters
-              </Button>
-            </Grid>
           </Grid>
         </Paper>
 

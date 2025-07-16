@@ -32,6 +32,7 @@ import {
   Search as SearchIcon, 
   Add as AddIcon, 
   FilterAlt as FilterIcon,
+  FilterList as FilterListIcon,
   ClearAll as ClearIcon,
   Visibility as ViewIcon,
   Delete as DeleteIcon,
@@ -93,6 +94,7 @@ export default function Bookings() {
   
   // Filter state
   const [showFilters, setShowFilters] = useState<boolean>(true);
+  const [searchInput, setSearchInput] = useState<string>('');
   const [filters, setFilters] = useState<BookingFilter>({
     searchTerm: '',
     apartmentId: '',
@@ -123,7 +125,7 @@ export default function Bookings() {
     if (apartments.length > 0) {
       loadBookings();
     }
-  }, [tabValue, pagination.page, filters, apartments.length]);
+  }, [tabValue, pagination.page, filters, apartments.length, searchInput]);
 
   const loadInitialData = async () => {
     try {
@@ -183,8 +185,8 @@ export default function Bookings() {
       // Tab 2 (All) - no date filter
 
       // Apply user filters
-      if (filters.searchTerm) {
-        apiFilters.search = filters.searchTerm;
+      if (searchInput) {
+        apiFilters.search = searchInput;
       }
       if (filters.apartmentId) {
         apiFilters.apartment_id = parseInt(filters.apartmentId);
@@ -256,7 +258,8 @@ export default function Bookings() {
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setFilters(prev => ({ ...prev, searchTerm: event.target.value }));
+    setSearchInput(event.target.value);
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
   };
 
   const handleSelectChange = (event: SelectChangeEvent, filterName: keyof BookingFilter) => {
@@ -291,6 +294,7 @@ export default function Bookings() {
   };
 
   const clearFilters = () => {
+    setSearchInput('');
     setFilters({
       searchTerm: '',
       apartmentId: '',
@@ -382,7 +386,7 @@ export default function Bookings() {
     }
   }, [filters.village, selectedVillage, filters.phase]);
 
-  if (loading && bookings.length === 0) {
+  if (loading && !apartments.length) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
@@ -423,14 +427,7 @@ export default function Bookings() {
               </Tooltip>
               <Button
                 variant="outlined"
-                startIcon={<ClearIcon />}
-                onClick={clearFilters}
-              >
-                Clear Filters
-              </Button>
-              <Button
-                variant="outlined"
-                startIcon={<FilterIcon />}
+                startIcon={<FilterListIcon />}
                 onClick={clearFilters}
               >
                 Clear Filters
@@ -458,7 +455,7 @@ export default function Bookings() {
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
                 <TextField
                   label="Search"
-                  value={filters.searchTerm}
+                  value={searchInput}
                   onChange={handleSearchChange}
                   placeholder="Search by user name, apartment name, notes..."
                   sx={{ flex: '1 1 300px' }}
@@ -611,15 +608,15 @@ export default function Bookings() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {loading ? (
+                  {loading && apartments.length > 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         <CircularProgress />
                       </TableCell>
                     </TableRow>
                   ) : bookings.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} align="center">
+                      <TableCell colSpan={10} align="center">
                         <Typography color="text.secondary">
                           No bookings found
                         </Typography>

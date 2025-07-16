@@ -240,8 +240,10 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   };
 
   // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     
     if (!validateForm()) {
       return;
@@ -348,26 +350,6 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         <Typography variant="h4" sx={{ flex: 1 }}>
           {id ? (isViewing ? 'View Email' : isEditing ? 'Edit Email' : 'Create New Email') : 'Create New Email'}
         </Typography>
-        {isViewing && !onSuccess && !onCancel && (
-            <>
-          <Button
-            startIcon={<EditIcon />}
-            onClick={() => navigate(`/emails/${id}/edit`)}
-            sx={{ ml: 2 }}
-          >
-            Edit
-          </Button>
-              <Button
-                startIcon={<DeleteIcon />}
-                color="error"
-                variant="contained"
-                onClick={() => setDeleteDialogOpen(true)}
-                sx={{ ml: 2 }}
-              >
-                Delete
-              </Button>
-            </>
-        )}
       </Box>
 
       {error && (
@@ -566,32 +548,55 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   disabled={fieldsLocked}
                 />
               </Grid>
-              {/* Action Buttons */}
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<SaveIcon />}
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Saving...' : (id && isEditing ? 'Update Email' : 'Create Email')}
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    onClick={handleBack}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </Button>
-                </Box>
-              </Grid>
             </Grid>
           </form>
         </LocalizationProvider>
       </Paper>
+      
+      {/* Action Buttons */}
+      <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+        {isViewing && !onSuccess && !onCancel && (
+          <>
+            <Button
+              startIcon={<EditIcon />}
+              variant="outlined"
+              onClick={() => navigate(`/emails/${id}/edit`)}
+            >
+              Edit
+            </Button>
+            <Button
+              startIcon={<DeleteIcon />}
+              color="error"
+              variant="contained"
+              onClick={() => setDeleteDialogOpen(true)}
+            >
+              Delete
+            </Button>
+          </>
+        )}
+        {!isViewing && (
+          <>
+            <Button
+              variant="outlined"
+              onClick={handleBack}
+              disabled={submitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="contained"
+              startIcon={<SaveIcon />}
+              disabled={submitting}
+              onClick={handleSubmit}
+            >
+              {submitting ? 'Saving...' : (id && isEditing ? 'Update Email' : 'Create Email')}
+            </Button>
+          </>
+        )}
+      </Box>
 
-        <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
           <DialogTitle>Delete Email</DialogTitle>
           <DialogContent>
             Are you sure you want to delete this email? This action cannot be undone.

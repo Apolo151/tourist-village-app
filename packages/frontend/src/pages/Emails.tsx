@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -35,6 +35,7 @@ import {
   Search as SearchIcon, 
   Add as AddIcon,
   Email as EmailIcon,
+  FilterList as FilterListIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as ViewIcon
@@ -67,6 +68,8 @@ export default function Emails() {
   
   // Filters and search
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchParams.get('search') || '');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [apartmentFilter, setApartmentFilter] = useState(searchParams.get('apartment') || '');
   const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
@@ -116,7 +119,7 @@ export default function Emails() {
         const filters = {
           page: pagination.page,
           limit: pagination.limit,
-          search: searchTerm || undefined,
+          search: debouncedSearchTerm || undefined,
           apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
           type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
           status: (statusFilter as 'pending' | 'completed') || undefined,
@@ -140,7 +143,26 @@ export default function Emails() {
     };
 
     loadEmails();
-  }, [pagination.page, searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter]);
+  }, [pagination.page, debouncedSearchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter]);
+
+  // Set up debounce for search term
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      // Reset pagination to page 1 when search term changes
+      setPagination(prev => ({ ...prev, page: 1 }));
+    }, 500); // 500ms debounce delay
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm]);
 
   // Update URL params when filters change
   useEffect(() => {
@@ -162,7 +184,7 @@ export default function Emails() {
   // Handle filter changes
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
-    setPagination(prev => ({ ...prev, page: 1 }));
+    // Don't set pagination page here since the debounced effect will trigger the API call
   };
 
   const handleApartmentFilterChange = (e: SelectChangeEvent) => {
@@ -205,6 +227,20 @@ export default function Emails() {
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
+  const clearFilters = () => {
+    setSearchTerm('');
+    setDebouncedSearchTerm('');
+    setApartmentFilter('');
+    setTypeFilter('');
+    setStatusFilter('');
+    setBookingFilter('');
+    setDateFromFilter('');
+    setDateToFilter('');
+    setFromFilter('');
+    setToFilter('');
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
   const handlePageChange = (_: React.ChangeEvent<unknown>, page: number) => {
     setPagination(prev => ({ ...prev, page }));
   };
@@ -240,7 +276,7 @@ export default function Emails() {
       const filters = {
         page: pagination.page,
         limit: pagination.limit,
-        search: searchTerm || undefined,
+        search: debouncedSearchTerm || undefined,
         apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
         type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
         status: (statusFilter as 'pending' | 'completed') || undefined,
@@ -438,6 +474,16 @@ export default function Emails() {
               InputLabelProps={{ shrink: true }}
               sx={{ minWidth: 150 }}
             />
+
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', ml: 'auto' }}>
+              <Button
+                variant="outlined"
+                startIcon={<FilterListIcon />}
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
+            </Box>
           </Box>
         </Paper>
 

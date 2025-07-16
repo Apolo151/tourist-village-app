@@ -251,8 +251,8 @@ export default function CreateApartment() {
         {/* Header */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
-            onClick={handleBack}
             startIcon={<ArrowBackIcon />}
+            onClick={handleBack}
             sx={{ mr: 2 }}
           >
             Back to Apartments
@@ -446,23 +446,23 @@ export default function CreateApartment() {
             </Grid>
 
             {/* Action Buttons */}
-            <Box sx={{ mt: 4, display: 'flex', gap: 2 }}>
-                  <Button
-                    onClick={handleBack}
-                    disabled={saving}
+            <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+              <Button
+                onClick={handleBack}
+                disabled={saving}
                 variant="outlined"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="contained"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
                 startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
-                    disabled={saving}
-                  >
-                    {saving ? 'Creating...' : 'Create Apartment'}
-                  </Button>
-                </Box>
+                disabled={saving}
+              >
+                {saving ? 'Creating...' : 'Create Apartment'}
+              </Button>
+            </Box>
           </form>
         </Paper>
       </Box>

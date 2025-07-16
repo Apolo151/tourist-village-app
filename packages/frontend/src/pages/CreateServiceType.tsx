@@ -212,31 +212,20 @@ export default function CreateServiceType() {
       <Container maxWidth="md">
         <Box sx={{ mb: 4 }}>
           {/* Header */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleCancel}>
-                Back
-              </Button>
-              <Typography variant="h4" sx={{ mt: 3 }}>
-                {isNew ? 'Create New Service Type' : `Edit Service Type`}
-              </Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSubmit}
-                disabled={submitting || !formData.name || typeof formData.cost === 'number' && formData.cost <= 0}
-              >
-                {submitting ? (isNew ? 'Creating...' : 'Updating...') : (isNew ? 'Create Service Type' : 'Update Service Type')}
-              </Button>
-              <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
-                Cancel
-              </Button>
-            </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Button
+              variant="text"
+              color="primary"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleCancel}
+            >
+              Back
+            </Button>
+            <Typography variant="h4" sx={{ mt: 3, ml: 2 }}>
+              {isNew ? 'Create New Service Type' : `Edit Service Type`}
+            </Typography>
           </Box>
-
+          
           {error && (
             <Alert severity="error" sx={{ mb: 3 }}>
               {error}
@@ -335,6 +324,25 @@ export default function CreateServiceType() {
               </CardContent>
             </Card>
           )}
+          
+          {/* Action Buttons */}
+          <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<CancelIcon />} 
+              onClick={handleCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={handleSubmit}
+              disabled={submitting || !formData.name || typeof formData.cost === 'number' && formData.cost <= 0}
+            >
+              {submitting ? (isNew ? 'Creating...' : 'Updating...') : (isNew ? 'Create Service Type' : 'Update Service Type')}
+            </Button>
+          </Box>
         </Box>
       </Container>
     </LocalizationProvider>

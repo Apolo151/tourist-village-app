@@ -601,6 +601,24 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
             </Paper>
           </Grid>
         </Grid>
+        
+        {/* Action Buttons */}
+        <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            onClick={() => onCancel ? onCancel() : navigate('/utilities')}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? <CircularProgress size={24} /> : (isEditMode ? 'Update Reading' : 'Create Reading')}
+          </Button>
+        </Box>
       </Box>
     </LocalizationProvider>
   );

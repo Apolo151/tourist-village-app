@@ -309,27 +309,16 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
       <Container maxWidth="md">
         <Box sx={{ mb: 4, mt: 3 }}>
           {/* Header */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleCancel}>
-                Back
-              </Button>
-              <Typography variant="h4">Request Service</Typography>
-            </Box>
-            
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSubmit}
-                disabled={submitting || !formData.type_id || !formData.apartment_id || !formData.requester_id}
-              >
-                {submitting ? (id ? 'Saving...' : 'Creating...') : (id ? 'Edit Request' : 'Create Request')}
-              </Button>
-              <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
-                Cancel
-              </Button>
-            </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+            <Button
+              variant="text"
+              color="primary"
+              startIcon={<ArrowBackIcon />}
+              onClick={handleCancel}
+            >
+              Back
+            </Button>
+            <Typography variant="h4" sx={{ ml: 2 }}>Request Service</Typography>
           </Box>
 
           {error && (
@@ -576,6 +565,25 @@ export default function CreateServiceRequest({ apartmentId, bookingId, onSuccess
               </CardContent>
             </Card>
           )}
+          
+          {/* Action Buttons */}
+          <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+            <Button 
+              variant="outlined" 
+              startIcon={<CancelIcon />} 
+              onClick={handleCancel}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={handleSubmit}
+              disabled={submitting || !formData.type_id || !formData.apartment_id || !formData.requester_id}
+            >
+              {submitting ? (id ? 'Saving...' : 'Creating...') : (id ? 'Edit Request' : 'Create Request')}
+            </Button>
+          </Box>
         </Box>
       </Container>
     </LocalizationProvider>

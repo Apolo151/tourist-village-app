@@ -49,7 +49,8 @@ import {
   AssignmentLateOutlined as CreatedIcon,
   Visibility as ViewIcon,
   Edit as EditIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  FilterList as FilterListIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { serviceRequestService } from '../services/serviceRequestService';
@@ -158,49 +159,6 @@ export default function Services() {
     loadInitialData();
   }, []);
   
-  // Load service types
-  useEffect(() => {
-    const loadServiceTypes = async () => {
-      try {
-        const filters = {
-          page: serviceTypesPagination.page,
-          limit: serviceTypesPagination.limit,
-          search: searchTerm || undefined,
-          sort_by: 'name',
-          sort_order: 'asc' as const
-        };
-        
-        const response = await serviceRequestService.getServiceTypes(filters);
-        setServiceTypes(response.data || []);
-        
-        // Check if pagination exists in response
-        if (response.pagination) {
-          setServiceTypesPagination({
-            page: response.pagination.page || 1,
-            limit: response.pagination.limit || 12,
-            total: response.pagination.total || 0,
-            total_pages: response.pagination.total_pages || 0
-          });
-        } else {
-          // Fallback if pagination is missing
-          setServiceTypesPagination(prev => ({ 
-            ...prev, 
-            total: response.data?.length || 0,
-            total_pages: 1 
-          }));
-        }
-      } catch (err) {
-        console.error('Error loading service types:', err);
-        setServiceTypes([]);
-        setServiceTypesPagination(prev => ({ ...prev, total: 0, total_pages: 0 }));
-      }
-    };
-
-    if (tabValue === 0) {
-      loadServiceTypes();
-    }
-  }, [tabValue, searchTerm, serviceTypesPagination.page]);
-  
   // Load service requests
   useEffect(() => {
     const loadServiceRequests = async () => {
@@ -242,10 +200,53 @@ export default function Services() {
       }
     };
 
-    if (tabValue === 1) {
+    if (tabValue === 0) {
       loadServiceRequests();
     }
   }, [tabValue, searchTerm, apartmentFilter, statusFilter, whoPayFilter, serviceRequestsPagination.page]);
+  
+  // Load service types
+  useEffect(() => {
+    const loadServiceTypes = async () => {
+      try {
+        const filters = {
+          page: serviceTypesPagination.page,
+          limit: serviceTypesPagination.limit,
+          search: searchTerm || undefined,
+          sort_by: 'name',
+          sort_order: 'asc' as const
+        };
+        
+        const response = await serviceRequestService.getServiceTypes(filters);
+        setServiceTypes(response.data || []);
+        
+        // Check if pagination exists in response
+        if (response.pagination) {
+          setServiceTypesPagination({
+            page: response.pagination.page || 1,
+            limit: response.pagination.limit || 12,
+            total: response.pagination.total || 0,
+            total_pages: response.pagination.total_pages || 0
+          });
+        } else {
+          // Fallback if pagination is missing
+          setServiceTypesPagination(prev => ({ 
+            ...prev, 
+            total: response.data?.length || 0,
+            total_pages: 1 
+          }));
+        }
+      } catch (err) {
+        console.error('Error loading service types:', err);
+        setServiceTypes([]);
+        setServiceTypesPagination(prev => ({ ...prev, total: 0, total_pages: 0 }));
+      }
+    };
+
+    if (tabValue === 1) {
+      loadServiceTypes();
+    }
+  }, [tabValue, searchTerm, serviceTypesPagination.page]);
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -284,6 +285,14 @@ export default function Services() {
   
   const handleWhoPayFilterChange = (event: SelectChangeEvent) => {
     setWhoPayFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const clearFilters = () => {
+    setSearchTerm('');
+    setApartmentFilter('');
+    setStatusFilter('');
+    setWhoPayFilter('');
     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
   };
   
@@ -491,8 +500,8 @@ export default function Services() {
         {/* Tabs */}
         <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
           <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
-            <Tab label="Service Types" icon={<BuildIcon />} iconPosition="start" />
             <Tab label="Service Requests" icon={<EventAvailableIcon />} iconPosition="start" />
+            <Tab label="Service Types" icon={<BuildIcon />} iconPosition="start" />
           </Tabs>
             </Box>
             
@@ -515,7 +524,7 @@ export default function Services() {
                   }}
             />
             
-            {tabValue === 1 && (
+            {tabValue === 0 && (
               <>
                 <FormControl sx={{ minWidth: 150 }} size="small">
                   <InputLabel>Apartment</InputLabel>
@@ -564,6 +573,14 @@ export default function Services() {
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
+
+                <Button
+                  variant="outlined"
+                  startIcon={<FilterListIcon />}
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </Button>
               </>
             )}
               </Box>
@@ -574,122 +591,8 @@ export default function Services() {
         <ExportButtons data={transformServicesForExport(serviceRequests)} columns={["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"]} excelFileName="services.xlsx" pdfFileName="services.pdf" />
         )}
         
-        {/* Service Types Tab */}
-        <TabPanel value={tabValue} index={0}>
-          <Box
-            sx={{ 
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)'
-              },
-              gap: 3,
-              mb: 3
-            }}
-          >
-            {serviceTypes && serviceTypes.length > 0 ? (
-              serviceTypes.map(service => (
-                <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <CardContent sx={{ flexGrow: 1 }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6" 
-                        onClick={() => isAdmin && handleServiceTypeClick(service.id)} 
-                        sx={{ 
-                          cursor: isAdmin ? 'pointer' : 'default',
-                          color: 'primary.main',
-                          display: 'flex',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <BuildIcon sx={{ mr: 1 }} fontSize="small" />
-                        {service.name}
-                      </Typography>
-                      <Chip 
-                        label={`${service.cost} ${service.currency}`} 
-                        color="primary" 
-                        variant="outlined"
-                        size="small"
-                      />
-                    </Box>
-                    
-                    <Divider sx={{ my: 1 }} />
-                    
-                    {service.description && (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        {service.description}
-                      </Typography>
-                    )}
-                    
-                    {/* {service.default_assignee && (
-                      <Typography variant="caption" color="text.secondary">
-                        Default Assignee: {service.default_assignee.name}
-                      </Typography>
-                    )} */}
-                  </CardContent>
-                  
-                  <CardActions sx={{ p: 2, pt: 0 }}>
-                    <Button 
-                      size="small" 
-                      startIcon={<EventAvailableIcon />}
-                      onClick={() => handleRequestService(service)}
-                      disabled={!currentUser}
-                    >
-                      Request Service
-                    </Button>
-                    {isAdmin && (
-                      <>
-                        <Button 
-                          size="small" 
-                          startIcon={<EditIcon />}
-                          onClick={() => handleServiceTypeClick(service.id)}
-                        >
-                          Edit
-                        </Button>
-                        <Tooltip title="Delete Service Type">
-                          <IconButton color="error" onClick={() => setDeleteDialog({ open: true, serviceType: service })}>
-                            <DeleteIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </>
-                    )}
-                  </CardActions>
-                </Card>
-              ))
-            ) : (
-              <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
-                <Typography variant="h6" color="text.secondary">
-                  No service types found
-                </Typography>
-                {isAdmin && (
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddServiceType}
-                    sx={{ mt: 2 }}
-                  >
-                    Add First Service Type
-                  </Button>
-                )}
-              </Box>
-            )}
-          </Box>
-          
-          {/* Service Types Pagination */}
-          {serviceTypesPagination.total_pages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Pagination
-                count={serviceTypesPagination.total_pages}
-                page={serviceTypesPagination.page}
-                onChange={handleServiceTypePageChange}
-                color="primary"
-              />
-            </Box>
-          )}
-        </TabPanel>
-        
         {/* Service Requests Tab */}
-        <TabPanel value={tabValue} index={1}>
+        <TabPanel value={tabValue} index={0}>
           <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="h6">Service Requests</Typography>
             <Button
@@ -820,7 +723,121 @@ export default function Services() {
               {serviceRequestsPagination.total} service requests
             </Typography>
           </Box>
-          </TabPanel>
+        </TabPanel>
+        
+        {/* Service Types Tab */}
+        <TabPanel value={tabValue} index={1}>
+          <Box
+            sx={{ 
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)'
+              },
+              gap: 3,
+              mb: 3
+            }}
+          >
+            {serviceTypes && serviceTypes.length > 0 ? (
+              serviceTypes.map(service => (
+                <Card key={service.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6" 
+                        onClick={() => isAdmin && handleServiceTypeClick(service.id)} 
+                        sx={{ 
+                          cursor: isAdmin ? 'pointer' : 'default',
+                          color: 'primary.main',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <BuildIcon sx={{ mr: 1 }} fontSize="small" />
+                        {service.name}
+                      </Typography>
+                      <Chip 
+                        label={`${service.cost} ${service.currency}`} 
+                        color="primary" 
+                        variant="outlined"
+                        size="small"
+                      />
+                    </Box>
+                    
+                    <Divider sx={{ my: 1 }} />
+                    
+                    {service.description && (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        {service.description}
+                      </Typography>
+                    )}
+                    
+                    {/* {service.default_assignee && (
+                      <Typography variant="caption" color="text.secondary">
+                        Default Assignee: {service.default_assignee.name}
+                      </Typography>
+                    )} */}
+                  </CardContent>
+                  
+                  <CardActions sx={{ p: 2, pt: 0 }}>
+                    <Button 
+                      size="small" 
+                      startIcon={<EventAvailableIcon />}
+                      onClick={() => handleRequestService(service)}
+                      disabled={!currentUser}
+                    >
+                      Request Service
+                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button 
+                          size="small" 
+                          startIcon={<EditIcon />}
+                          onClick={() => handleServiceTypeClick(service.id)}
+                        >
+                          Edit
+                        </Button>
+                        <Tooltip title="Delete Service Type">
+                          <IconButton color="error" onClick={() => setDeleteDialog({ open: true, serviceType: service })}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    )}
+                  </CardActions>
+                </Card>
+              ))
+            ) : (
+              <Box sx={{ gridColumn: '1 / -1', textAlign: 'center', py: 4 }}>
+                <Typography variant="h6" color="text.secondary">
+                  No service types found
+                </Typography>
+                {isAdmin && (
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    onClick={handleAddServiceType}
+                    sx={{ mt: 2 }}
+                  >
+                    Add First Service Type
+                  </Button>
+                )}
+              </Box>
+            )}
+          </Box>
+          
+          {/* Service Types Pagination */}
+          {serviceTypesPagination.total_pages > 1 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Pagination
+                count={serviceTypesPagination.total_pages}
+                page={serviceTypesPagination.page}
+                onChange={handleServiceTypePageChange}
+                color="primary"
+              />
+            </Box>
+          )}
+        </TabPanel>
         
         {/* Delete Confirmation Dialog */}
         <Dialog open={deleteDialogOpen} onClose={handleDeleteServiceRequestCancel}>

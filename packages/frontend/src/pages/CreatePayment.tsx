@@ -321,37 +321,24 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         </Button>
       </Container>
     );
-  }
-
-  return (
+  }  return (
     <Container maxWidth="md">
       <Box sx={{ mb: 4, mt: 3 }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
-              Back
-            </Button>
-            <Typography variant="h4">
-              {isEdit ? 'Edit Payment' : 'Create Payment'}
-            </Typography>
-          </Box>
-          
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
-              variant="contained" 
-              startIcon={<SaveIcon />} 
-              onClick={handleSave}
-              disabled={saving}
-            >
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-            <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
-              Cancel
-            </Button>
-          </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <Button
+            variant="text"
+            color="primary"
+            startIcon={<ArrowBackIcon />}
+            onClick={handleBack}
+          >
+            Back
+          </Button>
+          <Typography variant="h4" sx={{ ml: 2 }}>
+            {isEdit ? 'Edit Payment' : 'Create Payment'}
+          </Typography>
         </Box>
-
+        
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
@@ -578,6 +565,25 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
             </CardContent>
           </Card>
         )}
+        
+        {/* Action Buttons */}
+        <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+          <Button 
+            variant="outlined" 
+            startIcon={<CancelIcon />} 
+            onClick={handleCancel}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="contained" 
+            startIcon={<SaveIcon />} 
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
+        </Box>
       </Box>
     </Container>
   );

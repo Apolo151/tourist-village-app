@@ -419,6 +419,14 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     );
   }
 
+  function clearFilters(_event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    setSearchTerm('');
+    setRoleFilter('');
+    setVillageFilter('');
+    setStatusFilter('');
+    setStartDate(null);
+    setEndDate(null);
+  }
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box>
@@ -503,18 +511,19 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         
         {/* Filters */}
         <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            <FilterListIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
-            Filters
-          </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<ClearIcon />}
-            onClick={clearFilters}
-            sx={{ mt: 1 }}
-          >
-            Clear Filters
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+            <Typography variant="subtitle1">
+              <FilterListIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+              Filters
+            </Typography>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </Button>
+          </Box>
           
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ flex: '1 1 200px', minWidth: '200px' }}>

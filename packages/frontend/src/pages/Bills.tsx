@@ -96,6 +96,9 @@ export default function Bills() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
+  // Track all bill data from API (unfiltered)
+  const [allBillData, setAllBillData] = useState<BillSummaryItem[]>([]);
+  // Filtered bill data displayed in the UI
   const [billDisplayData, setBillDisplayData] = useState<BillSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [previousYearTotals, setPreviousYearTotals] = useState<{
@@ -118,6 +121,13 @@ export default function Bills() {
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [detailedBillData, setDetailedBillData] = useState<ApartmentBillDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+
+  // Effect to apply search filter whenever search term changes
+  useEffect(() => {
+    if (allBillData.length > 0 && !loading) {
+      filterBillData();
+    }
+  }, [searchTerm, allBillData, loading]);
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -143,11 +153,12 @@ export default function Bills() {
     handleUrlParams();
   }, [searchParams]);
 
-  // Handle bill highlighting
+  // Define handleHighlightBill function
   const handleHighlightBill = async (apartmentId: number) => {
-    const bill = billDisplayData.find(b => b.apartment_id === apartmentId);
+    // Find the bill for this apartment
+    const bill = allBillData.find(b => b.apartment_id === apartmentId);
     if (!bill) return;
-
+    
     setHighlightedBill(apartmentId);
     
     try {
@@ -216,17 +227,11 @@ export default function Bills() {
         // Load bill summary data
         const billsResponse = await billService.getBillsSummary(filters);
         
-        // Apply search filter on frontend
-        const filteredData = billsResponse.summary.filter(bill => {
-          if (!searchTerm) return true;
-          return (
-            bill.apartment_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bill.owner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            bill.village_name.toLowerCase().includes(searchTerm.toLowerCase())
-          );
-        });
+        // Store the full data set
+        setAllBillData(billsResponse.summary);
         
-        setBillDisplayData(filteredData);
+        // Apply current search filter to the new data
+        filterBillData(searchTerm, billsResponse.summary);
         
         // Load previous years totals
         const prevTotals = await billService.getPreviousYearsTotals(currentYear);
@@ -241,10 +246,31 @@ export default function Bills() {
     };
     
     loadData();
-  }, [searchTerm, villageFilter, startDate, endDate, currentYear]);
+  }, [villageFilter, startDate, endDate, currentYear]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
+    const value = event.target.value;
+    setSearchTerm(value);
+  };
+  
+  // Function to filter bill data based on search term
+  const filterBillData = (term = searchTerm, data = allBillData) => {
+    // Make sure we have data to filter
+    if (!data.length) return;
+    
+    // Apply search filter on frontend
+    const filteredData = data.filter(bill => {
+      if (!term) return true;
+      
+      const searchLower = term.toLowerCase();
+      return (
+        bill.apartment_name.toLowerCase().includes(searchLower) ||
+        bill.owner_name.toLowerCase().includes(searchLower) ||
+        bill.village_name.toLowerCase().includes(searchLower)
+      );
+    });
+    
+    setBillDisplayData(filteredData);
   };
   
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
@@ -257,6 +283,13 @@ export default function Bills() {
   
   const handleEndDateChange = (date: Date | null) => {
     setEndDate(date);
+  };
+  
+  const clearFilters = () => {
+    setSearchTerm('');
+    setVillageFilter('');
+    setStartDate(new Date(currentYear, 0, 1));
+    setEndDate(new Date(currentYear, 11, 31));
   };
   
   const handleAddPayment = () => {
@@ -509,6 +542,18 @@ export default function Bills() {
                     format="MM/dd/yyyy"
                   />
                 </Box>
+              </Box>
+
+              <Box sx={{ flex: '0 0 auto', display: 'flex', alignItems: 'flex-start' }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<FilterListIcon />}
+                  onClick={clearFilters}
+                  size="small"
+                  sx={{ height: '40px' }}
+                >
+                  Clear Filters
+                </Button>
               </Box>
             </Box>
           </Paper>
