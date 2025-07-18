@@ -219,7 +219,7 @@ const BookingDetails: React.FC = () => {
           apartment_id: bookingData.booking.apartment_id,
           user_id: bookingData.booking.user_id,
           user_name: bookingData.booking.user?.name || '',
-          user_type: bookingData.booking.user_type,
+          user_type: bookingData.booking.user_type === 'owner' ? 'owner' : 'renter',
           number_of_people: bookingData.booking.number_of_people,
           arrival_date: parseISO(bookingData.booking.arrival_date),
           leaving_date: parseISO(bookingData.booking.leaving_date),
@@ -258,14 +258,7 @@ const BookingDetails: React.FC = () => {
     }
   }, [booking]);
 
-  // Reset user fields when user type changes
-  useEffect(() => {
-    if (formData.user_type === 'owner') {
-      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
-    } else {
-      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
-    }
-  }, [formData.user_type]);
+  // Note: User field reset is now handled in handleSelectChange when user_type changes
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
@@ -284,6 +277,14 @@ const BookingDetails: React.FC = () => {
     const value = e.target.value;
     if (field === 'apartment_id' || field === 'user_id') {
       setFormData(prev => ({ ...prev, [field]: parseInt(value) }));
+    } else if (field === 'user_type') {
+      // Reset user fields when user type changes via UI
+      setFormData(prev => ({ 
+        ...prev, 
+        [field]: value as 'owner' | 'renter',
+        user_id: 0,
+        user_name: ''
+      }));
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -959,6 +960,7 @@ const BookingDetails: React.FC = () => {
                               <TableCell>Amount</TableCell>
                               <TableCell>Currency</TableCell>
                               <TableCell>Method</TableCell>
+                              <TableCell>Paid By</TableCell>
                               <TableCell>Description</TableCell>
                             </TableRow>
                           </TableHead>
@@ -969,6 +971,7 @@ const BookingDetails: React.FC = () => {
                                 <TableCell>{payment.amount}</TableCell>
                                 <TableCell>{payment.currency}</TableCell>
                                 <TableCell>{payment.method_name || 'N/A'}</TableCell>
+                                <TableCell>{payment.user_type || 'N/A'}</TableCell>
                                 <TableCell>{payment.description}</TableCell>
                               </TableRow>
                             ))}
@@ -999,11 +1002,12 @@ const BookingDetails: React.FC = () => {
                           <TableHead>
                             <TableRow>
                               <TableCell>Service Type</TableCell>
-                              <TableCell>Date Requested</TableCell>
-                              <TableCell>Wanted Date</TableCell>
+                              <TableCell>Request Date</TableCell>
+                              <TableCell>Action Date</TableCell>
                               <TableCell>Cost</TableCell>
-                              <TableCell>Assignee</TableCell>
+                              <TableCell>Paid By</TableCell>
                               <TableCell>Status</TableCell>
+                              <TableCell>Notes</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1011,9 +1015,10 @@ const BookingDetails: React.FC = () => {
                               <TableRow key={request.id}>
                                 <TableCell>{request.service_type_name}</TableCell>
                                 <TableCell>{formatDate(request.date_created)}</TableCell>
-                                <TableCell>{request.wanted_service_date ? formatDate(request.wanted_service_date) : 'N/A'}</TableCell>
+                                <TableCell>{request.date_action ? formatDate(request.date_action) : 'N/A'}</TableCell>
                                 <TableCell>{request.service_type_cost} {request.service_type_currency}</TableCell>
-                                <TableCell>{request.assignee_name || 'Unassigned'}</TableCell>
+                                <TableCell>{request.who_pays || 'N/A'}</TableCell>
+                                
                                 <TableCell>
                       <Chip 
                                     label={request.status || 'Pending'} 
@@ -1021,6 +1026,7 @@ const BookingDetails: React.FC = () => {
                                     color={request.status === 'Done' ? 'success' : request.status === 'In Progress' ? 'warning' : 'default'}
                                   />
                                 </TableCell>
+                                <TableCell>{request.notes}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -1037,34 +1043,40 @@ const BookingDetails: React.FC = () => {
                       <Typography variant="h6">Related Emails</Typography>
                       <Button 
                         variant="contained" 
-                        startIcon={<EmailIcon />}
+                        startIcon={<EmailIcon />} 
                         onClick={handleAddEmail}
                       >
                         Add Email
                       </Button>
                     </Box>
-                    
                     {relatedData?.emails && relatedData.emails.length > 0 ? (
-              <List>
-                        {relatedData.emails.map((email: any) => (
-                          <ListItem key={email.id} divider>
-                    <ListItemText 
-                      primary={email.subject}
-                              secondary={
-                                <>
-                                  <Typography variant="body2">
-                                    From: {email.from_email} | To: {email.to_email}
-                                  </Typography>
-                                  <Typography variant="caption">
-                                    {formatDate(email.date)}
-                                  </Typography>
-                                </>
-                              }
-                            />
-                  </ListItem>
-                ))}
-              </List>
-            ) : (
+                      <TableContainer component={Paper}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Subject</TableCell>
+                              <TableCell>From</TableCell>
+                              <TableCell>To</TableCell>
+                              <TableCell>Date</TableCell>
+                              <TableCell>Status</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {relatedData.emails.map((email: any) => (
+                              <TableRow key={email.id}>
+                                <TableCell>{email.subject}</TableCell>
+                                <TableCell>{email.from_email || email.from}</TableCell>
+                                <TableCell>{email.to_email || email.to}</TableCell>
+                                <TableCell>{formatDate(email.date)}</TableCell>
+                                <TableCell>
+                                  <Chip label={email.status} color={email.status === 'completed' ? 'success' : 'default'} size="small" />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                    ) : (
                       <Alert severity="info">No emails found for this booking</Alert>
                     )}
                   </TabPanel>

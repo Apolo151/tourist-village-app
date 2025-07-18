@@ -867,8 +867,8 @@ export default function ApartmentDetails() {
           {isAdmin && (
             <TabPanel value={tabValue} index={4}>
               <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
-                <Typography variant="h6">Service Requests</Typography>
-                  <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => openDialog('serviceRequest')}>
+                <Typography variant="h6">Related Service Requests</Typography>
+                <Button variant="contained" startIcon={<EngineeringIcon />} onClick={() => openDialog('serviceRequest')}>
                   New Service Request
                 </Button>
               </Box>
@@ -877,24 +877,34 @@ export default function ApartmentDetails() {
                     <Table sx={{ minWidth: 650 }} aria-label="service requests table">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Type</TableCell>
+                          <TableCell>Service Type</TableCell>
+                          <TableCell>Request Date</TableCell>
+                          <TableCell>Action Date</TableCell>
+                          <TableCell>Cost</TableCell>
+                          <TableCell>Paid By</TableCell>
                           <TableCell>Status</TableCell>
-                          <TableCell>Who Pays</TableCell>
-                          <TableCell>Date Created</TableCell>
                           <TableCell>Notes</TableCell>
                           <TableCell align="right">Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {relatedServiceRequests.map(sr => (
-                          <TableRow key={sr.id}>
-                            <TableCell>{sr.type?.name || sr.type_id}</TableCell>
-                            <TableCell>{sr.status}</TableCell>
-                            <TableCell>{sr.who_pays}</TableCell>
-                            <TableCell>{new Date(sr.date_created).toLocaleDateString()}</TableCell>
-                            <TableCell>{sr.notes || '-'}</TableCell>
+                        {relatedServiceRequests.map((request: any) => (
+                          <TableRow key={request.id}>
+                            <TableCell>{request.service_type_name || request.type?.name || request.type_id}</TableCell>
+                            <TableCell>{new Date(request.date_created).toLocaleDateString()}</TableCell>
+                            <TableCell>{request.date_action ? new Date(request.date_action).toLocaleDateString() : 'N/A'}</TableCell>
+                            <TableCell>{request.service_type_cost} {request.service_type_currency}</TableCell>
+                            <TableCell>{request.who_pays || 'N/A'}</TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={request.status || 'Pending'} 
+                                size="small"
+                                color={request.status === 'Done' ? 'success' : request.status === 'In Progress' ? 'warning' : 'default'}
+                              />
+                            </TableCell>
+                            <TableCell>{request.notes || '-'}</TableCell>
                             <TableCell align="right">
-                              <Button size="small" onClick={() => navigate(`/services/requests/${sr.id}`)}>
+                              <Button size="small" onClick={() => navigate(`/services/requests/${request.id}`)}>
                                 View
                               </Button>
                             </TableCell>

@@ -55,6 +55,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   // Only use view/edit mode if id is present (for details page). For quick action, always editable.
   const isEditing = Boolean(id) && location.pathname.includes('/edit');
   const isViewing = Boolean(id) && !location.pathname.includes('/edit');
+  
+  // Determine if this is a quick action (used from dialog)
+  const isQuickAction = Boolean(onSuccess || onCancel);
+  
+  // Override mode detection for quick actions - always in create mode
+  const actuallyViewing = isViewing && !isQuickAction;
+  const actuallyEditing = isEditing && !isQuickAction;
+  
+  // Check permissions
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   // State
   const [loading, setLoading] = useState(true);
@@ -85,12 +95,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   // Selected date for date picker
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
 
-  // Check admin access
+  // Check admin access - only navigate if not used as quick action
   useEffect(() => {
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'super_admin') {
+    if (!isAdmin && !isQuickAction) {
       navigate('/unauthorized');
     }
-  }, [currentUser?.role, navigate]);
+  }, [currentUser?.role, navigate, isQuickAction, isAdmin]);
 
   // Load initial data
   useEffect(() => {
@@ -229,7 +239,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     const relatedBookings = getRelatedBookings();
     
     // If we're viewing an existing email and it has a booking, make sure it's included
-    if (isViewing && formData.booking_id && formData.booking_id !== undefined) {
+    if (actuallyViewing && formData.booking_id && formData.booking_id !== undefined) {
       const currentBooking = bookings.find(booking => booking.id === formData.booking_id);
       if (currentBooking && !relatedBookings.find(b => b.id === currentBooking.id)) {
         relatedBookings.push(currentBooking);
@@ -252,7 +262,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     try {
       setSubmitting(true);
       
-      if (isEditing && id) {
+      if (actuallyEditing && id) {
         // Update existing email
         const updateData: UpdateEmailRequest = {
           apartment_id: formData.apartment_id,
@@ -323,7 +333,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   };
 
   // In create/quick action mode (no id), fields are always editable. In view mode, lock fields only in details page.
-  const fieldsLocked = isViewing && !onSuccess && !onCancel;
+  const fieldsLocked = actuallyViewing && !onSuccess && !onCancel;
 
   // Apartment field: lock if lockApartment is true and apartmentId is provided
   const apartmentFieldLocked = lockApartment && apartmentId !== undefined;
@@ -336,9 +346,24 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     );
   }
 
-  return (
-    <Container maxWidth="md">
-      <Box sx={{ width: '100%', mt: 3 }}>
+  // Show error if non-admin user tries to access quick action mode
+  if (isQuickAction && !isAdmin) {
+    return (
+      <Container maxWidth="md">
+        <Alert severity="error" sx={{ mt: 4 }}>
+          You do not have permission to create emails. Only administrators can create emails.
+        </Alert>
+        <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Button onClick={handleBack}>
+            Close
+          </Button>
+        </Box>
+      </Container>
+    );
+  }
+
+  const content = (
+    <Box sx={{ width: '100%', mt: isQuickAction ? 0 : 3 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
         <Button
           startIcon={<ArrowBackIcon />}
@@ -348,7 +373,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           Back
         </Button>
         <Typography variant="h4" sx={{ flex: 1 }}>
-          {id ? (isViewing ? 'View Email' : isEditing ? 'Edit Email' : 'Create New Email') : 'Create New Email'}
+          {id ? (actuallyViewing ? 'View Email' : actuallyEditing ? 'Edit Email' : 'Create New Email') : 'Create New Email'}
         </Typography>
       </Box>
 
@@ -360,7 +385,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
 
       {saveSuccess && (
         <Alert severity="success" sx={{ mb: 3 }}>
-          Email {isEditing ? 'updated' : 'created'} successfully! Redirecting...
+          Email {actuallyEditing ? 'updated' : 'created'} successfully! Redirecting...
         </Alert>
       )}
 
@@ -554,8 +579,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       </Paper>
       
       {/* Action Buttons */}
-      <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-        {isViewing && !onSuccess && !onCancel && (
+      <Box sx={{ mt: 4, mb: 3, mr: 2, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+        {actuallyViewing && !onSuccess && !onCancel && (
           <>
             <Button
               startIcon={<EditIcon />}
@@ -574,7 +599,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
             </Button>
           </>
         )}
-        {!isViewing && (
+        {!actuallyViewing && (
           <>
             <Button
               variant="outlined"
@@ -584,33 +609,37 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
               Cancel
             </Button>
             <Button
-              type="button"
               variant="contained"
               startIcon={<SaveIcon />}
               disabled={submitting}
               onClick={handleSubmit}
             >
-              {submitting ? 'Saving...' : (id && isEditing ? 'Update Email' : 'Create Email')}
+              {submitting ? 'Saving...' : 'Create Email'}
             </Button>
           </>
         )}
       </Box>
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-          <DialogTitle>Delete Email</DialogTitle>
-          <DialogContent>
-            Are you sure you want to delete this email? This action cannot be undone.
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDeleteDialogOpen(false)} disabled={submitting}>Cancel</Button>
-            <Button onClick={handleDelete} color="error" variant="contained" disabled={submitting}>
-              {submitting ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogActions>
-        </Dialog>
+        <DialogTitle>Delete Email</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete this email? This action cannot be undone.
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={submitting}>Cancel</Button>
+          <Button onClick={handleDelete} color="error" variant="contained" disabled={submitting}>
+            {submitting ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
+  );
+
+  return isQuickAction ? content : (
+    <Container maxWidth="md">
+      {content}
     </Container>
   );
 };
 
-export default CreateEmail; 
+export default CreateEmail;
