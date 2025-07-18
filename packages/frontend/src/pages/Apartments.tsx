@@ -80,6 +80,7 @@ export default function Apartments() {
   const [phaseFilter, setPhaseFilter] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [payingStatusFilter, setPayingStatusFilter] = useState<string>('');
+  const [salesStatusFilter, setSalesStatusFilter] = useState<string>('');
   
   // Sorting state
   const [orderBy, setOrderBy] = useState<string>('name');
@@ -105,7 +106,7 @@ export default function Apartments() {
   // Load apartments when filters change
   useEffect(() => {
     loadApartments();
-  }, [page, orderBy, order, villageFilter, phaseFilter, statusFilter, payingStatusFilter, searchTerm]);
+  }, [page, orderBy, order, villageFilter, phaseFilter, statusFilter, payingStatusFilter, salesStatusFilter, searchTerm]);
 
   // Check for success messages
   useEffect(() => {
@@ -142,6 +143,7 @@ export default function Apartments() {
         phase: phaseFilter ? parseInt(phaseFilter) : undefined,
         status: statusFilter || undefined,
         paying_status: payingStatusFilter || undefined,
+        sales_status: salesStatusFilter || undefined,
         page,
         limit,
         sort_by: orderBy,
@@ -260,6 +262,9 @@ export default function Apartments() {
       case 'payingStatus':
         setPayingStatusFilter(value);
         break;
+      case 'salesStatus':
+        setSalesStatusFilter(value);
+        break;
     }
     setPage(1);
   };
@@ -270,6 +275,7 @@ export default function Apartments() {
     setPhaseFilter('');
     setStatusFilter('');
     setPayingStatusFilter('');
+    setSalesStatusFilter('');
     setPage(1);
   };
 
@@ -461,6 +467,22 @@ export default function Apartments() {
                 <MenuItem value="transfer">Paid By Owner</MenuItem>
                 <MenuItem value="rent">Paid By Tenant</MenuItem>
                 <MenuItem value="non-payer">Non-Payer</MenuItem>
+              </Select>
+            </FormControl>
+
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>Sales Status</InputLabel>
+              <Select
+                name="salesStatus"
+                value={salesStatusFilter}
+                label="Sales Status"
+                onChange={handleFilterChange}
+              >
+                <MenuItem value="">
+                  <em>All Sales Status</em>
+                </MenuItem>
+                <MenuItem value="for sale">For Sale</MenuItem>
+                <MenuItem value="not for sale">Not for Sale</MenuItem>
               </Select>
             </FormControl>
             
@@ -705,4 +727,4 @@ export default function Apartments() {
       </Box>
     </Container>
   );
-} 
+}

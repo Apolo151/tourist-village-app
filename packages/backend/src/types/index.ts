@@ -175,6 +175,7 @@ export interface ApartmentFilters {
   phase?: number;
   status?: string;
   paying_status?: string;
+  sales_status?: string;
   search?: string;
   page?: number;
   limit?: number;

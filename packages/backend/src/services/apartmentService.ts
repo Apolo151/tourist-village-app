@@ -25,6 +25,7 @@ export class ApartmentService {
       phase,
       status,
       paying_status,
+      sales_status,
       search,
       page = 1,
       limit = 10,
@@ -66,17 +67,22 @@ export class ApartmentService {
       query = query.where('a.village_id', village_id);
       countQuery = countQuery.where('a.village_id', village_id);
     }
-
     if (phase) {
       query = query.where('a.phase', phase);
       countQuery = countQuery.where('a.phase', phase);
     }
-
     if (paying_status) {
       query = query.where('a.paying_status', paying_status);
       countQuery = countQuery.where('a.paying_status', paying_status);
     }
-
+    if (status) {
+      query = query.where('a.status', status);
+      countQuery = countQuery.where('a.status', status);
+    }
+    if (sales_status) {
+      query = query.where('a.sales_status', sales_status);
+      countQuery = countQuery.where('a.sales_status', sales_status);
+    }
     if (search && search.trim()) {
       const searchTerm = search.trim();
       
@@ -722,4 +728,4 @@ export class ApartmentService {
       throw new Error(`Phase must be between 1 and ${village.phases} for this village`);
     }
   }
-} 
+}

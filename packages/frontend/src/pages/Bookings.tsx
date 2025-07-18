@@ -567,17 +567,17 @@ export default function Bookings() {
               </Box>
 
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Leaving Date Range
+                Departure Date Range
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
                 <DatePicker
-                  label="Leaving Date From"
+                  label="Departure Date From"
                   value={filters.leavingDateStart}
                   onChange={(date) => handleDateChange(date, 'leavingDateStart')}
                   slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
                 />
                 <DatePicker
-                  label="Leaving Date To"
+                  label="Departure Date To"
                   value={filters.leavingDateEnd}
                   onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
                   slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
@@ -600,7 +600,7 @@ export default function Bookings() {
                     <TableCell>User Type</TableCell>
                     <TableCell>Apartment</TableCell>
                     <TableCell>Arrival DateTime</TableCell>
-                    <TableCell>Leaving DateTime</TableCell>
+                    <TableCell>Departure DateTime</TableCell>
                     <TableCell>Reservation Date</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>People</TableCell>
