@@ -540,6 +540,21 @@ const BookingDetails: React.FC = () => {
     }
   };
 
+  // Helper functions for booking financial calculations
+  const getBookingPaymentTotal = (currency: 'EGP' | 'GBP') => {
+    return relatedData?.payments?.filter(p => p.currency === currency).reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+  };
+
+  const getBookingServiceCostTotal = (currency: 'EGP' | 'GBP') => {
+    return relatedData?.service_requests?.filter(sr => sr.service_type_currency === currency).reduce((sum, sr) => sum + (sr.service_type_cost || 0), 0) || 0;
+  };
+
+  const getBookingNetBalance = (currency: 'EGP' | 'GBP') => {
+    return getBookingPaymentTotal(currency) - getBookingServiceCostTotal(currency);
+  };
+
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
   if (loading) {
     return (
       <Container maxWidth="lg">
@@ -837,90 +852,174 @@ const BookingDetails: React.FC = () => {
             booking && (
               <>
                 {/* Booking Summary */}
-                <Card sx={{ mb: 3 }}>
-                  <CardContent>
-                    <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
-                      Booking Information
-                    </Typography>
-                    <Divider sx={{ mb: 2 }} />
-                    
-                    <Grid container spacing={2}>
-                      <Grid size={{xs: 12, md: 4}}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                          <HomeIcon color="primary" />
-                          <Box>
-                            <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
-                            <Typography variant="body1">{booking.apartment?.name} - {booking.apartment?.village?.name}</Typography>
+                <Box sx={{ display: 'flex', gap: 3, mb: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+                  {/* Booking Information Card */}
+                  <Card sx={{ flex: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+                        Booking Information
+                      </Typography>
+                      <Divider sx={{ mb: 2 }} />
+                      
+                      <Grid container spacing={2}>
+                        <Grid size={{xs: 12, md: 4}}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <HomeIcon color="primary" />
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
+                              <Typography variant="body1">{booking.apartment?.name} - {booking.apartment?.village?.name}</Typography>
+                            </Box>
                           </Box>
-                        </Box>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 4}}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                          <PersonIcon color="primary" />
-                          <Box>
-                            <Typography variant="subtitle2" color="text.secondary">Guest</Typography>
-                            <Typography variant="body1">
-                              {booking.user?.name} 
-                              <Chip 
-                                label={booking.user_type === 'owner' ? 'Owner' : 'Tenant'} 
-                                size="small" 
-                                color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
-                                sx={{ ml: 1 }}
-                              />
-                            </Typography>
-                          </Box>
-                        </Box>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 4}}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                          <CalendarIcon color="primary" />
-                          <Box>
-                            <Typography variant="subtitle2" color="text.secondary">Status</Typography>
-                            <Chip 
-                              label={getStatusDisplay(booking.status)} 
-                              color={getStatusColor(booking.status) as any}
-                              size="small"
-                            />
-                          </Box>
-                        </Box>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 4}}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                          <PersonIcon color="primary" />
-                          <Box>
-                            <Typography variant="subtitle2" color="text.secondary">Number of People</Typography>
-                            <Typography variant="body1">{booking.number_of_people}</Typography>
-                          </Box>
-                        </Box>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 6}}>
-                        <Typography variant="subtitle2" color="text.secondary">Arrival Date</Typography>
-                        <Typography variant="body1">{formatDate(booking.arrival_date)}</Typography>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 6}}>
-                        <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
-                        <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
-                      </Grid>
-                      
-                      <Grid size={{xs: 12, md: 6}}>
-                        <Typography variant="subtitle2" color="text.secondary">Reservation Date</Typography>
-                        <Typography variant="body1">{formatDate(booking.reservation_date || booking.created_at)}</Typography>
-                      </Grid>
-                      
-                      {booking.notes && (
-                        <Grid size={{xs: 12}}>
-                          <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
-                          <Typography variant="body1">{booking.notes}</Typography>
                         </Grid>
-                      )}
-                    </Grid>
-                  </CardContent>
-                </Card>
+                        
+                        <Grid size={{xs: 12, md: 4}}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <PersonIcon color="primary" />
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">Guest</Typography>
+                              <Typography variant="body1">
+                                {booking.user?.name} 
+                                <Chip 
+                                  label={booking.user_type === 'owner' ? 'Owner' : 'Tenant'} 
+                                  size="small" 
+                                  color={booking.user_type === 'owner' ? 'primary' : 'secondary'}
+                                  sx={{ ml: 1 }}
+                                />
+                              </Typography>
+                            </Box>
+                          </Box>
+                        </Grid>
+                        
+                        <Grid size={{xs: 12, md: 4}}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <CalendarIcon color="primary" />
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">Status</Typography>
+                              <Chip 
+                                label={getStatusDisplay(booking.status)} 
+                                color={getStatusColor(booking.status) as any}
+                                size="small"
+                              />
+                            </Box>
+                          </Box>
+                        </Grid>
+                        
+                        <Grid size={{xs: 12, md: 4}}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                            <PersonIcon color="primary" />
+                            <Box>
+                              <Typography variant="subtitle2" color="text.secondary">Number of People</Typography>
+                              <Typography variant="body1">{booking.number_of_people}</Typography>
+                            </Box>
+                          </Box>
+                        </Grid>
+                        
+                        <Grid size={{xs: 12, md: 6}}>
+                          <Typography variant="subtitle2" color="text.secondary">Arrival Date</Typography>
+                          <Typography variant="body1">{formatDate(booking.arrival_date)}</Typography>
+                        </Grid>
+                        
+                        <Grid size={{xs: 12, md: 6}}>
+                          <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
+                          <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
+                        </Grid>
+                        
+                        <Grid size={{xs: 12, md: 6}}>
+                          <Typography variant="subtitle2" color="text.secondary">Reservation Date</Typography>
+                          <Typography variant="body1">{formatDate(booking.reservation_date || booking.created_at)}</Typography>
+                        </Grid>
+                        
+                        {booking.notes && (
+                          <Grid size={{xs: 12}}>
+                            <Typography variant="subtitle2" color="text.secondary">Notes</Typography>
+                            <Typography variant="body1">{booking.notes}</Typography>
+                          </Grid>
+                        )}
+                      </Grid>
+                    </CardContent>
+                  </Card>
+
+                  {/* Booking Balance Card (admin only) */}
+                  {isAdmin && (
+                    <Card sx={{ flex: 1 }}>
+                      <CardContent>
+                        <Typography variant="h6" gutterBottom>Booking Balance</Typography>
+                        <Divider sx={{ mb: 2 }} />
+                        
+                        <List dense>
+                          <ListItem>
+                            <ListItemText 
+                              primary="Total Payments" 
+                              secondary={
+                                <Box>
+                                  <Typography variant="body2">
+                                    EGP: {getBookingPaymentTotal('EGP').toLocaleString()}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    GBP: {getBookingPaymentTotal('GBP').toLocaleString()}
+                                  </Typography>
+                                  {getBookingPaymentTotal('EGP') === 0 && getBookingPaymentTotal('GBP') === 0 && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      No payments recorded for this booking
+                                    </Typography>
+                                  )}
+                                </Box>
+                              } 
+                            />
+                          </ListItem>
+                          <ListItem>
+                            <ListItemText 
+                              primary="Total Service Costs" 
+                              secondary={
+                                <Box>
+                                  <Typography variant="body2">
+                                    EGP: {getBookingServiceCostTotal('EGP').toLocaleString()}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    GBP: {getBookingServiceCostTotal('GBP').toLocaleString()}
+                                  </Typography>
+                                  {getBookingServiceCostTotal('EGP') === 0 && getBookingServiceCostTotal('GBP') === 0 && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      No service requests for this booking
+                                    </Typography>
+                                  )}
+                                </Box>
+                              } 
+                            />
+                          </ListItem>
+                          <ListItem>
+                            <ListItemText 
+                              primary="Net Balance" 
+                              secondary={
+                                <Box>
+                                  <Typography 
+                                    variant="body2" 
+                                    color={getBookingNetBalance('EGP') >= 0 ? 'success.main' : 'error.main'}
+                                  >
+                                    EGP: {getBookingNetBalance('EGP').toLocaleString()}
+                                  </Typography>
+                                  <Typography 
+                                    variant="body2" 
+                                    color={getBookingNetBalance('GBP') >= 0 ? 'success.main' : 'error.main'}
+                                  >
+                                    GBP: {getBookingNetBalance('GBP').toLocaleString()}
+                                  </Typography>
+                                </Box>
+                              } 
+                            />
+                          </ListItem>
+                        </List>
+                        
+                        {/* Summary counts */}
+                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            <strong>Summary:</strong> {relatedData?.payments?.length || 0} payment(s) • {relatedData?.service_requests?.length || 0} service request(s)
+                          </Typography>
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  )}
+                </Box>
 
                 {/* Tabs for related data */}
                 <Paper>
