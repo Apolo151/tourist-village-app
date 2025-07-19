@@ -87,24 +87,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     loadInitialData();
   }, []);
 
-  // Reset user fields when user type changes
-  useEffect(() => {
-    if (formData.user_type === 'owner') {
-      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
-    } else {
-      setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
-    }
-  }, [formData.user_type]);
-
   // Auto-select apartment owner when apartment is selected and user type is owner
   useEffect(() => {
     if (formData.user_type === 'owner' && formData.apartment_id) {
       const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
       if (selectedApartment?.owner_id) {
-        setFormData(prev => ({ ...prev, user_id: selectedApartment.owner_id }));
+        const apartmentOwner = users.find(user => user.id === selectedApartment.owner_id);
+        setFormData(prev => ({ 
+          ...prev, 
+          user_id: selectedApartment.owner_id,
+          user_name: apartmentOwner ? apartmentOwner.name : ''
+        }));
       }
     }
-  }, [formData.apartment_id, formData.user_type, apartments]);
+  }, [formData.apartment_id, formData.user_type, apartments, users]);
 
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
@@ -278,8 +274,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   label="User Type"
                   onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'owner' | 'renter' }))}
                 >
-                  <MenuItem value="Owner">Owner</MenuItem>
-                  <MenuItem value="Renter">Tenant</MenuItem>
+                  <MenuItem value="owner">Owner</MenuItem>
+                  <MenuItem value="renter">Tenant</MenuItem>
                 </Select>
               </FormControl>
             </Grid>

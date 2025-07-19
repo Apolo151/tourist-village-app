@@ -75,6 +75,7 @@ import CreateUtilityReading from './CreateUtilityReading';
 import CreatePayment from './CreatePayment';
 import CreateEmail from './CreateEmail';
 import CreateServiceRequest from './CreateServiceRequest';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 interface FormData {
   apartment_id: number;
@@ -157,6 +158,9 @@ const BookingDetails: React.FC = () => {
     flightDetails: ''
   });
   
+  // Add additional state to track input value for SearchableDropdown
+  const [userNameInput, setUserNameInput] = useState('');
+
   const [errors, setErrors] = useState<FormErrors>({});
   const [success, setSuccess] = useState(false);
   
@@ -230,6 +234,9 @@ const BookingDetails: React.FC = () => {
           person_name: bookingData.booking.person_name || '',
           flightDetails: ''
         });
+        
+        // Also set the userNameInput for the SearchableDropdown - only use the name without email
+        setUserNameInput(bookingData.booking.user?.name || '');
 
         // Extract flight details from notes if present
         if (bookingData.booking.notes && bookingData.booking.notes.includes('Flight Details:')) {
@@ -278,16 +285,73 @@ const BookingDetails: React.FC = () => {
   
   const handleSelectChange = (e: SelectChangeEvent<string>, field: keyof FormData) => {
     const value = e.target.value;
-    if (field === 'apartment_id' || field === 'user_id') {
+    if (field === 'apartment_id') {
+      const apartmentId = parseInt(value);
+      setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+      
+      // If in owner mode, auto-select the apartment owner
+      if (formData.user_type === 'owner' && apartmentId) {
+        const selectedApartment = apartments.find(apt => apt.id === apartmentId);
+        if (selectedApartment?.owner_id) {
+          const apartmentOwner = users.find(user => user.id === selectedApartment.owner_id);
+          if (apartmentOwner) {
+            setFormData(prev => ({ 
+              ...prev, 
+              apartment_id: apartmentId,
+              user_id: selectedApartment.owner_id,
+              user_name: apartmentOwner.name 
+            }));
+            setUserNameInput(apartmentOwner.name);
+          }
+        }
+      }
+    } else if (field === 'user_id') {
       setFormData(prev => ({ ...prev, [field]: parseInt(value) }));
     } else if (field === 'user_type') {
       // Reset user fields when user type changes via UI
-      setFormData(prev => ({ 
-        ...prev, 
-        [field]: value as 'owner' | 'renter',
-        user_id: 0,
-        user_name: ''
-      }));
+      if (value === 'renter') {
+        // When changing from owner to renter, fully reset all user data
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: value as 'owner' | 'renter',
+          user_id: 0,  // Make sure we clear the user_id
+          user_name: '' // And the user_name
+        }));
+        setUserNameInput(''); // Explicitly reset the search input
+      } else if (value === 'owner' && formData.apartment_id) {
+        // If changing to owner mode and apartment is selected, auto-select the owner
+        const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+        if (selectedApartment?.owner_id) {
+          const apartmentOwner = users.find(user => user.id === selectedApartment.owner_id);
+          if (apartmentOwner) {
+            setFormData(prev => ({ 
+              ...prev, 
+              [field]: value as 'owner' | 'renter',
+              user_id: apartmentOwner.id,
+              user_name: apartmentOwner.name 
+            }));
+            setUserNameInput(apartmentOwner.name);
+          } else {
+            // If owner not found but apartment has owner_id
+            setFormData(prev => ({ 
+              ...prev, 
+              [field]: value as 'owner' | 'renter',
+              user_id: selectedApartment.owner_id,
+              user_name: ''
+            }));
+            setUserNameInput('');
+          }
+        } else {
+          // If no owner set for apartment
+          setFormData(prev => ({ 
+            ...prev, 
+            [field]: value as 'owner' | 'renter',
+            user_id: 0,
+            user_name: ''
+          }));
+          setUserNameInput('');
+        }
+      }
     } else {
       setFormData(prev => ({ ...prev, [field]: value }));
     }
@@ -360,9 +424,20 @@ const BookingDetails: React.FC = () => {
       // Add user data based on type
       if (formData.user_type === 'owner') {
         bookingData.user_id = formData.user_id;
+        bookingData.user_type = 'owner';
       } else {
+        // When updating to renter mode, ensure user_name is sent and user_id is null/undefined
+        // unless a specific user was selected in the dropdown
         bookingData.user_name = formData.user_name.trim();
         bookingData.user_type = 'renter';
+        
+        // Only send user_id if a specific user was selected
+        if (formData.user_id > 0) {
+          bookingData.user_id = formData.user_id;
+        } else {
+          // This ensures the backend knows we're creating a new user, not updating an existing one
+          bookingData.user_id = null;
+        }
       }
 
       if (isNew) {
@@ -396,11 +471,11 @@ const BookingDetails: React.FC = () => {
     if (isEditing) {
       // Reset form data to original booking data
       if (booking) {
-        setFormData({
+        const updatedFormData = {
           apartment_id: booking.apartment_id,
           user_id: booking.user_id,
           user_name: booking.user?.name || '',
-          user_type: booking.user_type === 'owner' ? 'owner' : 'renter',
+          user_type: (booking.user_type === 'owner' ? 'owner' : 'renter') as 'owner' | 'renter',
           number_of_people: booking.number_of_people,
           arrival_date: parseISO(booking.arrival_date),
           leaving_date: parseISO(booking.leaving_date),
@@ -408,7 +483,11 @@ const BookingDetails: React.FC = () => {
           notes: booking.notes || '',
           person_name: booking.person_name || '',
           flightDetails: ''
-        });
+        };
+        setFormData(updatedFormData);
+        
+        // Also reset userNameInput when canceling edit
+        setUserNameInput(booking.user?.name || '');
       }
       setErrors({});
       // Navigate to view mode
@@ -727,13 +806,51 @@ const BookingDetails: React.FC = () => {
                       );
                     })()
                   ) : (
-                    <TextField
-                      fullWidth
+                    <SearchableDropdown
+                      options={users.map(user => ({
+                        id: user.id,
+                        label: `${user.name} (${user.email})`,
+                        name: user.name,
+                        email: user.email
+                      }))}
+                      // Always reset the value when in renter mode to ensure a clean state
+                      value={null}
+                      onChange={(value) => {
+                        if (value) {
+                          const selectedUser = users.find(u => u.id === value);
+                          if (selectedUser) {
+                            setFormData(prev => ({ 
+                              ...prev, 
+                              user_id: selectedUser.id,
+                              user_name: selectedUser.name 
+                            }));
+                            setUserNameInput(selectedUser.name);
+                          }
+                        } else {
+                          setFormData(prev => ({ ...prev, user_id: 0 }));
+                        }
+                      }}
+                      label="User Name"
+                      placeholder="Search users or type new name..."
                       required
-                      label="User Name (Tenant)"
-                      value={formData.user_name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
-                      placeholder="Enter the user's name"
+                      freeSolo={true}
+                      onInputChange={(inputValue) => {
+                        setFormData(prev => ({ ...prev, user_name: inputValue }));
+                        setUserNameInput(inputValue);
+                      }}
+                      inputValue={userNameInput}
+                      // This is the key change - modify how options are displayed in the input field
+                      getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
+                      renderOption={(props, option) => (
+                        <li {...props}>
+                          <Box>
+                            <Typography variant="body1">{option.name}</Typography>
+                            <Typography variant="body2" color="text.secondary">
+                              {option.email}
+                            </Typography>
+                          </Box>
+                        </li>
+                      )}
                       error={!!errors.user_name}
                       helperText={errors.user_name || "Enter the name of the user making the booking. A new user account will be created if they don't exist."}
                     />
