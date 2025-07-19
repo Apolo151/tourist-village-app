@@ -55,6 +55,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     leaving_date: null as Date | null,
     status: 'Booked' as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled',
     notes: '',
+    person_name: '',
     flightDetails: ''
   });
 
@@ -292,54 +293,22 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
 
             {/* User Selection - Conditional based on user type */}
-            <Grid size = {{xs:12, md:6}}>
+            <Grid size={{xs:12, md:6}}>
               {formData.user_type === 'owner' ? (
-                <SearchableDropdown
-                  options={(() => {
-                    // Get the selected apartment to find its owner
-                    const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-                    const apartmentOwnerId = selectedApartment?.owner_id;
-                    
-                    // Get all owner users
-                    const ownerUsers = users.filter(user => user.role === 'owner');
-                    
-                    // Sort to put the apartment owner first
-                    return ownerUsers.sort((a, b) => {
-                      if (a.id === apartmentOwnerId) return -1;
-                      if (b.id === apartmentOwnerId) return 1;
-                      return a.name.localeCompare(b.name);
-                    }).map(user => ({
-                      id: user.id,
-                      label: `${user.name} (${user.email})${user.id === apartmentOwnerId ? ' - Apartment Owner' : ''}`,
-                      name: user.name,
-                      email: user.email,
-                      isApartmentOwner: user.id === apartmentOwnerId
-                    }));
-                  })()}
-                  value={formData.user_id || null}
-                  onChange={(value) => setFormData(prev => ({ ...prev, user_id: value as number || 0 }))}
-                  label="Person Name"
-                  placeholder="Search owners by name or email..."
-                  required
-                  getOptionLabel={(option) => option.label}
-                  renderOption={(props, option) => (
-                    <li {...props}>
-                      <Box>
-                        <Typography variant="body1">
-                          {option.name}
-                          {option.isApartmentOwner && (
-                            <Typography component="span" variant="body2" color="primary" sx={{ ml: 1 }}>
-                              (Apartment Owner)
-                            </Typography>
-                          )}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {option.email}
-                        </Typography>
-                      </Box>
-                    </li>
-                  )}
-                />
+                (() => {
+                  const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+                  const apartmentOwner = users.find(user => user.id === selectedApartment?.owner_id);
+                  return (
+                    <TextField
+                      fullWidth
+                      required
+                      label="User Name (Owner)"
+                      value={apartmentOwner ? apartmentOwner.name : ''}
+                      disabled
+                      helperText={apartmentOwner ? `Apartment owner: ${apartmentOwner.email}` : 'Select an apartment to prefill owner'}
+                    />
+                  );
+                })()
               ) : (
                 <SearchableDropdown
                   options={users.map(user => ({
@@ -351,7 +320,6 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   value={formData.user_id || null}
                   onChange={(value) => {
                     if (value) {
-                      // User selected an existing user
                       const selectedUser = users.find(u => u.id === value);
                       if (selectedUser) {
                         setFormData(prev => ({ 
@@ -361,16 +329,14 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                         }));
                       }
                     } else {
-                      // No user selected, clear user_id but keep user_name for new user
                       setFormData(prev => ({ ...prev, user_id: 0 }));
                     }
                   }}
-                  label="Person Name"
+                  label="User Name"
                   placeholder="Search users or type new name..."
                   required
                   freeSolo={true}
                   onInputChange={(inputValue) => {
-                    // Update user_name with the typed text
                     setFormData(prev => ({ ...prev, user_name: inputValue }));
                   }}
                   inputValue={formData.user_name}
@@ -387,6 +353,18 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   )}
                 />
               )}
+            </Grid>
+
+            {/* Person Name */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                fullWidth
+                required
+                label="Person Name"
+                value={formData.person_name}
+                onChange={(e) => setFormData(prev => ({ ...prev, person_name: e.target.value }))}
+                placeholder="Enter the name(s) of the person(s) for this booking"
+              />
             </Grid>
 
             {/* Number of People */}

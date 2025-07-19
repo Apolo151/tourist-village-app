@@ -88,6 +88,7 @@ export interface Booking {
   leaving_date: Date;
   status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
   created_by: number;
   created_at: Date;
   updated_at: Date;
@@ -349,6 +350,7 @@ export interface CreateBookingRequest {
   leaving_date: string;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
 }
 
 export interface UpdateBookingRequest {
@@ -360,6 +362,7 @@ export interface UpdateBookingRequest {
   leaving_date?: string;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
 }
 
 // Service Type related interfaces

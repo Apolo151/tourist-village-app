@@ -173,6 +173,7 @@ export class BookingService {
       id: row.id,
       apartment_id: row.apartment_id,
       user_id: row.user_id,
+      person_name: row.person_name || undefined,
       user_type: row.user_type,
       number_of_people: row.number_of_people,
       arrival_date: new Date(row.arrival_date),
@@ -276,6 +277,7 @@ export class BookingService {
       id: result.id,
       apartment_id: result.apartment_id,
       user_id: result.user_id,
+      person_name: result.person_name || undefined,
       user_type: result.user_type,
       number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
@@ -429,6 +431,7 @@ export class BookingService {
       leaving_date: leavingDate,
       status: data.status || 'Booked',
       notes: data.notes || null,
+      person_name: data.person_name || null,
       created_by: createdBy
     }).returning('*');
 
@@ -512,6 +515,7 @@ export class BookingService {
     if (data.leaving_date !== undefined) updateData.leaving_date = leavingDate;
     if (data.status !== undefined) updateData.status = data.status;
     if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.person_name !== undefined) updateData.person_name = data.person_name;
 
     if (Object.keys(updateData).length === 0) {
       throw new Error('No fields to update');

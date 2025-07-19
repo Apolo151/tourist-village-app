@@ -13,6 +13,7 @@ export interface Booking {
   leaving_date: string;
   status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
   created_by: number;
   created_at: string;
   updated_at: string;
@@ -32,6 +33,7 @@ export interface CreateBookingRequest {
   leaving_date: string;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
 }
 
 export interface UpdateBookingRequest {
@@ -43,6 +45,7 @@ export interface UpdateBookingRequest {
   leaving_date?: string;
   status?: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes?: string;
+  person_name?: string;
 }
 
 export interface BookingFilters {

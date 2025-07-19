@@ -86,6 +86,7 @@ interface FormData {
   leaving_date: Date | null;
   status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
   notes: string;
+  person_name: string;
   flightDetails: string;
 }
 
@@ -152,6 +153,7 @@ const BookingDetails: React.FC = () => {
     leaving_date: null,
     status: 'Booked',
     notes: '',
+    person_name: '',
     flightDetails: ''
   });
   
@@ -225,6 +227,7 @@ const BookingDetails: React.FC = () => {
           leaving_date: parseISO(bookingData.booking.leaving_date),
           status: bookingData.booking.status,
           notes: bookingData.booking.notes || '',
+          person_name: bookingData.booking.person_name || '',
           flightDetails: ''
         });
 
@@ -316,12 +319,12 @@ const BookingDetails: React.FC = () => {
     }
     
     if (!formData.leaving_date) {
-      newErrors.leaving_date = 'Please select a leaving date';
+      newErrors.leaving_date = 'Please select a departure date';
     }
     
     if (formData.arrival_date && formData.leaving_date) {
       if (formData.arrival_date >= formData.leaving_date) {
-        newErrors.leaving_date = 'Leaving date must be after arrival date';
+        newErrors.leaving_date = 'departure date must be after arrival date';
       }
     }
     
@@ -350,7 +353,8 @@ const BookingDetails: React.FC = () => {
         arrival_date: formData.arrival_date!.toISOString(),
         leaving_date: formData.leaving_date!.toISOString(),
         status: formData.status,
-        notes: formData.notes + (formData.flightDetails ? `\n\nFlight Details: ${formData.flightDetails}` : '')
+        notes: formData.notes,
+        person_name: formData.person_name
       };
 
       // Add user data based on type
@@ -402,6 +406,7 @@ const BookingDetails: React.FC = () => {
           leaving_date: parseISO(booking.leaving_date),
           status: booking.status,
           notes: booking.notes || '',
+          person_name: booking.person_name || '',
           flightDetails: ''
         });
       }
@@ -645,7 +650,7 @@ const BookingDetails: React.FC = () => {
           )}
 
           {/* Speed Dial for quick actions (non-edit mode only) */}
-          {!isNew && !isEditing && (
+          {/* {!isNew && !isEditing && (
           <SpeedDial
               ariaLabel="Quick actions"
               sx={{ position: 'fixed', bottom: 24, right: 24 }}
@@ -660,7 +665,7 @@ const BookingDetails: React.FC = () => {
               />
             ))}
           </SpeedDial>
-        )}
+        )} */}
 
           {/* Main Content */}
           {isEditing ? (
@@ -707,36 +712,45 @@ const BookingDetails: React.FC = () => {
                 {/* User Selection - Conditional based on user type */}
                 <Grid size={{xs: 12, md: 6}}>
                   {formData.user_type === 'owner' ? (
-                    <FormControl fullWidth error={!!errors.user_id}>
-                      <InputLabel>Person Name (Owner)</InputLabel>
-                      <Select
-                        value={formData.user_id.toString()}
-                        label="Person Name (Owner)"
-                        onChange={(e) => handleSelectChange(e, 'user_id')}
-                      >
-                        <MenuItem value="0">
-                          <em>Select an owner</em>
-                        </MenuItem>
-                        {users.filter(user => user.role === 'owner').map(user => (
-                          <MenuItem key={user.id} value={user.id.toString()}>
-                            {user.name} ({user.email})
-                          </MenuItem>
-                        ))}
-                      </Select>
-                      {errors.user_id && <FormHelperText>{errors.user_id}</FormHelperText>}
-                    </FormControl>
+                    (() => {
+                      const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+                      const apartmentOwner = users.find(user => user.id === selectedApartment?.owner_id);
+                      return (
+                        <TextField
+                          fullWidth
+                          required
+                          label="User Name (Owner)"
+                          value={apartmentOwner ? apartmentOwner.name : ''}
+                          disabled
+                          helperText={apartmentOwner ? `Apartment owner: ${apartmentOwner.email}` : 'Select an apartment to prefill owner'}
+                        />
+                      );
+                    })()
                   ) : (
                     <TextField
                       fullWidth
                       required
-                      label="Person Name (Tenant)"
+                      label="User Name (Tenant)"
                       value={formData.user_name}
                       onChange={(e) => setFormData(prev => ({ ...prev, user_name: e.target.value }))}
-                      placeholder="Enter the person's name"
+                      placeholder="Enter the user's name"
                       error={!!errors.user_name}
-                      helperText={errors.user_name || "Enter the name of the person making the booking. A new user account will be created if they don't exist."}
+                      helperText={errors.user_name || "Enter the name of the user making the booking. A new user account will be created if they don't exist."}
                     />
                   )}
+                </Grid>
+
+                {/* Person Name */}
+                <Grid size={{xs: 12, md: 6}}>
+                  <TextField
+                    name="person_name"
+                    label="Person Name (Optional)"
+                    fullWidth
+                    value={formData.person_name}
+                    onChange={handleChange}
+                    placeholder="Enter the person(s)'s name(s) for this booking"
+                    helperText="Optional: Specific person name(s) for this booking"
+                  />
                 </Grid>
 
                 <Grid size={{xs: 12, md: 6}}>
@@ -770,7 +784,7 @@ const BookingDetails: React.FC = () => {
 
                 <Grid size={{xs: 12, md: 6}}>
                   <DateTimePicker
-                    label="Leaving Date"
+                    label="Departure Date"
                     value={formData.leaving_date}
                     onChange={(date) => handleDateChange(date, 'leaving_date')}
                     slotProps={{
@@ -876,7 +890,7 @@ const BookingDetails: React.FC = () => {
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                             <PersonIcon color="primary" />
                             <Box>
-                              <Typography variant="subtitle2" color="text.secondary">Guest</Typography>
+                              <Typography variant="subtitle2" color="text.secondary">User</Typography>
                               <Typography variant="body1">
                                 {booking.user?.name} 
                                 <Chip 
@@ -913,14 +927,17 @@ const BookingDetails: React.FC = () => {
                             </Box>
                           </Box>
                         </Grid>
-                        
+                        <Grid size={{xs: 12}}>
+                          <Typography variant="subtitle2" color="text.secondary">Person Name</Typography>
+                          <Typography variant="body1">{booking.person_name || '-'}</Typography>
+                        </Grid>
                         <Grid size={{xs: 12, md: 6}}>
                           <Typography variant="subtitle2" color="text.secondary">Arrival Date</Typography>
                           <Typography variant="body1">{formatDate(booking.arrival_date)}</Typography>
                         </Grid>
                         
                         <Grid size={{xs: 12, md: 6}}>
-                          <Typography variant="subtitle2" color="text.secondary">Leaving Date</Typography>
+                          <Typography variant="subtitle2" color="text.secondary">Departure Date</Typography>
                           <Typography variant="body1">{formatDate(booking.leaving_date)}</Typography>
                         </Grid>
                         
