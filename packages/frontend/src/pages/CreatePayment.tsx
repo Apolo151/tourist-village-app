@@ -164,21 +164,17 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
   
   // Set user type based on booking when bookingId is provided and bookings are loaded
   useEffect(() => {
-    if (bookingId && bookings.length > 0 && formData.booking_id) {
-      const selectedBooking = bookings.find(b => b.id === bookingId);
+    if (bookingId && bookings.length > 0) {
+      const selectedBooking = bookings.find(b => b.id === parseInt(bookingId.toString()));
       if (selectedBooking) {
         setFormData(prev => ({
           ...prev,
-          user_type:
-            selectedBooking.user_type === 'owner'
-              ? 'owner'
-              : selectedBooking.user_type === 'renter'
-              ? 'renter'
-              : (selectedBooking.user_type as 'owner' | 'renter')
+          user_type: selectedBooking.user_type === 'owner' ? 'owner' : 'renter',
+          booking_id: bookingId.toString()
         }));
       }
     }
-  }, [bookingId, bookings, formData.booking_id]);
+  }, [bookingId, bookings]);
   
   // Validate form
   const validateForm = (): boolean => {
@@ -409,17 +405,21 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
               {/* User Type */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <FormControl fullWidth required error={Boolean(errors.user_type)}>
-                  <InputLabel>User Type</InputLabel>
+                  <InputLabel>Paid By</InputLabel>
                   <Select
                     name="user_type"
                     value={formData.user_type}
-                    label="User Type"
+                    label="Paid By"
                     onChange={handleSelectChange}
+                    disabled={bookingId !== undefined} // Disable if coming from booking page as quick action
                   >
                     <MenuItem value="owner">Owner</MenuItem>
                     <MenuItem value="renter">Tenant</MenuItem>
                   </Select>
                   {errors.user_type && <FormHelperText>{errors.user_type}</FormHelperText>}
+                  {bookingId && (
+                    <FormHelperText>User type is determined by the booking</FormHelperText>
+                  )}
                 </FormControl>
               </Grid>
 
@@ -468,20 +468,22 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                     value={formData.booking_id}
                     label={`Related Booking ${formData.user_type === 'renter' ? '*' : ''}`}
                     onChange={handleSelectChange}
-                    disabled={!formData.apartment_id}
+                    disabled={!formData.apartment_id || bookingId !== undefined} // Disable if bookingId is provided (quick action)
                   >
                     <MenuItem value="">
                       <em>Select a booking (optional for owners)</em>
                     </MenuItem>
                     {availableBookings.map(booking => (
-                      <MenuItem key={booking.id} value={booking.id}>
+                      <MenuItem key={booking.id} value={booking.id.toString()}>
                         Booking #{booking.id} - {booking.user?.name} 
                         ({format(new Date(booking.arrival_date), 'MMM dd, yyyy')} to {format(new Date(booking.leaving_date), 'MMM dd, yyyy')})
                       </MenuItem>
                     ))}
                   </Select>
                   {errors.booking_id && <FormHelperText>{errors.booking_id}</FormHelperText>}
-                  {formData.user_type === 'renter' ? (
+                  {bookingId ? (
+                    <FormHelperText>Booking is pre-selected from the booking page</FormHelperText>
+                  ) : formData.user_type === 'renter' ? (
                     <FormHelperText>Booking is required for renter payments</FormHelperText>
                   ) : (
                     <FormHelperText>Optional: Link this payment to a specific booking</FormHelperText>
@@ -541,7 +543,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                   </Typography>
                 )}
                 <Typography variant="body2">
-                  <strong>User Type:</strong> {formData.user_type === 'owner' ? 'Owner' : 'Tenant'}
+                  <strong>Paid By:</strong> {formData.user_type === 'owner' ? 'Owner' : 'Tenant'}
                 </Typography>
                 {formData.apartment_id && (
                   <Typography variant="body2">
@@ -587,4 +589,4 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
       </Box>
     </Container>
   );
-} 
+}

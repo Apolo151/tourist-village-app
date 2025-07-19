@@ -551,7 +551,7 @@ const BookingDetails: React.FC = () => {
     </Dialog>
   );
 
-  // Load invoices based on booking type
+  // Load invoices when booking data is loaded
   const loadInvoices = async () => {
     if (!booking) return;
     
@@ -574,6 +574,23 @@ const BookingDetails: React.FC = () => {
     } finally {
       setInvoicesLoading(false);
     }
+  };
+
+  // Helper function to filter payments based on booking and user_type
+  const getFilteredPayments = () => {
+    if (!relatedData?.payments || !booking) return [];
+    
+    // First, filter payments related to this booking
+    return relatedData.payments.filter(payment => {
+      // Check if the payment is for this booking
+      const isForThisBooking = payment.booking_id === booking.id;
+      
+      // Check if the payment user_type matches the booking user_type
+      const userTypeMatches = payment.user_type === booking.user_type;
+      
+      // For this booking AND matching user_type
+      return isForThisBooking && userTypeMatches;
+    });
   };
 
   // Quick actions - updated to open dialogs instead of navigating
@@ -626,7 +643,9 @@ const BookingDetails: React.FC = () => {
 
   // Helper functions for booking financial calculations
   const getBookingPaymentTotal = (currency: 'EGP' | 'GBP') => {
-    return relatedData?.payments?.filter(p => p.currency === currency).reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+    return getFilteredPayments()
+      .filter(p => p.currency === currency)
+      .reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
   };
 
   const getBookingServiceCostTotal = (currency: 'EGP' | 'GBP') => {
@@ -1198,7 +1217,7 @@ const BookingDetails: React.FC = () => {
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {relatedData.payments.map((payment: any) => (
+                            {getFilteredPayments().map((payment: any) => (
                               <TableRow key={payment.id}>
                                 <TableCell>{formatDate(payment.date)}</TableCell>
                                 <TableCell>{payment.amount}</TableCell>
