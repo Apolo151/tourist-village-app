@@ -923,4 +923,125 @@ router.get(
   }
 );
 
-export default router; 
+/**
+ * GET /api/invoices/booking/:bookingId
+ * Get all invoices for a specific booking
+ */
+router.get(
+  '/booking/:bookingId',
+  authenticateToken,
+  async (req: Request, res: Response) => {
+    try {
+      const bookingId = parseInt(req.params.bookingId);
+      if (isNaN(bookingId) || bookingId <= 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid ID',
+          message: 'Booking ID must be a positive number'
+        });
+      }
+
+      // Get booking to check permissions
+      const booking = await db('bookings').where('id', bookingId).first();
+      if (!booking) {
+        return res.status(404).json({
+          success: false,
+          error: 'Not found',
+          message: 'Booking not found'
+        });
+      }
+
+      // Permissions: only admin/super_admin, or booking owner/renter
+      const user = (req as any).user;
+      if (
+        user.role !== 'admin' &&
+        user.role !== 'super_admin' &&
+        booking.user_id !== user.id
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied',
+          message: 'You can only access invoices for your own bookings'
+        });
+      }
+
+      // Payments for this booking
+      const payments = await db('payments as p')
+        .leftJoin('payment_methods as pm', 'p.method_id', 'pm.id')
+        .select(
+          'p.id',
+          db.raw("'Payment' as type"),
+          db.raw("COALESCE(p.description, pm.name) as description"),
+          'p.amount',
+          'p.currency',
+          'p.date',
+          'p.user_type',
+          'p.created_by',
+          'p.created_at'
+        )
+        .where('p.booking_id', bookingId);
+
+      // Service requests for this booking
+      const serviceRequests = await db('service_requests as sr')
+        .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+        .select(
+          'sr.id',
+          db.raw("'Service Request' as type"),
+          db.raw("COALESCE(sr.notes, st.name) as description"),
+          'st.cost as amount',
+          'st.currency',
+          'sr.date_created as date',
+          'sr.who_pays as user_type',
+          'sr.created_by',
+          'sr.created_at'
+        )
+        .where('sr.booking_id', bookingId);
+
+      // Utility readings for this booking
+      const utilityReadings = await db('utility_readings as ur')
+        .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
+        .select(
+          'ur.id',
+          db.raw("'Utility Reading' as type"),
+          db.raw(`
+            'Utility reading from ' || ur.start_date || ' to ' || ur.end_date || ' (' || ur.who_pays || ' pays)' as description
+          `),
+          db.raw(`
+            COALESCE(
+              (COALESCE(ur.water_end_reading,0) - COALESCE(ur.water_start_reading,0)) * COALESCE(v.water_price,0) +
+              (COALESCE(ur.electricity_end_reading,0) - COALESCE(ur.electricity_start_reading,0)) * COALESCE(v.electricity_price,0),
+              0
+            ) as amount
+          `),
+          db.raw("'EGP' as currency"),
+          'ur.created_at as date',
+          'ur.who_pays as user_type',
+          'ur.created_by',
+          'ur.created_at'
+        )
+        .where('ur.booking_id', bookingId);
+
+      // Combine and sort all invoices by date descending
+      const invoices = [
+        ...payments,
+        ...serviceRequests,
+        ...utilityReadings
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+      res.json({
+        success: true,
+        data: invoices
+      });
+    } catch (error: any) {
+      console.error('Error fetching booking invoices:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to fetch booking invoices'
+      });
+    }
+  }
+);
+
+export default router;

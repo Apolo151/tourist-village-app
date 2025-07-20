@@ -180,6 +180,14 @@ class InvoiceService {
     }>>(`/invoices/apartment/${apartmentId}`, params);
     return response.data!;
   }
+
+  /**
+   * Get invoices for a specific booking
+   */
+  async getInvoicesForBooking(bookingId: number): Promise<InvoiceDetailItem[]> {
+    const response = await apiClient.get<ApiResponse<InvoiceDetailItem[]>>(`/invoices/booking/${bookingId}`);
+    return response.data!;
+  }
 }
 
-export const invoiceService = new InvoiceService(); 
+export const invoiceService = new InvoiceService();

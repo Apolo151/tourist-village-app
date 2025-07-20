@@ -599,6 +599,31 @@ export class UtilityReadingService {
       }
     }
 
+    // Calculate costs based on readings and village prices
+    let waterCost: number | null = null;
+    let electricityCost: number | null = null;
+
+    // Get village prices
+    const apartmentData = await db('apartments as a')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .select('v.water_price', 'v.electricity_price')
+      .where('a.id', data.apartment_id)
+      .first();
+    
+    if (apartmentData) {
+      // Calculate water cost if readings are provided
+      if (data.water_start_reading !== undefined && data.water_end_reading !== undefined) {
+        const waterUsage = data.water_end_reading - data.water_start_reading;
+        waterCost = waterUsage * parseFloat(apartmentData.water_price || '0');
+      }
+
+      // Calculate electricity cost if readings are provided
+      if (data.electricity_start_reading !== undefined && data.electricity_end_reading !== undefined) {
+        const electricityUsage = data.electricity_end_reading - data.electricity_start_reading;
+        electricityCost = electricityUsage * parseFloat(apartmentData.electricity_price || '0');
+      }
+    }
+
     try {
       const [utilityReadingId] = await db('utility_readings')
         .insert({
@@ -611,6 +636,8 @@ export class UtilityReadingService {
           start_date: startDate,
           end_date: endDate,
           who_pays: data.who_pays,
+          water_cost: waterCost,
+          electricity_cost: electricityCost,
           created_by: createdBy,
           created_at: new Date(),
           updated_at: new Date()
@@ -715,6 +742,84 @@ export class UtilityReadingService {
       }
     }
 
+    // Calculate costs based on updated readings
+    let waterCost: number | null = null;
+    let electricityCost: number | null = null;
+
+    // Get current readings and village prices
+    const currentData = await db('utility_readings as ur')
+      .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .select(
+        'ur.water_start_reading',
+        'ur.water_end_reading',
+        'ur.electricity_start_reading',
+        'ur.electricity_end_reading',
+        'v.water_price',
+        'v.electricity_price'
+      )
+      .where('ur.id', id)
+      .first();
+
+    const apartmentId = data.apartment_id || existingUtilityReading!.apartment_id;
+    
+    // If apartment changed, get new village prices
+    let villagePrices = {
+      water_price: parseFloat(currentData.water_price || '0'),
+      electricity_price: parseFloat(currentData.electricity_price || '0')
+    };
+    
+    if (data.apartment_id && data.apartment_id !== existingUtilityReading!.apartment_id) {
+      const newPrices = await db('apartments as a')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
+        .select('v.water_price', 'v.electricity_price')
+        .where('a.id', data.apartment_id)
+        .first();
+      
+      if (newPrices) {
+        villagePrices = {
+          water_price: parseFloat(newPrices.water_price || '0'),
+          electricity_price: parseFloat(newPrices.electricity_price || '0')
+        };
+      }
+    }
+
+    // Calculate water cost if either reading is updated
+    if (data.water_start_reading !== undefined || data.water_end_reading !== undefined) {
+      const waterStartReading = data.water_start_reading !== undefined 
+        ? data.water_start_reading 
+        : currentData.water_start_reading;
+      
+      const waterEndReading = data.water_end_reading !== undefined 
+        ? data.water_end_reading 
+        : currentData.water_end_reading;
+      
+      if (waterStartReading !== null && waterEndReading !== null) {
+        const waterUsage = waterEndReading - waterStartReading;
+        waterCost = waterUsage * villagePrices.water_price;
+      } else {
+        waterCost = null;
+      }
+    }
+
+    // Calculate electricity cost if either reading is updated
+    if (data.electricity_start_reading !== undefined || data.electricity_end_reading !== undefined) {
+      const electricityStartReading = data.electricity_start_reading !== undefined 
+        ? data.electricity_start_reading 
+        : currentData.electricity_start_reading;
+      
+      const electricityEndReading = data.electricity_end_reading !== undefined 
+        ? data.electricity_end_reading 
+        : currentData.electricity_end_reading;
+      
+      if (electricityStartReading !== null && electricityEndReading !== null) {
+        const electricityUsage = electricityEndReading - electricityStartReading;
+        electricityCost = electricityUsage * villagePrices.electricity_price;
+      } else {
+        electricityCost = null;
+      }
+    }
+
     // Prepare update data
     const updateData: any = { updated_at: new Date() };
 
@@ -727,6 +832,10 @@ export class UtilityReadingService {
     if (startDate) updateData.start_date = startDate;
     if (endDate) updateData.end_date = endDate;
     if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
+    
+    // Add cost fields if they've been calculated
+    if (waterCost !== undefined) updateData.water_cost = waterCost;
+    if (electricityCost !== undefined) updateData.electricity_cost = electricityCost;
 
     try {
       await db('utility_readings').where('id', id).update(updateData);
@@ -900,4 +1009,4 @@ export class UtilityReadingService {
       }
     };
   }
-} 
+}

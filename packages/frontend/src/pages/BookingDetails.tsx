@@ -268,6 +268,29 @@ const BookingDetails: React.FC = () => {
     }
   }, [booking]);
 
+  // Define the missing loadInvoices function
+  const loadInvoices = async () => {
+    if (!booking) return;
+    setInvoicesLoading(true);
+    try {
+      // Fetch invoices for the booking
+      let fetchedInvoices: InvoiceDetailItem[] = [];
+      fetchedInvoices = await invoiceService.getInvoicesForBooking(booking.id);
+      // if (booking.user_type === 'renter') {
+      //   // For renter, fetch invoices related to this booking
+      //   fetchedInvoices = await invoiceService.getInvoicesForBooking(booking.id);
+      // } else {
+      //   // For owner, fetch invoices for the apartment owner
+      //   fetchedInvoices = await invoiceService.getInvoicesForOwner(booking.user_id);
+      // }
+      setInvoices(fetchedInvoices);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load invoices');
+    } finally {
+      setInvoicesLoading(false);
+    }
+  };
+
   // Note: User field reset is now handled in handleSelectChange when user_type changes
   
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -538,59 +561,31 @@ const BookingDetails: React.FC = () => {
   };
 
   // Helper to render dialog
-  const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => (
-    <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
-      <Component
-        onSuccess={() => {
-          closeDialog(type);
-          refreshRelatedData();
-        }}
-        onCancel={() => closeDialog(type)}
-        {...extraProps}
-      />
-    </Dialog>
-  );
+  const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => {
+    const componentProps: { [key: string]: any } = {
+      onSuccess: () => {
+        closeDialog(type);
+        refreshRelatedData();
+      },
+      onCancel: () => closeDialog(type),
+      ...extraProps
+    };
 
-  // Load invoices when booking data is loaded
-  const loadInvoices = async () => {
-    if (!booking) return;
-    
-    try {
-      setInvoicesLoading(true);
-      
-      if (booking.user_type === 'renter') {
-        // For renters: show invoices related to this specific booking
-        // We'll need to filter the apartment invoices by booking_id
-        const apartmentInvoices = await invoiceService.getApartmentInvoices(booking.apartment_id);
-        const bookingInvoices = apartmentInvoices.filter(invoice => invoice.booking_id === booking.id);
-        setInvoices(bookingInvoices);
-      } else {
-        // For owners: show all invoices related to this owner (not just this booking)
-        const apartmentInvoices = await invoiceService.getApartmentInvoices(booking.apartment_id);
-        setInvoices(apartmentInvoices);
-      }
-    } catch (err) {
-      console.error('Failed to load invoices:', err);
-    } finally {
-      setInvoicesLoading(false);
+    // Add specific props for different component types
+    if (type === 'serviceRequest' && booking) {
+      // For service requests, ensure we're passing the right booking data
+      componentProps.bookingId = booking.id;
+      componentProps.apartmentId = booking.apartment_id;
+      componentProps.lockApartment = true;
+      // Set who pays based on user type
+      componentProps.whoPays = booking.user_type;
     }
-  };
 
-  // Helper function to filter payments based on booking and user_type
-  const getFilteredPayments = () => {
-    if (!relatedData?.payments || !booking) return [];
-    
-    // First, filter payments related to this booking
-    return relatedData.payments.filter(payment => {
-      // Check if the payment is for this booking
-      const isForThisBooking = payment.booking_id === booking.id;
-      
-      // Check if the payment user_type matches the booking user_type
-      const userTypeMatches = payment.user_type === booking.user_type;
-      
-      // For this booking AND matching user_type
-      return isForThisBooking && userTypeMatches;
-    });
+    return (
+      <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
+        <Component {...componentProps} />
+      </Dialog>
+    );
   };
 
   // Quick actions - updated to open dialogs instead of navigating
@@ -603,6 +598,7 @@ const BookingDetails: React.FC = () => {
   };
 
   const handleAddServiceRequest = () => {
+    // Make sure the dialog is properly opened with current booking data
     openDialog('serviceRequest');
   };
 
@@ -657,6 +653,23 @@ const BookingDetails: React.FC = () => {
   };
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
+  // Helper function to filter payments based on booking and user_type
+  const getFilteredPayments = () => {
+    if (!relatedData?.payments || !booking) return [];
+    
+    // Filter payments related to this booking
+    return relatedData.payments.filter(payment => {
+      // Check if the payment is for this booking
+      const isForThisBooking = payment.booking_id === booking.id;
+      
+      // Check if the payment user_type matches the booking user_type
+      const userTypeMatches = payment.user_type === booking.user_type;
+      
+      // For this booking AND matching user_type
+      return isForThisBooking && userTypeMatches;
+    });
+  };
 
   if (loading) {
     return (
@@ -1098,7 +1111,8 @@ const BookingDetails: React.FC = () => {
                       <CardContent>
                         <Typography variant="h6" gutterBottom>Booking Balance</Typography>
                         <Divider sx={{ mb: 2 }} />
-                        
+
+                        {/* Payments */}
                         <List dense>
                           <ListItem>
                             <ListItemText 
@@ -1120,6 +1134,7 @@ const BookingDetails: React.FC = () => {
                               } 
                             />
                           </ListItem>
+                          {/* Service Requests */}
                           <ListItem>
                             <ListItemText 
                               primary="Total Service Costs" 
@@ -1140,6 +1155,40 @@ const BookingDetails: React.FC = () => {
                               } 
                             />
                           </ListItem>
+                          {/* Utility Readings */}
+                          <ListItem>
+                            <ListItemText 
+                              primary="Total Utility Costs" 
+                              secondary={
+                                <Box>
+                                  <Typography variant="body2">
+                                    EGP: {relatedData?.utility_readings
+                                      ? relatedData.utility_readings.reduce(
+                                          (sum, ur) =>
+                                            sum +
+                                            ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
+                                              ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
+                                              : 0) +
+                                            ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
+                                              ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
+                                              : 0),
+                                          0
+                                        ).toLocaleString()
+                                      : '0'}
+                                  </Typography>
+                                  <Typography variant="body2">
+                                    GBP: 0
+                                  </Typography>
+                                  {(!relatedData?.utility_readings || relatedData.utility_readings.length === 0) && (
+                                    <Typography variant="caption" color="text.secondary">
+                                      No utility readings for this booking
+                                    </Typography>
+                                  )}
+                                </Box>
+                              }
+                            />
+                          </ListItem>
+                          {/* Net Balance */}
                           <ListItem>
                             <ListItemText 
                               primary="Net Balance" 
@@ -1147,26 +1196,67 @@ const BookingDetails: React.FC = () => {
                                 <Box>
                                   <Typography 
                                     variant="body2" 
-                                    color={getBookingNetBalance('EGP') >= 0 ? 'success.main' : 'error.main'}
+                                    color={
+                                      (() => {
+                                        // Calculate net EGP
+                                        const paymentsEGP = getBookingPaymentTotal('EGP');
+                                        const serviceEGP = getBookingServiceCostTotal('EGP');
+                                        const utilityEGP = relatedData?.utility_readings
+                                          ? relatedData.utility_readings.reduce(
+                                              (sum, ur) =>
+                                                sum +
+                                                ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
+                                                  ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
+                                                  : 0) +
+                                                ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
+                                                  ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
+                                                  : 0),
+                                              0
+                                            )
+                                          : 0;
+                                        const netEGP = paymentsEGP - serviceEGP - utilityEGP;
+                                        return netEGP >= 0 ? 'success.main' : 'error.main';
+                                      })()
+                                    }
                                   >
-                                    EGP: {getBookingNetBalance('EGP').toLocaleString()}
+                                    EGP: {(() => {
+                                      const paymentsEGP = getBookingPaymentTotal('EGP');
+                                      const serviceEGP = getBookingServiceCostTotal('EGP');
+                                      const utilityEGP = relatedData?.utility_readings
+                                        ? relatedData.utility_readings.reduce(
+                                            (sum, ur) =>
+                                              sum +
+                                              ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
+                                                ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
+                                                : 0) +
+                                              ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
+                                                ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
+                                                : 0),
+                                            0
+                                          )
+                                        : 0;
+                                      return (paymentsEGP - serviceEGP - utilityEGP).toLocaleString();
+                                    })()}
                                   </Typography>
                                   <Typography 
                                     variant="body2" 
-                                    color={getBookingNetBalance('GBP') >= 0 ? 'success.main' : 'error.main'}
+                                    color={
+                                      getBookingPaymentTotal('GBP') - getBookingServiceCostTotal('GBP') >= 0
+                                        ? 'success.main'
+                                        : 'error.main'
+                                    }
                                   >
-                                    GBP: {getBookingNetBalance('GBP').toLocaleString()}
+                                    GBP: {(getBookingPaymentTotal('GBP') - getBookingServiceCostTotal('GBP')).toLocaleString()}
                                   </Typography>
                                 </Box>
-                              } 
+                              }
                             />
                           </ListItem>
                         </List>
-                        
                         {/* Summary counts */}
                         <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
                           <Typography variant="body2" color="text.secondary">
-                            <strong>Summary:</strong> {relatedData?.payments?.length || 0} payment(s) • {relatedData?.service_requests?.length || 0} service request(s)
+                            <strong>Summary:</strong> {relatedData?.payments?.length || 0} payment(s) • {relatedData?.service_requests?.length || 0} service request(s) • {relatedData?.utility_readings?.length || 0} utility reading(s)
                           </Typography>
                         </Box>
                       </CardContent>
@@ -1351,23 +1441,27 @@ const BookingDetails: React.FC = () => {
                         <Table>
                           <TableHead>
                             <TableRow>
-                              <TableCell>Utility Type</TableCell>
-                              <TableCell>Start Reading</TableCell>
-                              <TableCell>End Reading</TableCell>
+                              <TableCell>Water Start Reading</TableCell>
+                              <TableCell>Water End Reading</TableCell>
+                              <TableCell>Electricity Start Reading</TableCell>
+                              <TableCell>Electricity End Reading</TableCell>
                               <TableCell>Start Date</TableCell>
                               <TableCell>End Date</TableCell>
-                              <TableCell>Consumption</TableCell>
+                              <TableCell>Water Cost</TableCell>
+                              <TableCell>Electricity Cost</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
                             {relatedData.utility_readings.map((reading: any) => (
                               <TableRow key={reading.id}>
-                                <TableCell>{reading.utility_type}</TableCell>
-                                <TableCell>{reading.start_reading}</TableCell>
-                                <TableCell>{reading.end_reading}</TableCell>
+                                <TableCell>{reading.water_start_reading}</TableCell>
+                                <TableCell>{reading.water_end_reading}</TableCell>
+                                <TableCell>{reading.electricity_start_reading}</TableCell>
+                                <TableCell>{reading.electricity_end_reading}</TableCell>
                                 <TableCell>{formatDate(reading.start_date)}</TableCell>
                                 <TableCell>{formatDate(reading.end_date)}</TableCell>
-                                <TableCell>{reading.end_reading - reading.start_reading}</TableCell>
+                                <TableCell>{reading.water_cost}</TableCell>
+                                <TableCell>{reading.electricity_cost}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -1463,11 +1557,8 @@ const BookingDetails: React.FC = () => {
         apartmentId: booking?.apartment_id,
         lockApartment: true
       })}
-      {renderDialog('serviceRequest', CreateServiceRequest, {
-        bookingId: booking?.id,
-        apartmentId: booking?.apartment_id,
-        lockApartment: true
-      })}
+      {/* Don't set props here as they're set in the renderDialog function */}
+      {renderDialog('serviceRequest', CreateServiceRequest)}
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>

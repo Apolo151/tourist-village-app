@@ -15,6 +15,8 @@ export interface UtilityReading {
   created_by: number;
   created_at: string;
   updated_at: string;
+  water_cost?: number;
+  electricity_cost?: number;
   
   // Joined fields
   apartment?: {
@@ -259,4 +261,4 @@ class UtilityReadingService {
   }
 }
 
-export const utilityReadingService = new UtilityReadingService(); 
+export const utilityReadingService = new UtilityReadingService();

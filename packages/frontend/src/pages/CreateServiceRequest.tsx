@@ -44,6 +44,7 @@ import SearchableDropdown from "../components/SearchableDropdown";
 export interface CreateServiceRequestProps {
     apartmentId?: number;
     bookingId?: number;
+    whoPays?: "owner" | "renter" | "company"; // Restrict whoPays to allowed values
     onSuccess?: () => void;
     onCancel?: () => void;
     lockApartment?: boolean;
@@ -52,6 +53,7 @@ export interface CreateServiceRequestProps {
 export default function CreateServiceRequest({
     apartmentId,
     bookingId,
+    whoPays,
     onSuccess,
     onCancel,
     lockApartment,
@@ -73,8 +75,9 @@ export default function CreateServiceRequest({
 
     // Form data
     const [formData, setFormData] = useState<
-        Omit<CreateServiceRequestRequest, "requester_id"> & {
+        Omit<CreateServiceRequestRequest, "requester_id" | "who_pays"> & {
             requester_id?: number;
+            who_pays: "owner" | "renter" | "company";
         }
     >({
         type_id: 0,
@@ -83,7 +86,7 @@ export default function CreateServiceRequest({
         requester_id: currentUser?.id,
         date_action: undefined,
         status: "Created",
-        who_pays: "owner",
+        who_pays: whoPays ?? "owner", // Use the passed whoPays or default to owner
         notes: "",
         assignee_id: undefined,
     });
@@ -157,7 +160,7 @@ export default function CreateServiceRequest({
 
     // Set who_pays based on booking when bookingId is provided and bookings are loaded
     useEffect(() => {
-        if (bookingId && bookings.length > 0 && formData.booking_id) {
+        if (bookingId && bookings.length > 0) {
             const selectedBooking = bookings.find((b) => b.id === bookingId);
             if (selectedBooking) {
                 setFormData((prev) => ({
@@ -166,10 +169,17 @@ export default function CreateServiceRequest({
                         selectedBooking.user_type === "owner"
                             ? "owner"
                             : "renter",
+                    booking_id: bookingId, // Ensure the booking_id is set correctly
                 }));
             }
+        } else if (whoPays) {
+            // If whoPays is passed directly (e.g., from the booking), use it
+            setFormData(prev => ({
+                ...prev,
+                who_pays: whoPays
+            }));
         }
-    }, [bookingId, bookings, formData.booking_id]);
+    }, [bookingId, bookings, whoPays]);
 
     // Prefill form in edit mode
     useEffect(() => {
