@@ -186,7 +186,12 @@ class InvoiceService {
    */
   async getInvoicesForBooking(bookingId: number): Promise<InvoiceDetailItem[]> {
     const response = await apiClient.get<ApiResponse<InvoiceDetailItem[]>>(`/invoices/booking/${bookingId}`);
-    return response.data!;
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    throw new Error(response.message || 'Failed to fetch booking invoices');
   }
 }
 

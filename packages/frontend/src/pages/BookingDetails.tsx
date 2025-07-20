@@ -173,8 +173,17 @@ const BookingDetails: React.FC = () => {
   });
 
   // Invoices state
-  const [invoices, setInvoices] = useState<InvoiceDetailItem[]>([]);
   const [invoicesLoading, setInvoicesLoading] = useState(false);
+  const [invoices, setInvoices] = useState<InvoiceDetailItem[]>([]);
+  const [invoiceTotals, setInvoiceTotals] = useState<{
+    payments: { EGP: number; GBP: number; };
+    services: { EGP: number; GBP: number; };
+    utilities: { EGP: number; GBP: number; };
+  }>({
+    payments: { EGP: 0, GBP: 0 },
+    services: { EGP: 0, GBP: 0 },
+    utilities: { EGP: 0, GBP: 0 }
+  });
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -266,24 +275,39 @@ const BookingDetails: React.FC = () => {
     if (booking && !isNew) {
       loadInvoices();
     }
-  }, [booking]);
+  }, [booking, isNew]);
 
-  // Define the missing loadInvoices function
+  // Update the loadInvoices function to ensure all values are properly parsed as numbers
   const loadInvoices = async () => {
     if (!booking) return;
     setInvoicesLoading(true);
     try {
       // Fetch invoices for the booking
-      let fetchedInvoices: InvoiceDetailItem[] = [];
-      fetchedInvoices = await invoiceService.getInvoicesForBooking(booking.id);
-      // if (booking.user_type === 'renter') {
-      //   // For renter, fetch invoices related to this booking
-      //   fetchedInvoices = await invoiceService.getInvoicesForBooking(booking.id);
-      // } else {
-      //   // For owner, fetch invoices for the apartment owner
-      //   fetchedInvoices = await invoiceService.getInvoicesForOwner(booking.user_id);
-      // }
+      const fetchedInvoices = await invoiceService.getInvoicesForBooking(booking.id);
       setInvoices(fetchedInvoices);
+      
+      // Calculate totals by type and currency
+      const totals = {
+        payments: { EGP: 0, GBP: 0 },
+        services: { EGP: 0, GBP: 0 },
+        utilities: { EGP: 0, GBP: 0 }
+      };
+      
+      fetchedInvoices.forEach(invoice => {
+        // Ensure amount is a number by using parseFloat
+        const amount = parseFloat(invoice.amount.toString());
+        
+        if (invoice.type === 'Payment') {
+          // Make payments negative
+          totals.payments[invoice.currency as 'EGP' | 'GBP'] -= amount;
+        } else if (invoice.type === 'Service Request') {
+          totals.services[invoice.currency as 'EGP' | 'GBP'] += amount;
+        } else if (invoice.type === 'Utility Reading') {
+          totals.utilities.EGP += amount; // Utilities are always in EGP
+        }
+      });
+      
+      setInvoiceTotals(totals);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load invoices');
     } finally {
@@ -1112,156 +1136,121 @@ const BookingDetails: React.FC = () => {
                         <Typography variant="h6" gutterBottom>Booking Balance</Typography>
                         <Divider sx={{ mb: 2 }} />
 
-                        {/* Payments */}
-                        <List dense>
-                          <ListItem>
-                            <ListItemText 
-                              primary="Total Payments" 
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2">
-                                    EGP: {getBookingPaymentTotal('EGP').toLocaleString()}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    GBP: {getBookingPaymentTotal('GBP').toLocaleString()}
-                                  </Typography>
-                                  {getBookingPaymentTotal('EGP') === 0 && getBookingPaymentTotal('GBP') === 0 && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      No payments recorded for this booking
-                                    </Typography>
-                                  )}
-                                </Box>
-                              } 
-                            />
-                          </ListItem>
-                          {/* Service Requests */}
-                          <ListItem>
-                            <ListItemText 
-                              primary="Total Service Costs" 
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2">
-                                    EGP: {getBookingServiceCostTotal('EGP').toLocaleString()}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    GBP: {getBookingServiceCostTotal('GBP').toLocaleString()}
-                                  </Typography>
-                                  {getBookingServiceCostTotal('EGP') === 0 && getBookingServiceCostTotal('GBP') === 0 && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      No service requests for this booking
-                                    </Typography>
-                                  )}
-                                </Box>
-                              } 
-                            />
-                          </ListItem>
-                          {/* Utility Readings */}
-                          <ListItem>
-                            <ListItemText 
-                              primary="Total Utility Costs" 
-                              secondary={
-                                <Box>
-                                  <Typography variant="body2">
-                                    EGP: {relatedData?.utility_readings
-                                      ? relatedData.utility_readings.reduce(
-                                          (sum, ur) =>
-                                            sum +
-                                            ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
-                                              ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
-                                              : 0) +
-                                            ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
-                                              ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
-                                              : 0),
-                                          0
-                                        ).toLocaleString()
-                                      : '0'}
-                                  </Typography>
-                                  <Typography variant="body2">
-                                    GBP: 0
-                                  </Typography>
-                                  {(!relatedData?.utility_readings || relatedData.utility_readings.length === 0) && (
-                                    <Typography variant="caption" color="text.secondary">
-                                      No utility readings for this booking
-                                    </Typography>
-                                  )}
-                                </Box>
-                              }
-                            />
-                          </ListItem>
-                          {/* Net Balance */}
-                          <ListItem>
-                            <ListItemText 
-                              primary="Net Balance" 
-                              secondary={
-                                <Box>
-                                  <Typography 
-                                    variant="body2" 
-                                    color={
-                                      (() => {
-                                        // Calculate net EGP
-                                        const paymentsEGP = getBookingPaymentTotal('EGP');
-                                        const serviceEGP = getBookingServiceCostTotal('EGP');
-                                        const utilityEGP = relatedData?.utility_readings
-                                          ? relatedData.utility_readings.reduce(
-                                              (sum, ur) =>
-                                                sum +
-                                                ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
-                                                  ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
-                                                  : 0) +
-                                                ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
-                                                  ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
-                                                  : 0),
-                                              0
-                                            )
-                                          : 0;
-                                        const netEGP = paymentsEGP - serviceEGP - utilityEGP;
-                                        return netEGP >= 0 ? 'success.main' : 'error.main';
-                                      })()
-                                    }
-                                  >
-                                    EGP: {(() => {
-                                      const paymentsEGP = getBookingPaymentTotal('EGP');
-                                      const serviceEGP = getBookingServiceCostTotal('EGP');
-                                      const utilityEGP = relatedData?.utility_readings
-                                        ? relatedData.utility_readings.reduce(
-                                            (sum, ur) =>
-                                              sum +
-                                              ((ur.water_end_reading && ur.water_start_reading && ur.water_price)
-                                                ? (ur.water_end_reading - ur.water_start_reading) * ur.water_price
-                                                : 0) +
-                                              ((ur.electricity_end_reading && ur.electricity_start_reading && ur.electricity_price)
-                                                ? (ur.electricity_end_reading - ur.electricity_start_reading) * ur.electricity_price
-                                                : 0),
-                                            0
-                                          )
-                                        : 0;
-                                      return (paymentsEGP - serviceEGP - utilityEGP).toLocaleString();
-                                    })()}
-                                  </Typography>
-                                  <Typography 
-                                    variant="body2" 
-                                    color={
-                                      getBookingPaymentTotal('GBP') - getBookingServiceCostTotal('GBP') >= 0
-                                        ? 'success.main'
-                                        : 'error.main'
-                                    }
-                                  >
-                                    GBP: {(getBookingPaymentTotal('GBP') - getBookingServiceCostTotal('GBP')).toLocaleString()}
-                                  </Typography>
-                                </Box>
-                              }
-                            />
-                          </ListItem>
-                        </List>
-                        {/* Summary counts */}
-                        <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            <strong>Summary:</strong> {relatedData?.payments?.length || 0} payment(s) • {relatedData?.service_requests?.length || 0} service request(s) • {relatedData?.utility_readings?.length || 0} utility reading(s)
-                          </Typography>
-                        </Box>
+                        {invoicesLoading ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                            <CircularProgress size={24} />
+                          </Box>
+                        ) : (
+                          <>
+                            {/* Payments */}
+                            <List dense>
+                              <ListItem>
+                                <ListItemText 
+                                  primary="Total Payments" 
+                                  secondary={
+                                    <Box>
+                                      <Typography variant="body2">
+                                        EGP: {Number(invoiceTotals.payments.EGP).toLocaleString()}
+                                      </Typography>
+                                      <Typography variant="body2">
+                                        GBP: {Number(invoiceTotals.payments.GBP).toLocaleString()}
+                                      </Typography>
+                                      {invoiceTotals.payments.EGP === 0 && invoiceTotals.payments.GBP === 0 && (
+                                        <Typography variant="caption" color="text.secondary">
+                                          No payments recorded for this booking
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  } 
+                                />
+                              </ListItem>
+                              {/* Service Requests */}
+                              <ListItem>
+                                <ListItemText 
+                                  primary="Total Service Costs" 
+                                  secondary={
+                                    <Box>
+                                      <Typography variant="body2">
+                                        EGP: {Number(invoiceTotals.services.EGP).toLocaleString()}
+                                      </Typography>
+                                      <Typography variant="body2">
+                                        GBP: {Number(invoiceTotals.services.GBP).toLocaleString()}
+                                      </Typography>
+                                      {invoiceTotals.services.EGP === 0 && invoiceTotals.services.GBP === 0 && (
+                                        <Typography variant="caption" color="text.secondary">
+                                          No service requests for this booking
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  } 
+                                />
+                              </ListItem>
+                              {/* Utility Readings */}
+                              <ListItem>
+                                <ListItemText 
+                                  primary="Total Utility Costs" 
+                                  secondary={
+                                    <Box>
+                                      <Typography variant="body2">
+                                        EGP: {Number(invoiceTotals.utilities.EGP).toLocaleString()}
+                                      </Typography>
+                                      <Typography variant="body2">
+                                        GBP: {Number(invoiceTotals.utilities.GBP).toLocaleString()}
+                                      </Typography>
+                                      {invoiceTotals.utilities.EGP === 0 && (
+                                        <Typography variant="caption" color="text.secondary">
+                                          No utility readings for this booking
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                  }
+                                />
+                              </ListItem>
+                              {/* Net Balance */}
+                              <ListItem>
+                                <ListItemText 
+                                  primary="Net Balance" 
+                                  secondary={
+                                    <Box>
+                                      <Typography 
+                                        variant="body2" 
+                                        color={
+                                          Number(invoiceTotals.payments.EGP) + Number(invoiceTotals.services.EGP) + Number(invoiceTotals.utilities.EGP) >= 0
+                                            ? 'success.main'
+                                            : 'error.main'
+                                        }
+                                      >
+                                        EGP: {(Number(invoiceTotals.payments.EGP) + Number(invoiceTotals.services.EGP) + Number(invoiceTotals.utilities.EGP)).toLocaleString()}
+                                      </Typography>
+                                      <Typography 
+                                        variant="body2" 
+                                        color={
+                                          Number(invoiceTotals.payments.GBP) + Number(invoiceTotals.services.GBP) >= 0
+                                            ? 'success.main'
+                                            : 'error.main'
+                                        }
+                                      >
+                                        GBP: {(Number(invoiceTotals.payments.GBP) + Number(invoiceTotals.services.GBP)).toLocaleString()}
+                                      </Typography>
+                                    </Box>
+                                  }
+                                />
+                              </ListItem>
+                            </List>
+                            {/* Summary counts */}
+                            <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                              <Typography variant="body2" color="text.secondary">
+                                <strong>Summary:</strong> {invoices.filter(i => i.type === 'Payment').length} payment(s) • {" "}
+                                {invoices.filter(i => i.type === 'Service Request').length} service request(s) • {" "}
+                                {invoices.filter(i => i.type === 'Utility Reading').length} utility reading(s)
+                              </Typography>
+                            </Box>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
                   )}
+
                 </Box>
 
                 {/* Tabs for related data */}
@@ -1475,14 +1464,9 @@ const BookingDetails: React.FC = () => {
                   {/* Related Invoices */}
                   <TabPanel value={activeTab} index={4}>
                     <Box sx={{ mb: 2, px: 2 }}>
-                      <Typography variant="h6">
-                        {booking?.user_type === 'renter' ? 'Booking Invoices' : 'Owner Invoices'}
-                      </Typography>
+                      <Typography variant="h6">Booking Invoices</Typography>
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {booking?.user_type === 'renter' 
-                          ? 'Invoices related to this specific booking'
-                          : 'All invoices for this apartment owner'
-                        }
+                        All financial transactions for this booking (payments, service requests, utility readings)
                       </Typography>
                     </Box>
                     
@@ -1501,25 +1485,35 @@ const BookingDetails: React.FC = () => {
                                   <TableCell>Description</TableCell>
                                   <TableCell>Amount</TableCell>
                                   <TableCell>Date</TableCell>
+                                  <TableCell>Paid By</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
                                 {invoices.map((invoice) => (
-                                  <TableRow key={invoice.id}>
+                                  <TableRow key={`${invoice.type}-${invoice.id}`}>
                                     <TableCell>
                                       <Chip 
                                         label={invoice.type}
-                                        color={invoice.type === 'Payment' ? 'success' : 'warning'}
+                                        color={
+                                          invoice.type === 'Payment' 
+                                            ? 'success' 
+                                            : invoice.type === 'Service Request' 
+                                              ? 'warning'
+                                              : 'info'
+                                        }
                                         size="small"
                                       />
                                     </TableCell>
                                     <TableCell>{invoice.description}</TableCell>
                                     <TableCell>
-                                      {invoice.amount.toLocaleString()} {invoice.currency}
+                                      {invoice.type === 'Payment' 
+    ? (-invoice.amount).toLocaleString() 
+    : invoice.amount.toLocaleString()} {invoice.currency}
                                     </TableCell>
                                     <TableCell>
                                       {new Date(invoice.date).toLocaleDateString()}
                                     </TableCell>
+                                    <TableCell>{invoice.user_type}</TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -1527,7 +1521,7 @@ const BookingDetails: React.FC = () => {
                           </TableContainer>
                         ) : (
                           <Alert severity="info">
-                            No invoices found for this {booking?.user_type === 'renter' ? 'booking' : 'owner'}.
+                            No financial transactions found for this booking.
                           </Alert>
                         )}
                       </Box>

@@ -965,14 +965,14 @@ router.get(
         });
       }
 
-      // Payments for this booking
+      // Payments for this booking (with negative amounts)
       const payments = await db('payments as p')
         .leftJoin('payment_methods as pm', 'p.method_id', 'pm.id')
         .select(
           'p.id',
           db.raw("'Payment' as type"),
           db.raw("COALESCE(p.description, pm.name) as description"),
-          'p.amount',
+          'p.amount', // Keep original amount in database
           'p.currency',
           'p.date',
           'p.user_type',
