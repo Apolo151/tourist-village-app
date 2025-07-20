@@ -6,7 +6,8 @@ import {
   UserFilters,
   CreateUserRequest,
   UpdateUserRequest,
-  PaginatedResponse
+  PaginatedResponse,
+  Village
 } from '../types';
 
 export class UserService {
@@ -99,6 +100,19 @@ export class UserService {
       updated_at: new Date(user.updated_at)
     }));
 
+    // Fetch villages for admin users
+    const adminUsers = transformedUsers.filter(user => user.role === 'admin');
+    if (adminUsers.length > 0) {
+      await Promise.all(
+        adminUsers.map(async (user) => {
+          const villages = await this.getUserVillages(user.id);
+          if (villages.length > 0) {
+            user.villages = villages;
+          }
+        })
+      );
+    }
+
     return {
       data: transformedUsers,
       pagination: {
@@ -134,7 +148,7 @@ export class UserService {
       return null;
     }
 
-    return {
+    const userObj: PublicUser = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -154,6 +168,14 @@ export class UserService {
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
+
+    // Fetch user villages if the user is an admin
+    if (user.role === 'admin') {
+      const villages = await this.getUserVillages(user.id);
+      userObj.villages = villages.length > 0 ? villages : undefined;
+    }
+
+    return userObj;
   }
 
   /**
@@ -180,7 +202,7 @@ export class UserService {
       return null;
     }
 
-    return {
+    const userObj: PublicUser = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -200,6 +222,14 @@ export class UserService {
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
+
+    // Fetch user villages if the user is an admin
+    if (user.role === 'admin') {
+      const villages = await this.getUserVillages(user.id);
+      userObj.villages = villages.length > 0 ? villages : undefined;
+    }
+
+    return userObj;
   }
 
   /**
@@ -227,7 +257,7 @@ export class UserService {
       return null;
     }
 
-    return {
+    const userObj: User = {
       id: user.id,
       name: user.name,
       email: user.email,
@@ -250,6 +280,14 @@ export class UserService {
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     };
+
+    // Fetch user villages if the user is an admin
+    if (user.role === 'admin') {
+      const villages = await this.getUserVillages(user.id);
+      userObj.villages = villages.length > 0 ? villages : undefined;
+    }
+
+    return userObj;
   }
 
   /**
@@ -291,34 +329,51 @@ export class UserService {
       throw new Error('Invalid phone number format');
     }
 
-    // Generate a default password if not provided (for admin-created users)
-    const defaultPassword = data.password || this.generateDefaultPassword();
-    const passwordHash = await this.hashPassword(defaultPassword);
-
     try {
-      const [result] = await db('users')
-        .insert({
-          name: data.name.trim(),
-          email: data.email.toLowerCase().trim(),
-          phone_number: data.phone_number?.trim() || null,
-          role: data.role,
-          responsible_village: data.responsible_village || null,
-          password_hash: passwordHash,
-          is_active: true,
-          passport_number: data.passport_number?.trim() || null,
-          passport_expiry_date: data.passport_expiry_date ? new Date(data.passport_expiry_date) : null,
-          address: data.address?.trim() || null,
-          next_of_kin_name: data.next_of_kin_name?.trim() || null,
-          next_of_kin_address: data.next_of_kin_address?.trim() || null,
-          next_of_kin_email: data.next_of_kin_email?.trim() || null,
-          next_of_kin_phone: data.next_of_kin_phone?.trim() || null,
-          next_of_kin_will: data.next_of_kin_will || null,
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .returning('id');
+      let userId = 0; // Initialize userId
 
-      const userId = typeof result === 'object' ? result.id : result;
+      // Use a transaction for creating user and setting villages
+      await db.transaction(async (trx) => {
+        // Generate a default password if not provided (for admin-created users)
+        const defaultPassword = data.password || this.generateDefaultPassword();
+        const passwordHash = await this.hashPassword(defaultPassword);
+
+        const [result] = await trx('users')
+          .insert({
+            name: data.name.trim(),
+            email: data.email.toLowerCase().trim(),
+            phone_number: data.phone_number?.trim() || null,
+            role: data.role,
+            responsible_village: data.responsible_village || null,
+            password_hash: passwordHash,
+            is_active: true,
+            passport_number: data.passport_number?.trim() || null,
+            passport_expiry_date: data.passport_expiry_date ? new Date(data.passport_expiry_date) : null,
+            address: data.address?.trim() || null,
+            next_of_kin_name: data.next_of_kin_name?.trim() || null,
+            next_of_kin_address: data.next_of_kin_address?.trim() || null,
+            next_of_kin_email: data.next_of_kin_email?.trim() || null,
+            next_of_kin_phone: data.next_of_kin_phone?.trim() || null,
+            next_of_kin_will: data.next_of_kin_will || null,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
+
+        userId = typeof result === 'object' ? result.id : result;
+
+        // Add village associations if provided
+        if (data.role === 'admin' && data.village_ids && data.village_ids.length > 0) {
+          const villageRows = data.village_ids.map(villageId => ({
+            user_id: userId,
+            village_id: villageId,
+            created_at: new Date(),
+            updated_at: new Date()
+          }));
+
+          await trx('user_villages').insert(villageRows);
+        }
+      });
       
       const user = await this.getUserById(userId);
       if (!user) {
@@ -375,74 +430,99 @@ export class UserService {
       }
     }
 
-    const updateData: any = {
-      updated_at: new Date()
-    };
-
-    // Only update provided fields
-    if (data.name !== undefined && data.name.trim()) {
-      updateData.name = data.name.trim();
-    }
-
-    if (data.email !== undefined && data.email.trim()) {
-      updateData.email = data.email.toLowerCase().trim();
-    }
-
-    if (data.phone_number !== undefined) {
-      updateData.phone_number = data.phone_number ? data.phone_number.trim() : null;
-    }
-
-    if (data.role !== undefined) {
-      updateData.role = data.role;
-    }
-
-    if (data.responsible_village !== undefined) {
-      updateData.responsible_village = data.responsible_village || null;
-    }
-
-    // Handle new fields
-    if (data.passport_number !== undefined) {
-      updateData.passport_number = data.passport_number ? data.passport_number.trim() : null;
-    }
-
-    if (data.passport_expiry_date !== undefined) {
-      updateData.passport_expiry_date = data.passport_expiry_date ? new Date(data.passport_expiry_date) : null;
-    }
-
-    if (data.address !== undefined) {
-      updateData.address = data.address ? data.address.trim() : null;
-    }
-
-    if (data.next_of_kin_name !== undefined) {
-      updateData.next_of_kin_name = data.next_of_kin_name ? data.next_of_kin_name.trim() : null;
-    }
-
-    if (data.next_of_kin_address !== undefined) {
-      updateData.next_of_kin_address = data.next_of_kin_address ? data.next_of_kin_address.trim() : null;
-    }
-
-    if (data.next_of_kin_email !== undefined) {
-      updateData.next_of_kin_email = data.next_of_kin_email ? data.next_of_kin_email.trim() : null;
-    }
-
-    if (data.next_of_kin_phone !== undefined) {
-      updateData.next_of_kin_phone = data.next_of_kin_phone ? data.next_of_kin_phone.trim() : null;
-    }
-
-    if (data.next_of_kin_will !== undefined) {
-      updateData.next_of_kin_will = data.next_of_kin_will || null;
-    }
-
-    // Handle password update if provided
-    if (data.password && data.password.trim()) {
-      const password_hash = await this.hashPassword(data.password.trim());
-      await this.updateUserAuth(id, { password_hash });
-    }
-
     try {
-      await db('users')
-        .where('id', id)
-        .update(updateData);
+      await db.transaction(async (trx) => {
+        const updateData: any = {
+          updated_at: new Date()
+        };
+
+        // Only update provided fields
+        if (data.name !== undefined && data.name.trim()) {
+          updateData.name = data.name.trim();
+        }
+
+        if (data.email !== undefined && data.email.trim()) {
+          updateData.email = data.email.toLowerCase().trim();
+        }
+
+        if (data.phone_number !== undefined) {
+          updateData.phone_number = data.phone_number ? data.phone_number.trim() : null;
+        }
+
+        if (data.role !== undefined) {
+          updateData.role = data.role;
+        }
+
+        if (data.responsible_village !== undefined) {
+          updateData.responsible_village = data.responsible_village || null;
+        }
+
+        // Handle new fields
+        if (data.passport_number !== undefined) {
+          updateData.passport_number = data.passport_number ? data.passport_number.trim() : null;
+        }
+
+        if (data.passport_expiry_date !== undefined) {
+          updateData.passport_expiry_date = data.passport_expiry_date ? new Date(data.passport_expiry_date) : null;
+        }
+
+        if (data.address !== undefined) {
+          updateData.address = data.address ? data.address.trim() : null;
+        }
+
+        if (data.next_of_kin_name !== undefined) {
+          updateData.next_of_kin_name = data.next_of_kin_name ? data.next_of_kin_name.trim() : null;
+        }
+
+        if (data.next_of_kin_address !== undefined) {
+          updateData.next_of_kin_address = data.next_of_kin_address ? data.next_of_kin_address.trim() : null;
+        }
+
+        if (data.next_of_kin_email !== undefined) {
+          updateData.next_of_kin_email = data.next_of_kin_email ? data.next_of_kin_email.trim() : null;
+        }
+
+        if (data.next_of_kin_phone !== undefined) {
+          updateData.next_of_kin_phone = data.next_of_kin_phone ? data.next_of_kin_phone.trim() : null;
+        }
+
+        if (data.next_of_kin_will !== undefined) {
+          updateData.next_of_kin_will = data.next_of_kin_will || null;
+        }
+
+        // Update user data
+        await trx('users')
+          .where('id', id)
+          .update(updateData);
+
+        // Handle password update if provided
+        if (data.password && data.password.trim()) {
+          const password_hash = await this.hashPassword(data.password.trim());
+          await this.updateUserAuth(id, { password_hash });
+        }
+
+        // Update village associations if provided and user is an admin
+        const existingUser = await trx('users').select('role').where('id', id).first();
+        
+        if (existingUser.role === 'admin' && data.village_ids !== undefined) {
+          // Remove existing associations
+          await trx('user_villages')
+            .where('user_id', id)
+            .del();
+
+          // Add new associations if any
+          if (data.village_ids && data.village_ids.length > 0) {
+            const villageRows = data.village_ids.map(villageId => ({
+              user_id: id,
+              village_id: villageId,
+              created_at: new Date(),
+              updated_at: new Date()
+            }));
+
+            await trx('user_villages').insert(villageRows);
+          }
+        }
+      });
 
       const user = await this.getUserById(id);
       if (!user) {
@@ -606,7 +686,7 @@ export class UserService {
       .where('role', role)
       .orderBy('name', 'asc');
 
-    return users.map((user: any) => ({
+    const transformedUsers: PublicUser[] = users.map((user: any) => ({
       id: user.id,
       name: user.name,
       email: user.email,
@@ -618,6 +698,20 @@ export class UserService {
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at)
     }));
+
+    // Fetch villages for admin users
+    if (role === 'admin') {
+      await Promise.all(
+        transformedUsers.map(async (user) => {
+          const villages = await this.getUserVillages(user.id);
+          if (villages.length > 0) {
+            user.villages = villages;
+          }
+        })
+      );
+    }
+
+    return transformedUsers;
   }
 
   /**
@@ -642,6 +736,69 @@ export class UserService {
     }
 
     return user;
+  }
+
+  /**
+   * Get user villages
+   */
+  async getUserVillages(userId: number): Promise<Village[]> {
+    if (!userId || userId <= 0) {
+      return [];
+    }
+
+    const villages = await db('user_villages as uv')
+      .join('villages as v', 'uv.village_id', 'v.id')
+      .where('uv.user_id', userId)
+      .select(
+        'v.id', 
+        'v.name', 
+        'v.electricity_price', 
+        'v.water_price',
+        'v.phases',
+        'v.created_by',
+        'v.created_at',
+        'v.updated_at'
+      );
+
+    return villages.map(village => ({
+      id: village.id,
+      name: village.name,
+      electricity_price: village.electricity_price,
+      water_price: village.water_price,
+      phases: village.phases,
+      created_by: village.created_by,
+      created_at: new Date(village.created_at),
+      updated_at: new Date(village.updated_at)
+    }));
+  }
+
+  /**
+   * Set user villages (replaces existing associations)
+   */
+  async setUserVillages(userId: number, villageIds: number[]): Promise<void> {
+    if (!userId || userId <= 0) {
+      throw new Error('Invalid user ID');
+    }
+
+    // Start a transaction to ensure data consistency
+    await db.transaction(async (trx) => {
+      // Remove existing associations
+      await trx('user_villages')
+        .where('user_id', userId)
+        .del();
+
+      // Add new associations if any
+      if (villageIds && villageIds.length > 0) {
+        const rows = villageIds.map(villageId => ({
+          user_id: userId,
+          village_id: villageId,
+          created_at: new Date(),
+          updated_at: new Date()
+        }));
+
+        await trx('user_villages').insert(rows);
+      }
+    });
   }
 
   /**

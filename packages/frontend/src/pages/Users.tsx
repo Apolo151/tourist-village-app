@@ -88,6 +88,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   // Form states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  // Update the state to remove responsible_village
   const [newUser, setNewUser] = useState({
     name: '',
     email: '',
@@ -95,7 +96,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     phone_number: '',
     role: 'renter' as 'super_admin' | 'admin' | 'owner' | 'renter',
     is_active: true,
-    responsible_village: undefined as number | undefined,
+    village_ids: [] as number[],
     passport_number: '',
     passport_expiry_date: '',
     address: '',
@@ -135,6 +136,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     setFilteredUsers(filtered);
   }, [users, hideSuperAdmin]);
 
+  // Update the loadData function to ensure we get complete user data with villages
   const loadData = async () => {
     setLoading(true);
     setError(null);
@@ -149,8 +151,23 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         villageService.getVillages()
       ]);
       
-      setUsers(usersResult.data);
-      setTotalUsers(usersResult.pagination?.total || usersResult.data.length);
+      // Process users to ensure villages are properly set
+      const processedUsers = usersResult.data.map(user => {
+        // If user has no villages but has responsible_village, create a villages array
+        if (!user.villages && user.responsible_village) {
+          const village = villagesResult.data.find(v => v.id === user.responsible_village);
+          if (village) {
+            return {
+              ...user,
+              villages: [village]
+            };
+          }
+        }
+        return user;
+      });
+      
+      setUsers(processedUsers);
+      setTotalUsers(usersResult.pagination?.total || processedUsers.length);
       setVillages(villagesResult.data);
     } catch (err: any) {
       console.error('Error loading users data:', err);
@@ -160,6 +177,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   };
 
+  // Update the applyFilters function to filter by villages array
   const applyFilters = () => {
     let filtered = [...users];
 
@@ -180,9 +198,16 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
 
     // Village filter
     if (villageFilter) {
-      const selectedVillage = villages.find(v => v.name === villageFilter);
-      if (selectedVillage) {
-        filtered = filtered.filter(user => user.responsible_village === selectedVillage.id);
+      const villageId = parseInt(villageFilter);
+      if (!isNaN(villageId)) {
+        filtered = filtered.filter(user => {
+          // Check in villages array first
+          if (user.villages && user.villages.length > 0) {
+            return user.villages.some(v => v.id === villageId);
+          }
+          // Fallback to responsible_village for backward compatibility
+          return user.responsible_village === villageId;
+        });
       }
     }
 
@@ -228,12 +253,33 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     setPage(value);
   };
 
+  // Update the handleViewDetails function to handle users with responsible_village but no villages
   const handleViewDetails = (user: User) => {
+    // If user has no villages but has responsible_village, create a villages array
+    if (!user.villages && user.responsible_village) {
+      const village = villages.find(v => v.id === user.responsible_village);
+      if (village) {
+        user = {
+          ...user,
+          villages: [village]
+        };
+      }
+    }
+    
     setSelectedUser(user);
     setDetailsDialogOpen(true);
   };
 
   const handleEditUser = (user: User) => {
+    // If user has no villages but has responsible_village, create a villages array
+    let userVillages = user.villages || [];
+    if (userVillages.length === 0 && user.responsible_village) {
+      const village = villages.find(v => v.id === user.responsible_village);
+      if (village) {
+        userVillages = [village];
+      }
+    }
+    
     setEditingUser(user);
     setNewUser({
       name: user.name,
@@ -242,7 +288,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       phone_number: user.phone_number || '',
       role: user.role,
       is_active: user.is_active,
-      responsible_village: user.responsible_village,
+      village_ids: userVillages.map(v => v.id),
       passport_number: user.passport_number || '',
       passport_expiry_date: user.passport_expiry_date || '',
       address: user.address || '',
@@ -334,7 +380,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       phone_number: '',
       role: 'renter',
       is_active: true,
-      responsible_village: undefined,
+      village_ids: [],
       passport_number: '',
       passport_expiry_date: '',
       address: '',
@@ -390,7 +436,21 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   };
 
-  // Data transformer for export
+  // Add a helper function to get user projects
+  const getUserProjects = (user: User): string => {
+    if (user.villages && user.villages.length > 0) {
+      return user.villages.map(v => v.name).join(', ');
+    }
+    
+    if (user.responsible_village) {
+      const village = villages.find(v => v.id === user.responsible_village);
+      return village ? village.name : '';
+    }
+    
+    return '';
+  };
+
+  // Update the transformUsersForExport function to use the helper function
   const transformUsersForExport = (usersData: User[]) => {
     return usersData.map(user => ({
       name: user.name,
@@ -398,7 +458,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       phone: user.phone_number || '',
       role: user.role,
       status: user.is_active ? 'Active' : 'Inactive',
-      village: villages.find(v => v.id === user.responsible_village)?.name || '',
+      projects: getUserProjects(user),
       passport_number: user.passport_number || '',
       passport_expiry_date: user.passport_expiry_date ? formatDate(user.passport_expiry_date) : '',
       address: user.address || '',
@@ -575,7 +635,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                 >
                   <MenuItem value="">All Projects</MenuItem>
                   {villages.map(village => (
-                    <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
+                    <MenuItem key={village.id} value={village.id.toString()}>{village.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -620,7 +680,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         {/* Export Buttons */}
         <ExportButtons 
           data={transformUsersForExport(filteredUsers)} 
-          columns={["name", "email", "phone", "role", "status", "village", "passport_number", "passport_expiry_date", "address", "next_of_kin_name", "next_of_kin_phone", "next_of_kin_email", "next_of_kin_address", "created_at", "last_login"]} 
+          columns={["name", "email", "phone", "role", "status", "projects", "passport_number", "passport_expiry_date", "address", "next_of_kin_name", "next_of_kin_phone", "next_of_kin_email", "next_of_kin_address", "created_at", "last_login"]} 
           excelFileName="users.xlsx" 
           pdfFileName="users.pdf" 
         />
@@ -688,7 +748,28 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                       />
                     </TableCell>
                     <TableCell>
-                      {user.responsible_village ? (
+                      {user.villages && user.villages.length > 0 ? (
+                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                          {user.villages.slice(0, 2).map(village => (
+                            <Chip
+                              key={village.id}
+                              label={village.name}
+                              size="small"
+                              variant="outlined"
+                              icon={<HomeIcon fontSize="small" />}
+                              sx={{ maxWidth: 150 }}
+                            />
+                          ))}
+                          {user.villages.length > 2 && (
+                            <Chip
+                              label={`+${user.villages.length - 2} more`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ maxWidth: 150 }}
+                            />
+                          )}
+                        </Box>
+                      ) : user.responsible_village ? (
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <HomeIcon fontSize="small" />
                           {villages.find(v => v.id === user.responsible_village)?.name || 'Unknown'}
@@ -822,15 +903,24 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                       color={selectedUser.is_active ? 'success' : 'error'}
                     />
                   </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="subtitle2" color="text.secondary">Responsible Project</Typography>
-                    <Typography variant="body1">
-                      {selectedUser.responsible_village 
-                        ? villages.find(v => v.id === selectedUser.responsible_village)?.name || 'Unknown'
-                        : '-'
-                      }
-                    </Typography>
-                  </Grid>
+                  
+                  {selectedUser?.villages && selectedUser.villages.length > 0 && (
+                    <Grid size={{ xs: 12, sm: 12 }}>
+                      <Typography variant="subtitle2" color="text.secondary">Projects (Multiple)</Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 1 }}>
+                        {selectedUser.villages.map(village => (
+                          <Chip 
+                            key={village.id}
+                            label={village.name}
+                            color="primary"
+                            variant="outlined"
+                            icon={<HomeIcon fontSize="small" />}
+                          />
+                        ))}
+                      </Box>
+                    </Grid>
+                  )}
+                  
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <Typography variant="subtitle2" color="text.secondary">Created At</Typography>
                     <Typography variant="body1">{formatDate(selectedUser.created_at)}</Typography>
@@ -966,22 +1056,37 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
               </FormControl>
               
               {(newUser.role === 'admin') && (
-                <FormControl fullWidth margin="normal">
-                  <InputLabel>Responsible Project</InputLabel>
-                  <Select
-                    value={newUser.responsible_village?.toString() || ''}
-                    label="Responsible Project"
-                    onChange={(e) => setNewUser({ 
-                      ...newUser, 
-                      responsible_village: e.target.value ? parseInt(e.target.value) : undefined 
-                    })}
-                  >
-                    <MenuItem value="">None</MenuItem>
-                    {villages.map(village => (
-                      <MenuItem key={village.id} value={village.id}>{village.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <>
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel>Projects (Multiple)</InputLabel>
+                    <Select
+                      multiple
+                      value={newUser.village_ids}
+                      label="Projects (Multiple)"
+                      onChange={(e) => {
+                        const values = e.target.value as unknown as number[];
+                        setNewUser({
+                          ...newUser,
+                          village_ids: values
+                        });
+                      }}
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {(selected as unknown as number[]).map((value) => {
+                            const village = villages.find(v => v.id === value);
+                            return <Chip key={value} label={village?.name || value} />;
+                          })}
+                        </Box>
+                      )}
+                    >
+                      {villages.map(village => (
+                        <MenuItem key={village.id} value={village.id}>
+                          {village.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </>
               )}
               
               <FormControlLabel

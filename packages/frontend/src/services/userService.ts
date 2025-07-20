@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import type { ApiResponse } from './api';
+import type { Village } from './authService';
 
 // Backend types (based on backend/src/types/index.ts)
 export interface User {
@@ -10,7 +11,9 @@ export interface User {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: string;
   is_active: boolean;
+  /** @deprecated Use villages instead */
   responsible_village?: number;
+  villages?: Village[];
   passport_number?: string;
   passport_expiry_date?: string;
   address?: string;
@@ -38,7 +41,9 @@ export interface CreateUserRequest {
   password: string;
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  /** @deprecated Use village_ids instead */
   responsible_village?: number;
+  village_ids?: number[];
   passport_number?: string;
   passport_expiry_date?: string;
   address?: string;
@@ -55,7 +60,9 @@ export interface UpdateUserRequest {
   phone_number?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
   is_active?: boolean;
+  /** @deprecated Use village_ids instead */
   responsible_village?: number;
+  village_ids?: number[];
   passport_number?: string;
   passport_expiry_date?: string;
   address?: string;

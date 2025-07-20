@@ -9,6 +9,14 @@ export interface Village {
   updated_at: Date;
 }
 
+export interface UserVillage {
+  id: number;
+  user_id: number;
+  village_id: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -20,7 +28,9 @@ export interface User {
   is_active: boolean;
   refresh_token_hash?: string;
   refresh_token_expires_at?: Date;
+  /** @deprecated Use villages instead */
   responsible_village?: number;
+  villages?: Village[]; // Added for multiple villages support
   // New fields
   passport_number?: string;
   passport_expiry_date?: Date;
@@ -43,7 +53,9 @@ export interface PublicUser {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: Date;
   is_active: boolean;
+  /** @deprecated Use villages instead */
   responsible_village?: number;
+  villages?: Village[]; // Added for multiple villages support
   // New fields
   passport_number?: string;
   passport_expiry_date?: Date;
@@ -257,7 +269,9 @@ export interface CreateUserRequest {
   email: string;
   phone_number?: string;
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
+  /** @deprecated Use village_ids instead */
   responsible_village?: number;
+  village_ids?: number[]; // Added for multiple villages support
   // New fields
   passport_number?: string;
   passport_expiry_date?: string; // ISO date string
@@ -274,7 +288,9 @@ export interface UpdateUserRequest {
   email?: string;
   phone_number?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
+  /** @deprecated Use village_ids instead */
   responsible_village?: number;
+  village_ids?: number[]; // Added for multiple villages support
   password?: string;
   // New fields
   passport_number?: string;
@@ -337,6 +353,15 @@ declare global {
       user?: PublicUser;
       villageFilter?: number;
     }
+  }
+}
+
+// Extend Express Request type
+declare module 'express' {
+  interface Request {
+    user?: PublicUser;
+    villageFilter?: number;
+    villageFilters?: number[];
   }
 }
 

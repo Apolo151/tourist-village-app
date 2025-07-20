@@ -2,6 +2,17 @@ import { apiClient } from './api';
 import type { ApiResponse } from './api';
 
 // Backend types (based on backend/src/types/index.ts)
+export interface Village {
+  id: number;
+  name: string;
+  electricity_price: number;
+  water_price: number;
+  phases: number;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -10,7 +21,9 @@ export interface User {
   role: 'super_admin' | 'admin' | 'owner' | 'renter';
   last_login?: string;
   is_active: boolean;
+  /** @deprecated Use villages instead */
   responsible_village?: number;
+  villages?: Village[];
   created_at: string;
   updated_at: string;
 }

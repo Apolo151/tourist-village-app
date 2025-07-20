@@ -30,7 +30,13 @@ apartmentsRouter.get(
         sort_order: (req.query.sort_order as 'asc' | 'desc') || 'asc'
       };
 
-      const result = await apartmentService.getApartments(filters, req.villageFilter);
+      // If villageFilter is present from middleware, include it in filter for backward compatibility
+      const villageFilter = req.villageFilter;
+      
+      // If villageFilters is present, override villageFilter with array approach
+      const villageFilters = req.villageFilters;
+      
+      const result = await apartmentService.getApartments(filters, villageFilter, villageFilters);
 
       res.json({
         success: true,
@@ -62,12 +68,16 @@ apartmentsRouter.get(
     try {
       const villageId = parseInt(req.params.villageId);
       
-      // Check village filter (for admin users with responsible_village)
-      if (req.villageFilter && villageId !== req.villageFilter) {
+      // Check village access (for admin users with responsible villages)
+      const hasAccess = !req.villageFilters || 
+                        req.villageFilters.includes(villageId) || 
+                        (req.villageFilter === villageId);
+                        
+      if (req.user?.role === 'admin' && !hasAccess) {
         return res.status(403).json({
           success: false,
           error: 'Access denied',
-          message: 'You can only access apartments in your responsible village'
+          message: 'You can only access apartments in your responsible villages'
         });
       }
       

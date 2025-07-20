@@ -1666,8 +1666,10 @@ export class ValidationMiddleware {
    * This should be used after basic validation to ensure the village exists
    */
   static async validateVillageExists(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const { responsible_village } = req.body;
+    // Check responsible_village field (backward compatibility)
+    const { responsible_village, village_ids } = req.body;
     
+    // Check single village field
     if (responsible_village !== undefined && responsible_village !== null) {
       try {
         const { db } = await import('../database/connection');
@@ -1687,6 +1689,40 @@ export class ValidationMiddleware {
           success: false,
           error: 'Internal server error',
           message: 'Failed to validate village existence'
+        });
+        return;
+      }
+    }
+    
+    // Check multiple villages
+    if (village_ids && Array.isArray(village_ids) && village_ids.length > 0) {
+      try {
+        const { db } = await import('../database/connection');
+        
+        // Get existing villages matching the provided IDs
+        const villages = await db('villages').whereIn('id', village_ids);
+        
+        // Check if all requested village IDs exist
+        const existingIds = villages.map(v => v.id);
+        const nonExistingIds = village_ids.filter(id => !existingIds.includes(id));
+        
+        if (nonExistingIds.length > 0) {
+          res.status(400).json({
+            success: false,
+            error: 'Validation failed',
+            details: [{ 
+              field: 'village_ids', 
+              message: `Villages with the following IDs do not exist: ${nonExistingIds.join(', ')}` 
+            }]
+          });
+          return;
+        }
+      } catch (error) {
+        console.error('Error validating multiple villages existence:', error);
+        res.status(500).json({
+          success: false,
+          error: 'Internal server error',
+          message: 'Failed to validate villages existence'
         });
         return;
       }

@@ -19,7 +19,7 @@ export class ApartmentService {
   /**
    * Get all apartments with filtering, sorting, and pagination
    */
-  async getApartments(filters: ApartmentFilters, villageFilter?: number): Promise<PaginatedResponse<Apartment>> {
+  async getApartments(filters: ApartmentFilters, villageFilter?: number, villageFilters?: number[]): Promise<PaginatedResponse<Apartment>> {
     const {
       village_id,
       phase,
@@ -56,8 +56,13 @@ export class ApartmentService {
     // Build a separate count query without joins for better performance
     let countQuery = db('apartments as a');
 
-    // Apply village filter if provided (for admin users with responsible_village)
-    if (villageFilter) {
+    // Apply village filter based on the new multiple villages approach
+    if (villageFilters && villageFilters.length > 0) {
+      query = query.whereIn('a.village_id', villageFilters);
+      countQuery = countQuery.whereIn('a.village_id', villageFilters);
+    } 
+    // Fallback to single village filter for backward compatibility
+    else if (villageFilter) {
       query = query.where('a.village_id', villageFilter);
       countQuery = countQuery.where('a.village_id', villageFilter);
     }

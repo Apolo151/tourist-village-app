@@ -175,19 +175,39 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
 };
 
 /**
- * Middleware to filter data based on user's responsible village
- * If user is admin with responsible_village set, only show data from that village
- * If user is not admin or has no responsible_village, no filtering is applied
+ * Middleware to filter data based on user's responsible villages
+ * Prioritizes user_villages table over the deprecated responsible_village field
  */
 export const filterByResponsibleVillage = () => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return next();
     }
 
-    // Only filter for admin with responsible_village
-    if (req.user.role === 'admin' && req.user.responsible_village) {
-      req.villageFilter = req.user.responsible_village;
+    // Only filter for admin users
+    if (req.user.role === 'admin') {
+      try {
+        // Get villages from user_villages table
+        const { db } = await import('../database/connection');
+        const userVillages = await db('user_villages')
+          .where('user_id', req.user.id)
+          .select('village_id');
+        
+        if (userVillages && userVillages.length > 0) {
+          // Store as array of village IDs
+          req.villageFilters = userVillages.map(v => v.village_id);
+          // For backward compatibility with code that expects a single village
+          req.villageFilter = userVillages[0].village_id;
+        } 
+        // Fallback to responsible_village field only if user_villages is empty
+        else if (req.user.responsible_village) {
+          // For backward compatibility
+          req.villageFilter = req.user.responsible_village;
+          req.villageFilters = [req.user.responsible_village];
+        }
+      } catch (error) {
+        console.error('Error fetching user villages:', error);
+      }
     }
 
     // For owner/renter, do not set req.villageFilter (allow all)

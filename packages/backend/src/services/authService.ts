@@ -305,13 +305,25 @@ export class AuthService {
       return null;
     }
 
-    return {
+    const userObj: User = {
       ...user,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at),
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       refresh_token_expires_at: user.refresh_token_expires_at ? new Date(user.refresh_token_expires_at) : undefined
     };
+
+    // Fetch user villages if the user is an admin
+    if (user.role === 'admin') {
+      const { UserService } = await import('../services/userService');
+      const userService = new UserService();
+      const villages = await userService.getUserVillages(user.id);
+      if (villages.length > 0) {
+        userObj.villages = villages;
+      }
+    }
+
+    return userObj;
   }
 
   /**
@@ -333,13 +345,25 @@ export class AuthService {
       return null;
     }
 
-    return {
+    const userObj: User = {
       ...user,
       created_at: new Date(user.created_at),
       updated_at: new Date(user.updated_at),
       last_login: user.last_login ? new Date(user.last_login) : undefined,
       refresh_token_expires_at: user.refresh_token_expires_at ? new Date(user.refresh_token_expires_at) : undefined
     };
+
+    // Fetch user villages if the user is an admin
+    if (user.role === 'admin') {
+      const { UserService } = await import('../services/userService');
+      const userService = new UserService();
+      const villages = await userService.getUserVillages(user.id);
+      if (villages.length > 0) {
+        userObj.villages = villages;
+      }
+    }
+
+    return userObj;
   }
 
   /**
