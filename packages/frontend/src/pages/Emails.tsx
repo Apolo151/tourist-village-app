@@ -65,6 +65,11 @@ export default function Emails() {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [villages, setVillages] = useState<any[]>([]);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('');
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+  const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
   
   // Filters and search
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
@@ -109,6 +114,20 @@ export default function Emails() {
     };
 
     loadApartments();
+  }, []);
+
+  // Load villages for filtering
+  useEffect(() => {
+    const loadVillages = async () => {
+      try {
+        const villagesData = await apartmentService.getApartments({ limit: 1 }); // Just to get the structure
+        const villagesList = await import('../services/villageService').then(m => m.villageService.getVillages());
+        setVillages(villagesList.data);
+      } catch (err) {
+        // ignore
+      }
+    };
+    loadVillages();
   }, []);
 
   // Load emails
@@ -181,6 +200,41 @@ export default function Emails() {
     setSearchParams(params);
   }, [searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter, pagination.page, setSearchParams]);
 
+  // Update available phases when project changes
+  useEffect(() => {
+    if (projectFilter) {
+      const selectedVillage = villages.find((v: any) => v.id === parseInt(projectFilter));
+      if (selectedVillage) {
+        const phaseNumbers = Array.from({ length: selectedVillage.phases || 0 }, (_, i) => i + 1);
+        setAvailablePhases(phaseNumbers);
+        if (phaseFilter && !phaseNumbers.includes(Number(phaseFilter))) {
+          setPhaseFilter('');
+        }
+      } else {
+        setAvailablePhases([]);
+      }
+    } else {
+      const maxPhase = Math.max(...villages.map((v: any) => v.phases || 0), 0);
+      setAvailablePhases(Array.from({ length: maxPhase }, (_, i) => i + 1));
+    }
+  }, [projectFilter, villages]);
+
+  // Update filtered apartments when project or phase changes
+  useEffect(() => {
+    let filtered = [...apartments];
+    if (projectFilter) {
+      filtered = filtered.filter(apt => apt.village?.id === parseInt(projectFilter));
+    }
+    if (phaseFilter) {
+      filtered = filtered.filter(apt => apt.phase === parseInt(phaseFilter));
+    }
+    setFilteredApartments(filtered);
+    // Clear apartment filter if not in filtered list
+    if (apartmentFilter && !filtered.some(apt => apt.id === parseInt(apartmentFilter))) {
+      setApartmentFilter('');
+    }
+  }, [apartments, projectFilter, phaseFilter]);
+
   // Handle filter changes
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
@@ -238,6 +292,8 @@ export default function Emails() {
     setDateToFilter('');
     setFromFilter('');
     setToFilter('');
+    setProjectFilter('');
+    setPhaseFilter('');
     setPagination(prev => ({ ...prev, page: 1 }));
   };
 
@@ -398,6 +454,39 @@ export default function Emails() {
               sx={{ minWidth: 300 }}
             />
             
+            <FormControl sx={{ minWidth: 180 }}>
+              <InputLabel>Project</InputLabel>
+              <Select
+                value={projectFilter}
+                onChange={e => {
+                  setProjectFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                label="Project"
+              >
+                <MenuItem value="">All Projects</MenuItem>
+                {villages.map((v: any) => (
+                  <MenuItem key={v.id} value={v.id}>{v.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl sx={{ minWidth: 140 }}>
+              <InputLabel>Phase</InputLabel>
+              <Select
+                value={phaseFilter}
+                onChange={e => {
+                  setPhaseFilter(e.target.value);
+                  setPagination(prev => ({ ...prev, page: 1 }));
+                }}
+                label="Phase"
+              >
+                <MenuItem value="">All Phases</MenuItem>
+                {availablePhases.map(phaseNum => (
+                  <MenuItem key={phaseNum} value={phaseNum}>Phase {phaseNum}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
             <FormControl sx={{ minWidth: 200 }}>
               <InputLabel>Apartment</InputLabel>
               <Select
@@ -406,7 +495,7 @@ export default function Emails() {
                 label="Apartment"
               >
                 <MenuItem value="">All Apartments</MenuItem>
-                {apartments.map(apartment => (
+                {filteredApartments.map(apartment => (
                   <MenuItem key={apartment.id} value={apartment.id.toString()}>
                     {apartment.name} - {apartment.village?.name}
                   </MenuItem>
@@ -669,4 +758,4 @@ export default function Emails() {
       </Box>
     </Container>
   );
-} 
+}

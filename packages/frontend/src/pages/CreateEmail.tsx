@@ -153,16 +153,19 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
 
   const handleSelectChange = (e: any) => {
     const { name, value } = e.target;
-    
+
     if (name === 'apartment_id') {
-      setFormData(prev => ({ 
-        ...prev, 
+      // When apartment changes, explicitly set booking_id to null (not undefined)
+      // to ensure the SearchableDropdown is properly cleared
+      setFormData(prev => ({
+        ...prev,
         apartment_id: value ? parseInt(value) : undefined as any,
-        booking_id: undefined // Reset booking when apartment changes
+        // Always clear booking_id and booking text when apartment changes in edit mode
+        booking_id: actuallyEditing ? undefined : prev.booking_id
       }));
     } else if (name === 'booking_id') {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         booking_id: value ? parseInt(value) : undefined
       }));
     } else if (name === 'type') {
@@ -171,7 +174,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-    
+
     // Clear error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
@@ -336,7 +339,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const fieldsLocked = actuallyViewing && !onSuccess && !onCancel;
 
   // Apartment field: lock if lockApartment is true and apartmentId is provided
-  const apartmentFieldLocked = lockApartment && apartmentId !== undefined;
+  // Also lock if in view mode (details page)
+  const apartmentFieldLocked = (fieldsLocked || (lockApartment && apartmentId !== undefined));
 
   if (loading) {
     return (
@@ -491,7 +495,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                       booking_id: booking.id
                     }))
                   ]}
-                  value={formData.booking_id || null}
+                  value={formData.booking_id || null} // Ensure null is used when booking_id is falsy
                   onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
                   label="Related Booking (Optional)"
                   placeholder="Search bookings by user name..."
@@ -499,6 +503,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   error={!!formErrors.booking_id}
                   helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
                   getOptionLabel={(option) => option.label}
+                  key={`booking-dropdown-${formData.apartment_id}`} // Add key to force re-render when apartment changes
                   renderOption={(props, option) => (
                     <li {...props}>
                       <Box>
@@ -614,7 +619,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
               disabled={submitting}
               onClick={handleSubmit}
             >
-              {submitting ? 'Saving...' : 'Create Email'}
+              {submitting
+                ? 'Saving...'
+                : (actuallyEditing ? 'Edit Email' : 'Create Email')}
             </Button>
           </>
         )}
