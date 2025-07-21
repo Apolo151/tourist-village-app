@@ -99,6 +99,8 @@ export default function Utilities() {
   // Additional state
   const [villages, setVillages] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+  const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
 
   // Check if user is admin
   useEffect(() => {
@@ -160,6 +162,59 @@ export default function Utilities() {
     };
     loadDropdownData();
   }, []);
+
+  // Update filtered phases when village is selected
+  useEffect(() => {
+    if (filters.village_id) {
+      const selectedVillage = villages.find(v => v.id === filters.village_id);
+      if (selectedVillage) {
+        // Generate phase numbers from 1 to village.phases
+        const phaseNumbers = Array.from(
+          { length: selectedVillage.phases || 0 }, 
+          (_, i) => i + 1
+        );
+        setAvailablePhases(phaseNumbers);
+        
+        // Clear phase selection when village changes if phase doesn't exist in new village
+        if (filters.phase) {
+          const phaseExists = (selectedVillage.phases || 0) >= filters.phase;
+          if (!phaseExists) {
+            handleFilterChange('phase', undefined);
+          }
+        }
+      } else {
+        setAvailablePhases([]);
+      }
+    } else {
+      // If no village is selected, get all possible phases from all villages
+      const maxPhase = Math.max(...villages.map(v => v.phases || 0), 0);
+      const allPhases = Array.from({ length: maxPhase }, (_, i) => i + 1);
+      setAvailablePhases(allPhases);
+    }
+  }, [filters.village_id, villages]);
+
+  // Update filtered apartments when village or phase is selected
+  useEffect(() => {
+    let filtered = [...apartments];
+    
+    if (filters.village_id) {
+      filtered = filtered.filter(apt => apt.village?.id === filters.village_id);
+    }
+    
+    if (filters.phase) {
+      filtered = filtered.filter(apt => apt.phase === filters.phase);
+    }
+    
+    setFilteredApartments(filtered);
+    
+    // Clear apartment selection if it's not in the filtered list
+    if (filters.apartment_id) {
+      const apartmentExists = filtered.some(apt => apt.id === filters.apartment_id);
+      if (!apartmentExists) {
+        handleFilterChange('apartment_id', undefined);
+      }
+    }
+  }, [filters.village_id, filters.phase, apartments]);
 
   const handleFilterChange = (key: keyof UtilityReadingFilters, value: any) => {
     setFilters(prev => ({
@@ -319,6 +374,41 @@ export default function Utilities() {
             </Button>
           </Box>
           <Grid container spacing={2} alignItems="center">
+            {/* Project Filter (First) */}
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Project</InputLabel>
+                <Select
+                  value={filters.village_id || ''}
+                  label="Project"
+                  onChange={(e) => handleFilterChange('village_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
+                >
+                  <MenuItem value="">All Projects</MenuItem>
+                  {villages.map(village => (
+                    <MenuItem key={village.id} value={village.id}>{village.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Phase Filter (Second) */}
+            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Phase</InputLabel>
+                <Select
+                  value={filters.phase || ''}
+                  label="Phase"
+                  onChange={(e) => handleFilterChange('phase', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
+                >
+                  <MenuItem value="">All Phases</MenuItem>
+                  {availablePhases.map(phaseNumber => (
+                    <MenuItem key={phaseNumber} value={phaseNumber}>Phase {phaseNumber}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Apartment Filter (Third) */}
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <FormControl fullWidth size="small">
                 <InputLabel>Apartment</InputLabel>
@@ -328,26 +418,10 @@ export default function Utilities() {
                   onChange={(e) => handleFilterChange('apartment_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
                 >
                   <MenuItem value="">All Apartments</MenuItem>
-                  {apartments.map(apartment => (
+                  {filteredApartments.map(apartment => (
                     <MenuItem key={apartment.id} value={apartment.id}>
                       {apartment.name} ({apartment.village?.name})
                     </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Village</InputLabel>
-                <Select
-                  value={filters.village_id || ''}
-                  label="Village"
-                  onChange={(e) => handleFilterChange('village_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
-                >
-                  <MenuItem value="">All Villages</MenuItem>
-                  {villages.map(village => (
-                    <MenuItem key={village.id} value={village.id}>{village.name}</MenuItem>
                   ))}
                 </Select>
               </FormControl>
@@ -391,106 +465,6 @@ export default function Utilities() {
 
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <TextField
-                label="Start Date From"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.start_date_from || ''}
-                onChange={e => handleFilterChange('start_date_from', e.target.value || undefined)}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Start Date To"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.start_date_to || ''}
-                onChange={e => handleFilterChange('start_date_to', e.target.value || undefined)}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="End Date From"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.end_date_from || ''}
-                onChange={e => handleFilterChange('end_date_from', e.target.value || undefined)}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="End Date To"
-                type="date"
-                size="small"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={filters.end_date_to || ''}
-                onChange={e => handleFilterChange('end_date_to', e.target.value || undefined)}
-              />
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Has Water Readings</InputLabel>
-                <Select
-                  value={filters.has_water_readings === undefined ? '' : String(filters.has_water_readings)}
-                  label="Has Water Readings"
-                  onChange={e => {
-                    const val = e.target.value;
-                    handleFilterChange('has_water_readings', val === '' ? undefined : val === 'true');
-                  }}
-                >
-                  <MenuItem value="">Any</MenuItem>
-                  <MenuItem value="true">Yes</MenuItem>
-                  <MenuItem value="false">No</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Has Electricity Readings</InputLabel>
-                <Select
-                  value={filters.has_electricity_readings === undefined ? '' : String(filters.has_electricity_readings)}
-                  label="Has Electricity Readings"
-                  onChange={e => {
-                    const val = e.target.value;
-                    handleFilterChange('has_electricity_readings', val === '' ? undefined : val === 'true');
-                  }}
-                >
-                  <MenuItem value="">Any</MenuItem>
-                  <MenuItem value="true">Yes</MenuItem>
-                  <MenuItem value="false">No</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Created By</InputLabel>
-                <Select
-                  value={filters.created_by || ''}
-                  label="Created By"
-                  onChange={e => handleFilterChange('created_by', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
-                >
-                  <MenuItem value="">All Users</MenuItem>
-                  {users.map(user => (
-                    <MenuItem key={user.id} value={user.id}>{user.name} ({user.role})</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
                 label="Search"
                 size="small"
                 fullWidth
@@ -498,39 +472,6 @@ export default function Utilities() {
                 onChange={e => handleFilterChange('search', e.target.value || undefined)}
               />
             </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sort By</InputLabel>
-                <Select
-                  value={filters.sort_by || 'created_at'}
-                  label="Sort By"
-                  onChange={e => handleFilterChange('sort_by', e.target.value)}
-                >
-                  <MenuItem value="created_at">Created At</MenuItem>
-                  <MenuItem value="start_date">Start Date</MenuItem>
-                  <MenuItem value="end_date">End Date</MenuItem>
-                  <MenuItem value="apartment_name">Apartment Name</MenuItem>
-                  <MenuItem value="village_name">Village Name</MenuItem>
-                  <MenuItem value="who_pays">Who Pays</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Sort Order</InputLabel>
-                <Select
-                  value={filters.sort_order || 'desc'}
-                  label="Sort Order"
-                  onChange={e => handleFilterChange('sort_order', e.target.value)}
-                >
-                  <MenuItem value="desc">Descending</MenuItem>
-                  <MenuItem value="asc">Ascending</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-
           </Grid>
         </Paper>
 
@@ -730,4 +671,4 @@ export default function Utilities() {
       </Box>
     </Container>
   );
-} 
+}

@@ -88,7 +88,7 @@ export class BookingService {
         'a.name as apartment_name',
         'a.village_id as apartment_village_id',
         'a.phase as apartment_phase',
-        'a.paying_status as apartment_paying_status',
+        'a.paying_status_id as apartment_paying_status_id',
         'v.name as village_name'
       );
 
@@ -258,7 +258,7 @@ export class BookingService {
         'a.phase as apartment_phase',
         'a.owner_id as apartment_owner_id',
         'a.purchase_date as apartment_purchase_date',
-        'a.paying_status as apartment_paying_status',
+        'a.paying_status_id as apartment_paying_status_id',
         'a.created_by as apartment_created_by',
         'a.created_at as apartment_created_at',
         'a.updated_at as apartment_updated_at',

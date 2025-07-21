@@ -99,9 +99,10 @@ export interface UpdateUtilityReadingRequest {
 }
 
 export interface UtilityReadingFilters {
+  village_id?: number;
+  phase?: number;
   apartment_id?: number;
   booking_id?: number;
-  village_id?: number;
   who_pays?: 'owner' | 'renter' | 'company';
   start_date_from?: string;
   start_date_to?: string;
