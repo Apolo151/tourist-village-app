@@ -12,7 +12,8 @@ import {
   MenuItem,
   Box,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material';
@@ -20,8 +21,12 @@ import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
 import { userService } from '../services/userService';
+import { payingStatusTypeService } from '../services/payingStatusTypeService';
+import { salesStatusTypeService } from '../services/salesStatusTypeService';
 import type { Village } from '../services/villageService';
 import type { User } from '../services/userService';
+import type { PayingStatusType } from '../services/payingStatusTypeService';
+import type { SalesStatusType } from '../services/salesStatusTypeService';
 import type { Apartment, UpdateApartmentRequest } from '../services/apartmentService';
 
 export default function EditApartment() {
@@ -32,6 +37,8 @@ export default function EditApartment() {
   const [apartment, setApartment] = useState<Apartment | null>(null);
   const [villages, setVillages] = useState<Village[]>([]);
   const [owners, setOwners] = useState<User[]>([]);
+  const [payingStatusTypes, setPayingStatusTypes] = useState<PayingStatusType[]>([]);
+  const [salesStatusTypes, setSalesStatusTypes] = useState<SalesStatusType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
@@ -42,7 +49,8 @@ export default function EditApartment() {
     phase: 1,
     owner_id: 0,
     purchase_date: '',
-    paying_status: 'non-payer'
+    paying_status_id: 0,
+    sales_status_id: 0
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -64,15 +72,19 @@ export default function EditApartment() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [apartmentData, villagesData, usersData] = await Promise.all([
+      const [apartmentData, villagesData, usersData, payingStatusData, salesStatusData] = await Promise.all([
         apartmentService.getApartmentById(parseInt(id!)),
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ role: 'owner', limit: 100 })
+        userService.getUsers({ role: 'owner', limit: 100 }),
+        payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
+        salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
       ]);
       
       setApartment(apartmentData);
       setVillages(villagesData.data);
       setOwners(usersData.data);
+      setPayingStatusTypes(payingStatusData.data);
+      setSalesStatusTypes(salesStatusData.data);
       
       // Set form data from apartment
       setFormData({
@@ -81,7 +93,8 @@ export default function EditApartment() {
         phase: apartmentData.phase,
         owner_id: apartmentData.owner_id,
         purchase_date: apartmentData.purchase_date ? apartmentData.purchase_date.split('T')[0] : '',
-        paying_status: apartmentData.paying_status
+        paying_status_id: apartmentData.paying_status_id,
+        sales_status_id: apartmentData.sales_status_id
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load apartment data');
@@ -123,10 +136,10 @@ export default function EditApartment() {
       setFormData(prev => ({ ...prev, owner_id: parseInt(value) }));
     } else if (name === 'phase') {
       setFormData(prev => ({ ...prev, phase: parseInt(value) }));
-    } else if (name === 'paying_status') {
-      setFormData(prev => ({ ...prev, paying_status: value as 'transfer' | 'rent' | 'non-payer' }));
-    } else if (name === 'sales_status') {
-      setFormData(prev => ({ ...prev, sales_status: value as 'for sale' | 'not for sale' }));
+    } else if (name === 'paying_status_id') {
+      setFormData(prev => ({ ...prev, paying_status_id: parseInt(value) }));
+    } else if (name === 'sales_status_id') {
+      setFormData(prev => ({ ...prev, sales_status_id: parseInt(value) }));
     }
     
     if (errors[name]) {
@@ -155,6 +168,14 @@ export default function EditApartment() {
     
     if (!formData.phase) {
       newErrors.phase = 'Phase is required';
+    }
+
+    if (!formData.paying_status_id) {
+      newErrors.paying_status_id = 'Paying status is required';
+    }
+
+    if (!formData.sales_status_id) {
+      newErrors.sales_status_id = 'Sales status is required';
     }
     
     setErrors(newErrors);
@@ -233,19 +254,21 @@ export default function EditApartment() {
 
         <Paper sx={{ p: 3 }}>
           <form onSubmit={handleSubmit}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <TextField
-                fullWidth
-                label="Apartment Name"
-                name="name"
-                value={formData.name || ''}
-                onChange={handleInputChange}
-                error={!!errors.name}
-                helperText={errors.name}
-                required
-              />
+            <Grid container spacing={3}>
+              <Grid size={{xs: 12}}>
+                <TextField
+                  fullWidth
+                  label="Apartment Name"
+                  name="name"
+                  value={formData.name || ''}
+                  onChange={handleInputChange}
+                  error={!!errors.name}
+                  helperText={errors.name}
+                  required
+                />
+              </Grid>
 
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth error={!!errors.village_id} required>
                   <InputLabel>Project</InputLabel>
                   <Select
@@ -269,7 +292,9 @@ export default function EditApartment() {
                     </Typography>
                   )}
                 </FormControl>
+              </Grid>
 
+              <Grid size={{xs: 12, sm: 6}}>
                 <FormControl fullWidth error={!!errors.phase} required disabled={!formData.village_id}>
                   <InputLabel>Apartment Phase</InputLabel>
                   <Select
@@ -290,33 +315,35 @@ export default function EditApartment() {
                     </Typography>
                   )}
                 </FormControl>
-              </Box>
+              </Grid>
 
-              <FormControl fullWidth error={!!errors.owner_id} required>
-                <InputLabel>Owner Name</InputLabel>
-                <Select
-                  name="owner_id"
-                  value={formData.owner_id?.toString() || ''}
-                  label="Owner Name"
-                  onChange={handleSelectChange}
-                >
-                  <MenuItem value="">
-                    <em>Select Owner</em>
-                  </MenuItem>
-                  {owners.map(owner => (
-                    <MenuItem key={owner.id} value={owner.id.toString()}>
-                      {owner.name} ({owner.email})
+              <Grid size={{xs: 12}}>
+                <FormControl fullWidth error={!!errors.owner_id} required>
+                  <InputLabel>Owner Name</InputLabel>
+                  <Select
+                    name="owner_id"
+                    value={formData.owner_id?.toString() || ''}
+                    label="Owner Name"
+                    onChange={handleSelectChange}
+                  >
+                    <MenuItem value="">
+                      <em>Select Owner</em>
                     </MenuItem>
-                  ))}
-                </Select>
-                {errors.owner_id && (
-                  <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
-                    {errors.owner_id}
-                  </Typography>
-                )}
-              </FormControl>
+                    {owners.map(owner => (
+                      <MenuItem key={owner.id} value={owner.id.toString()}>
+                        {owner.name} ({owner.email})
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.owner_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
+                      {errors.owner_id}
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
 
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Grid size={{xs: 12, sm: 6}}>
                 <TextField
                   fullWidth
                   label="Purchase Date"
@@ -328,53 +355,71 @@ export default function EditApartment() {
                     shrink: true,
                   }}
                 />
+              </Grid>
 
-                <FormControl fullWidth required>
+              <Grid size={{xs: 12, sm: 6}}>
+                <FormControl fullWidth error={!!errors.paying_status_id} required>
                   <InputLabel>Paying Status</InputLabel>
                   <Select
-                    name="paying_status"
-                    value={formData.paying_status || ''}
+                    name="paying_status_id"
+                    value={(formData.paying_status_id || 0).toString()}
                     label="Paying Status"
                     onChange={handleSelectChange}
                   >
-                    <MenuItem value="transfer">Paid By Transfer</MenuItem>
-                    <MenuItem value="rent">Paid By Rent</MenuItem>
-                    <MenuItem value="non-payer">Non-Payer</MenuItem>
+                    {payingStatusTypes.map(status => (
+                      <MenuItem key={status.id} value={status.id.toString()}>
+                        {status.display_name}
+                      </MenuItem>
+                    ))}
                   </Select>
+                  {errors.paying_status_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
+                      {errors.paying_status_id}
+                    </Typography>
+                  )}
                 </FormControl>
-              </Box>
+              </Grid>
 
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel id="sales-status-label">Sales Status</InputLabel>
-                <Select
-                  labelId="sales-status-label"
-                  name="sales_status"
-                  value={formData.sales_status || 'not for sale'}
-                  label="Sales Status"
-                  onChange={handleSelectChange}
-                >
-                  <MenuItem value="not for sale">Not for Sale</MenuItem>
-                  <MenuItem value="for sale">For Sale</MenuItem>
-                </Select>
-              </FormControl>
+              <Grid size={{xs: 12}}>
+                <FormControl fullWidth error={!!errors.sales_status_id} required>
+                  <InputLabel>Sales Status</InputLabel>
+                  <Select
+                    name="sales_status_id"
+                    value={(formData.sales_status_id || 0).toString()}
+                    label="Sales Status"
+                    onChange={handleSelectChange}
+                  >
+                    {salesStatusTypes.map(status => (
+                      <MenuItem key={status.id} value={status.id.toString()}>
+                        {status.display_name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                  {errors.sales_status_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
+                      {errors.sales_status_id}
+                    </Typography>
+                  )}
+                </FormControl>
+              </Grid>
+            </Grid>
 
-              <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  onClick={handleBack}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<SaveIcon />}
-                  disabled={saving}
-                >
-                  {saving ? 'Updating...' : 'Update Apartment'}
-                </Button>
-              </Box>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
+              <Button
+                variant="outlined"
+                onClick={handleBack}
+                disabled={saving}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveIcon />}
+                disabled={saving}
+              >
+                {saving ? 'Updating...' : 'Update Apartment'}
+              </Button>
             </Box>
           </form>
         </Paper>

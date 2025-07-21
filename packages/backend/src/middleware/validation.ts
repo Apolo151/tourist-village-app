@@ -29,8 +29,19 @@ export class ValidationMiddleware {
       errors.push({ field: 'owner_id', message: 'Owner ID is required and must be a positive number' });
     }
 
-    if (!data.paying_status || !['transfer', 'rent', 'non-payer'].includes(data.paying_status)) {
-      errors.push({ field: 'paying_status', message: 'Paying status must be one of: transfer, rent, non-payer' });
+    // Status validation - support both old and new format
+    const hasOldPayingStatus = data.paying_status && ['transfer', 'rent', 'non-payer'].includes(data.paying_status);
+    const hasNewPayingStatus = data.paying_status_id && typeof data.paying_status_id === 'number' && data.paying_status_id > 0;
+    
+    if (!hasOldPayingStatus && !hasNewPayingStatus) {
+      errors.push({ field: 'paying_status', message: 'Either paying_status (transfer, rent, non-payer) or paying_status_id (number) is required' });
+    }
+
+    const hasOldSalesStatus = data.sales_status && ['for sale', 'not for sale'].includes(data.sales_status);
+    const hasNewSalesStatus = data.sales_status_id && typeof data.sales_status_id === 'number' && data.sales_status_id > 0;
+    
+    if (!hasOldSalesStatus && !hasNewSalesStatus) {
+      errors.push({ field: 'sales_status', message: 'Either sales_status (for sale, not for sale) or sales_status_id (number) is required' });
     }
 
     // Optional fields validation
@@ -97,6 +108,24 @@ export class ValidationMiddleware {
       }
     }
 
+    if (data.paying_status_id !== undefined) {
+      if (typeof data.paying_status_id !== 'number' || data.paying_status_id <= 0) {
+        errors.push({ field: 'paying_status_id', message: 'Paying status ID must be a positive number' });
+      }
+    }
+
+    if (data.sales_status !== undefined) {
+      if (!['for sale', 'not for sale'].includes(data.sales_status)) {
+        errors.push({ field: 'sales_status', message: 'Sales status must be one of: for sale, not for sale' });
+      }
+    }
+
+    if (data.sales_status_id !== undefined) {
+      if (typeof data.sales_status_id !== 'number' || data.sales_status_id <= 0) {
+        errors.push({ field: 'sales_status_id', message: 'Sales status ID must be a positive number' });
+      }
+    }
+
     if (data.purchase_date !== undefined && data.purchase_date !== null) {
       if (!ValidationMiddleware.isValidDate(data.purchase_date)) {
         errors.push({ field: 'purchase_date', message: 'Purchase date must be a valid date in YYYY-MM-DD format' });
@@ -141,9 +170,22 @@ export class ValidationMiddleware {
       errors.push({ field: 'phase', message: 'Phase must be a positive integer' });
     }
 
-    // Validate paying_status
-    if (query.paying_status && !['transfer', 'rent', 'non-payer'].includes(query.paying_status as string)) {
+    // Validate paying_status - support both old string and new ID format
+    if (query.paying_status && typeof query.paying_status === 'string' && !['transfer', 'rent', 'non-payer'].includes(query.paying_status)) {
       errors.push({ field: 'paying_status', message: 'Paying status must be one of: transfer, rent, non-payer' });
+    }
+
+    if (query.paying_status_id && !ValidationMiddleware.isPositiveInteger(query.paying_status_id as string)) {
+      errors.push({ field: 'paying_status_id', message: 'Paying status ID must be a positive integer' });
+    }
+
+    // Validate sales_status - support both old string and new ID format
+    if (query.sales_status && typeof query.sales_status === 'string' && !['for sale', 'not for sale'].includes(query.sales_status)) {
+      errors.push({ field: 'sales_status', message: 'Sales status must be one of: for sale, not for sale' });
+    }
+
+    if (query.sales_status_id && !ValidationMiddleware.isPositiveInteger(query.sales_status_id as string)) {
+      errors.push({ field: 'sales_status_id', message: 'Sales status ID must be a positive integer' });
     }
 
     // Validate status

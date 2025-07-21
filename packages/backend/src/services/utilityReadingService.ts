@@ -290,6 +290,8 @@ export class UtilityReadingService {
           phase: ur.apartment_phase,
           owner_id: ur.apartment_owner_id,
           paying_status: ur.apartment_paying_status,
+          paying_status_id: 1, // Default value
+          sales_status_id: 1, // Default value
           created_by: ur.apartment_created_by,
           created_at: new Date(ur.apartment_created_at),
           updated_at: new Date(ur.apartment_updated_at),
@@ -477,6 +479,8 @@ export class UtilityReadingService {
         phase: utilityReading.apartment_phase,
         owner_id: utilityReading.apartment_owner_id,
         paying_status: utilityReading.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: utilityReading.apartment_created_by,
         created_at: new Date(utilityReading.apartment_created_at),
         updated_at: new Date(utilityReading.apartment_updated_at),

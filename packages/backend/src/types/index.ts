@@ -21,17 +21,16 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  password?: string; // Only present when creating/updating
+  password_hash?: string; // Hash stored in database
   phone_number?: string;
-  role: 'super_admin' | 'admin' | 'owner' | 'renter';
-  password_hash?: string; // Optional for security - don't always include
-  last_login?: Date;
+  role: 'admin' | 'super_admin' | 'owner' | 'renter';
   is_active: boolean;
-  refresh_token_hash?: string;
-  refresh_token_expires_at?: Date;
-  /** @deprecated Use villages instead */
-  responsible_village?: number;
-  villages?: Village[]; // Added for multiple villages support
-  // New fields
+  last_login?: Date;
+  responsible_village?: number; // Village ID for admin users
+  refresh_token_hash?: string; // For JWT refresh tokens
+  refresh_token_expires_at?: Date; // Refresh token expiration
+  villages?: Village[]; // For admin users with multiple villages
   passport_number?: string;
   passport_expiry_date?: Date;
   address?: string;
@@ -39,7 +38,7 @@ export interface User {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
-  next_of_kin_will?: string; // New field
+  next_of_kin_will?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -50,13 +49,11 @@ export interface PublicUser {
   name: string;
   email: string;
   phone_number?: string;
-  role: 'super_admin' | 'admin' | 'owner' | 'renter';
-  last_login?: Date;
+  role: 'admin' | 'super_admin' | 'owner' | 'renter';
   is_active: boolean;
-  /** @deprecated Use villages instead */
-  responsible_village?: number;
-  villages?: Village[]; // Added for multiple villages support
-  // New fields
+  last_login?: Date;
+  responsible_village?: number; // Village ID for admin users
+  villages?: Village[]; // For admin users with multiple villages
   passport_number?: string;
   passport_expiry_date?: Date;
   address?: string;
@@ -64,9 +61,39 @@ export interface PublicUser {
   next_of_kin_address?: string;
   next_of_kin_email?: string;
   next_of_kin_phone?: string;
-  next_of_kin_will?: string; // New field
+  next_of_kin_will?: string;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface PayingStatusType {
+  id: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string; // Dynamic color for UI (e.g., 'success', 'warning', 'error', 'info', 'default')
+  is_active: boolean;
+  created_by?: number;
+  created_at: Date;
+  updated_at: Date;
+  
+  // Joined fields for API responses
+  creator?: PublicUser;
+}
+
+export interface SalesStatusType {
+  id: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string; // Dynamic color for UI (e.g., 'success', 'warning', 'error', 'info', 'default')
+  is_active: boolean;
+  created_by?: number;
+  created_at: Date;
+  updated_at: Date;
+  
+  // Joined fields for API responses
+  creator?: PublicUser;
 }
 
 export interface Apartment {
@@ -76,18 +103,24 @@ export interface Apartment {
   phase: number;
   owner_id: number;
   purchase_date?: Date;
-  paying_status: 'transfer' | 'rent' | 'non-payer';
+  paying_status_id: number;
+  sales_status_id: number;
   created_by: number;
   created_at: Date;
   updated_at: Date;
-  sales_status: 'for sale' | 'not for sale';
   
   // Computed fields (not in DB)
   village?: Village;
   owner?: PublicUser;
   created_by_user?: PublicUser;
+  paying_status_type?: PayingStatusType;
+  sales_status_type?: SalesStatusType;
   status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
   current_booking?: Booking;
+  
+  // Backward compatibility - these will be populated from the related entities
+  paying_status?: 'transfer' | 'rent' | 'non-payer';
+  sales_status?: 'for sale' | 'not for sale';
 }
 
 export interface Booking {
@@ -189,6 +222,8 @@ export interface ApartmentFilters {
   status?: string;
   paying_status?: string;
   sales_status?: string;
+  paying_status_id?: number;
+  sales_status_id?: number;
   search?: string;
   page?: number;
   limit?: number;
@@ -210,7 +245,11 @@ export interface CreateApartmentRequest {
   phase: number;
   owner_id: number;
   purchase_date?: string;
-  paying_status: 'transfer' | 'rent' | 'non-payer';
+  paying_status_id: number;
+  sales_status_id?: number;
+  
+  // Backward compatibility - will be converted to IDs internally
+  paying_status?: 'transfer' | 'rent' | 'non-payer';
   sales_status?: 'for sale' | 'not for sale';
 }
 
@@ -220,6 +259,10 @@ export interface UpdateApartmentRequest {
   phase?: number;
   owner_id?: number;
   purchase_date?: string;
+  paying_status_id?: number;
+  sales_status_id?: number;
+  
+  // Backward compatibility - will be converted to IDs internally
   paying_status?: 'transfer' | 'rent' | 'non-payer';
   sales_status?: 'for sale' | 'not for sale';
 }
@@ -236,6 +279,56 @@ export interface UpdateVillageRequest {
   electricity_price?: number;
   water_price?: number;
   phases?: number;
+}
+
+export interface CreatePayingStatusTypeRequest {
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface UpdatePayingStatusTypeRequest {
+  name?: string;
+  display_name?: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface CreateSalesStatusTypeRequest {
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface UpdateSalesStatusTypeRequest {
+  name?: string;
+  display_name?: string;
+  description?: string;
+  color?: string;
+  is_active?: boolean;
+}
+
+export interface PayingStatusTypeFilters {
+  search?: string;
+  is_active?: boolean;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+}
+
+export interface SalesStatusTypeFilters {
+  search?: string;
+  is_active?: boolean;
+  page?: number;
+  limit?: number;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
 }
 
 export interface PaginatedResponse<T> {

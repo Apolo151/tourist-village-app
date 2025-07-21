@@ -48,13 +48,19 @@ import {
   Save as SaveIcon,
   ElectricBolt as ElectricIcon,
   Water as WaterIcon,
+  AccountBalance as PayingStatusIcon,
+  AttachMoney as SalesStatusIcon,
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { paymentMethodService } from '../services/paymentMethodService';
 import { villageService } from '../services/villageService';
+import { payingStatusTypeService } from '../services/payingStatusTypeService';
+import { salesStatusTypeService } from '../services/salesStatusTypeService';
 import type { PaymentMethod } from '../services/paymentMethodService';
 import type { Village } from '../services/villageService';
+import type { PayingStatusType } from '../services/payingStatusTypeService';
+import type { SalesStatusType } from '../services/salesStatusTypeService';
 import Users from './Users';
 
 interface TabPanelProps {
@@ -91,14 +97,20 @@ export default function Settings() {
   // Data states
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
+  const [payingStatusTypes, setPayingStatusTypes] = useState<PayingStatusType[]>([]);
+  const [salesStatusTypes, setSalesStatusTypes] = useState<SalesStatusType[]>([]);
 
   // Dialog states
   const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
   const [openVillageDialog, setOpenVillageDialog] = useState(false);
+  const [openPayingStatusDialog, setOpenPayingStatusDialog] = useState(false);
+  const [openSalesStatusDialog, setOpenSalesStatusDialog] = useState(false);
 
   // Editing states
   const [editingPayment, setEditingPayment] = useState<PaymentMethod | null>(null);
   const [editingVillage, setEditingVillage] = useState<Village | null>(null);
+  const [editingPayingStatus, setEditingPayingStatus] = useState<PayingStatusType | null>(null);
+  const [editingSalesStatus, setEditingSalesStatus] = useState<SalesStatusType | null>(null);
 
   // Form states
   const [newPaymentMethod, setNewPaymentMethod] = useState({
@@ -111,6 +123,20 @@ export default function Settings() {
     electricity_price: 1.5,
     water_price: 0.75,
     phases: 1
+  });
+
+  const [newPayingStatus, setNewPayingStatus] = useState({
+    name: '',
+    display_name: '',
+    description: '',
+    is_active: true
+  });
+
+  const [newSalesStatus, setNewSalesStatus] = useState({
+    name: '',
+    display_name: '',
+    description: '',
+    is_active: true
   });
 
   // Only show user management for super_admins
@@ -140,6 +166,12 @@ export default function Settings() {
           break;
         case 3: // Villages tab
           await loadVillages();
+          break;
+        case 4: // Paying Status Types tab
+          await loadPayingStatusTypes();
+          break;
+        case 5: // Sales Status Types tab
+          await loadSalesStatusTypes();
           break;
         default:
           break;
@@ -172,6 +204,16 @@ export default function Settings() {
         console.warn('User does not have permission to view villages');
       }
     }
+  };
+
+  const loadPayingStatusTypes = async () => {
+    const result = await payingStatusTypeService.getPayingStatusTypes({ limit: 100 });
+    setPayingStatusTypes(result.data);
+  };
+
+  const loadSalesStatusTypes = async () => {
+    const result = await salesStatusTypeService.getSalesStatusTypes({ limit: 100 });
+    setSalesStatusTypes(result.data);
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -339,6 +381,8 @@ export default function Settings() {
             {(currentUser?.role === 'super_admin') && (
               <Tab icon={<HomeIcon />} iconPosition="start" label="Project Details" />
             )}
+            <Tab icon={<PayingStatusIcon />} iconPosition="start" label="Paying Status Types" />
+            <Tab icon={<SalesStatusIcon />} iconPosition="start" label="Sales Status Types" />
           </Tabs>
           
           {/* General Settings Tab */}
@@ -506,6 +550,180 @@ export default function Settings() {
               )}
             </Box>
           </TabPanel>
+
+          {/* Paying Status Types Tab */}
+          <TabPanel value={tabValue} index={4}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Paying Status Types</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => {
+                    setEditingPayingStatus(null);
+                    setNewPayingStatus({ name: '', display_name: '', description: '', is_active: true });
+                    setOpenPayingStatusDialog(true);
+                  }}
+                >
+                  Add Paying Status Type
+                </Button>
+              </Box>
+              
+              <Divider sx={{ mb: 3 }} />
+              
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <List>
+                  {payingStatusTypes.map(status => (
+                    <ListItem key={status.id} divider>
+                      <ListItemText
+                        primary={status.name}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              Display Name: {status.display_name}
+                            </Typography>
+                            <Typography variant="body2">
+                              Description: {status.description || 'No description'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Is Active: {status.is_active ? 'Yes' : 'No'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Created by: {status.creator?.name || 'Unknown'} | 
+                              {' '}Created: {new Date(status.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <Tooltip title="Edit Paying Status Type">
+                          <IconButton edge="end" onClick={() => {
+                            setEditingPayingStatus(status);
+                            setNewPayingStatus({
+                              name: status.name,
+                              display_name: status.display_name,
+                              description: status.description || '',
+                              is_active: status.is_active
+                            });
+                            setOpenPayingStatusDialog(true);
+                          }}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Paying Status Type">
+                          <IconButton edge="end" onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this paying status type?')) {
+                              try {
+                                payingStatusTypeService.deletePayingStatusType(status.id);
+                                setSnackbarMessage('Paying status type deleted successfully');
+                                setOpenSnackbar(true);
+                                loadPayingStatusTypes();
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : 'Failed to delete paying status type');
+                              }
+                            }
+                          }}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </TabPanel>
+
+          {/* Sales Status Types Tab */}
+          <TabPanel value={tabValue} index={5}>
+            <Box sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h6">Sales Status Types</Typography>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={() => {
+                    setEditingSalesStatus(null);
+                    setNewSalesStatus({ name: '', display_name: '', description: '', is_active: true });
+                    setOpenSalesStatusDialog(true);
+                  }}
+                >
+                  Add Sales Status Type
+                </Button>
+              </Box>
+              
+              <Divider sx={{ mb: 3 }} />
+              
+              {loading ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <List>
+                  {salesStatusTypes.map(status => (
+                    <ListItem key={status.id} divider>
+                      <ListItemText
+                        primary={status.name}
+                        secondary={
+                          <Box>
+                            <Typography variant="body2">
+                              Display Name: {status.display_name}
+                            </Typography>
+                            <Typography variant="body2">
+                              Description: {status.description || 'No description'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Is Active: {status.is_active ? 'Yes' : 'No'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              Created by: {status.creator?.name || 'Unknown'} | 
+                              {' '}Created: {new Date(status.created_at).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        }
+                      />
+                      <ListItemSecondaryAction>
+                        <Tooltip title="Edit Sales Status Type">
+                          <IconButton edge="end" onClick={() => {
+                            setEditingSalesStatus(status);
+                            setNewSalesStatus({
+                              name: status.name,
+                              display_name: status.display_name,
+                              description: status.description || '',
+                              is_active: status.is_active
+                            });
+                            setOpenSalesStatusDialog(true);
+                          }}>
+                            <EditIcon />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete Sales Status Type">
+                          <IconButton edge="end" onClick={() => {
+                            if (window.confirm('Are you sure you want to delete this sales status type?')) {
+                              try {
+                                salesStatusTypeService.deleteSalesStatusType(status.id);
+                                setSnackbarMessage('Sales status type deleted successfully');
+                                setOpenSnackbar(true);
+                                loadSalesStatusTypes();
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : 'Failed to delete sales status type');
+                              }
+                            }
+                          }}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </Tooltip>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+            </Box>
+          </TabPanel>
         </Paper>
       </Box>
 
@@ -592,6 +810,146 @@ export default function Settings() {
           <Button onClick={() => setOpenVillageDialog(false)}>Cancel</Button>
           <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSaveVillage}>
             {editingVillage ? 'Update Project' : 'Add Project'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Paying Status Type Dialog */}
+      <Dialog open={openPayingStatusDialog} onClose={() => setOpenPayingStatusDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingPayingStatus ? 'Edit Paying Status Type' : 'Add Paying Status Type'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Name"
+              name="name"
+              value={newPayingStatus.name}
+              onChange={(e) => setNewPayingStatus(prev => ({ ...prev, name: e.target.value }))}
+              fullWidth
+              required
+              helperText="Internal name (e.g., 'transfer', 'rent', 'non-payer')"
+            />
+            <TextField
+              label="Display Name"
+              name="display_name"
+              value={newPayingStatus.display_name}
+              onChange={(e) => setNewPayingStatus(prev => ({ ...prev, display_name: e.target.value }))}
+              fullWidth
+              required
+              helperText="User-friendly name (e.g., 'Paid by Transfer')"
+            />
+            <TextField
+              label="Description"
+              name="description"
+              value={newPayingStatus.description}
+              onChange={(e) => setNewPayingStatus(prev => ({ ...prev, description: e.target.value }))}
+              fullWidth
+              multiline
+              rows={3}
+              helperText="Optional description explaining this status"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newPayingStatus.is_active}
+                  onChange={(e) => setNewPayingStatus(prev => ({ ...prev, is_active: e.target.checked }))}
+                  name="is_active"
+                />
+              }
+              label="Active"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPayingStatusDialog(false)}>Cancel</Button>
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={async () => {
+            try {
+              if (editingPayingStatus) {
+                await payingStatusTypeService.updatePayingStatusType(editingPayingStatus.id, newPayingStatus);
+                setSnackbarMessage('Paying status type updated successfully');
+              } else {
+                await payingStatusTypeService.createPayingStatusType(newPayingStatus);
+                setSnackbarMessage('Paying status type created successfully');
+              }
+              setOpenPayingStatusDialog(false);
+              setOpenSnackbar(true);
+              loadPayingStatusTypes();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to save paying status type');
+            }
+          }}>
+            {editingPayingStatus ? 'Update Status Type' : 'Add Status Type'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Sales Status Type Dialog */}
+      <Dialog open={openSalesStatusDialog} onClose={() => setOpenSalesStatusDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          {editingSalesStatus ? 'Edit Sales Status Type' : 'Add Sales Status Type'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Name"
+              name="name"
+              value={newSalesStatus.name}
+              onChange={(e) => setNewSalesStatus(prev => ({ ...prev, name: e.target.value }))}
+              fullWidth
+              required
+              helperText="Internal name (e.g., 'for_sale', 'not_for_sale')"
+            />
+            <TextField
+              label="Display Name"
+              name="display_name"
+              value={newSalesStatus.display_name}
+              onChange={(e) => setNewSalesStatus(prev => ({ ...prev, display_name: e.target.value }))}
+              fullWidth
+              required
+              helperText="User-friendly name (e.g., 'For Sale')"
+            />
+            <TextField
+              label="Description"
+              name="description"
+              value={newSalesStatus.description}
+              onChange={(e) => setNewSalesStatus(prev => ({ ...prev, description: e.target.value }))}
+              fullWidth
+              multiline
+              rows={3}
+              helperText="Optional description explaining this status"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={newSalesStatus.is_active}
+                  onChange={(e) => setNewSalesStatus(prev => ({ ...prev, is_active: e.target.checked }))}
+                  name="is_active"
+                />
+              }
+              label="Active"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenSalesStatusDialog(false)}>Cancel</Button>
+          <Button variant="contained" startIcon={<SaveIcon />} onClick={async () => {
+            try {
+              if (editingSalesStatus) {
+                await salesStatusTypeService.updateSalesStatusType(editingSalesStatus.id, newSalesStatus);
+                setSnackbarMessage('Sales status type updated successfully');
+              } else {
+                await salesStatusTypeService.createSalesStatusType(newSalesStatus);
+                setSnackbarMessage('Sales status type created successfully');
+              }
+              setOpenSalesStatusDialog(false);
+              setOpenSnackbar(true);
+              loadSalesStatusTypes();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to save sales status type');
+            }
+          }}>
+            {editingSalesStatus ? 'Update Status Type' : 'Add Status Type'}
           </Button>
         </DialogActions>
       </Dialog>

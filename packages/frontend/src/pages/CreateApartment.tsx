@@ -20,8 +20,12 @@ import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
 import { userService } from '../services/userService';
+import { payingStatusTypeService } from '../services/payingStatusTypeService';
+import { salesStatusTypeService } from '../services/salesStatusTypeService';
 import type { Village } from '../services/villageService';
 import type { User } from '../services/userService';
+import type { PayingStatusType } from '../services/payingStatusTypeService';
+import type { SalesStatusType } from '../services/salesStatusTypeService';
 import type { CreateApartmentRequest } from '../services/apartmentService';
 import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
 import { ErrorMessageHandler } from '../utils/errorUtils';
@@ -35,6 +39,8 @@ export default function CreateApartment() {
   // Data state
   const [villages, setVillages] = useState<Village[]>([]);
   const [owners, setOwners] = useState<User[]>([]);
+  const [payingStatusTypes, setPayingStatusTypes] = useState<PayingStatusType[]>([]);
+  const [salesStatusTypes, setSalesStatusTypes] = useState<SalesStatusType[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [detailedError, setDetailedError] = useState<DetailedError | null>(null);
@@ -46,7 +52,8 @@ export default function CreateApartment() {
     phase: 1,
     owner_id: 0,
     purchase_date: new Date().toISOString().split('T')[0],
-    paying_status: 'non-payer'
+    paying_status_id: 0,
+    sales_status_id: 0
   });
   
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -67,13 +74,28 @@ export default function CreateApartment() {
       setLoading(true);
       setDetailedError(null);
       
-      const [villagesData, usersData] = await Promise.all([
+      const [villagesData, usersData, payingStatusData, salesStatusData] = await Promise.all([
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ role: 'owner', limit: 100 })
+        userService.getUsers({ role: 'owner', limit: 100 }),
+        payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
+        salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
       ]);
       
       setVillages(villagesData.data);
       setOwners(usersData.data);
+      setPayingStatusTypes(payingStatusData.data);
+      setSalesStatusTypes(salesStatusData.data);
+      
+      // Set default values if available
+      if (payingStatusData.data.length > 0) {
+        const defaultPayingStatus = payingStatusData.data.find(s => s.name === 'non-payer') || payingStatusData.data[0];
+        setFormData(prev => ({ ...prev, paying_status_id: defaultPayingStatus.id }));
+      }
+      
+      if (salesStatusData.data.length > 0) {
+        const defaultSalesStatus = salesStatusData.data.find(s => s.name === 'not_for_sale') || salesStatusData.data[0];
+        setFormData(prev => ({ ...prev, sales_status_id: defaultSalesStatus.id }));
+      }
       
       // If the admin has a responsible village, prefill the village field
       if (currentUser?.responsible_village) {
@@ -88,7 +110,7 @@ export default function CreateApartment() {
       setDetailedError({
         ...enhancedError,
         title: 'Failed to Load Required Data',
-        message: 'Could not load villages and owners information required for creating an apartment.',
+        message: 'Could not load villages, owners, and status types required for creating an apartment.',
         action: 'Please refresh the page to try again. If the problem persists, contact support.'
       });
     } finally {
@@ -136,10 +158,10 @@ export default function CreateApartment() {
       setFormData(prev => ({ ...prev, owner_id: parseInt(value) }));
     } else if (name === 'phase') {
       setFormData(prev => ({ ...prev, phase: parseInt(value) }));
-    } else if (name === 'paying_status') {
-      setFormData(prev => ({ ...prev, paying_status: value as 'transfer' | 'rent' | 'non-payer' }));
-    } else if (name === 'sales_status') {
-      setFormData(prev => ({ ...prev, sales_status: value as 'for sale' | 'not for sale' }));
+    } else if (name === 'paying_status_id') {
+      setFormData(prev => ({ ...prev, paying_status_id: parseInt(value) }));
+    } else if (name === 'sales_status_id') {
+      setFormData(prev => ({ ...prev, sales_status_id: parseInt(value) }));
     }
     
     // Clear field error for this field
@@ -176,6 +198,14 @@ export default function CreateApartment() {
     
     if (!formData.phase || formData.phase < 1) {
       newFieldErrors.phase = ErrorMessageHandler.getFormValidationMessage('phase', 'required');
+    }
+    
+    if (typeof formData.paying_status_id !== 'number' || formData.paying_status_id <= 0) {
+      newFieldErrors.paying_status_id = 'Payment status is required';
+    }
+    
+    if (typeof formData.sales_status_id !== 'number' || formData.sales_status_id <= 0) {
+      newFieldErrors.sales_status_id = 'Sales status is required';
     }
     
     // Validate that selected phase exists for the village
@@ -408,39 +438,61 @@ export default function CreateApartment() {
 
               {/* Paying Status */}
               <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth>
+                <FormControl fullWidth error={!!fieldErrors.paying_status_id} required disabled={saving}>
                   <InputLabel>Payment Status</InputLabel>
                   <Select
-                    name="paying_status"
-                    value={formData.paying_status}
+                    name="paying_status_id"
+                    value={(formData.paying_status_id || 0).toString()}
                     label="Payment Status"
                     onChange={handleSelectChange}
                     disabled={saving}
                   >
-                    <MenuItem value="transfer">Transfer (Paid in full)</MenuItem>
-                    <MenuItem value="rent">Rent (Monthly payments)</MenuItem>
-                    <MenuItem value="non-payer">Non-payer (Outstanding balance)</MenuItem>
+                    {payingStatusTypes.map(status => (
+                      <MenuItem key={status.id} value={status.id}>
+                        {status.name}
+                      </MenuItem>
+                    ))}
                   </Select>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
-                    Current payment status of the apartment owner
-                  </Typography>
+                  {fieldErrors.paying_status_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      {fieldErrors.paying_status_id}
+                    </Typography>
+                  )}
+                  {!payingStatusTypes.length && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      No payment status types available. Please add one in the settings.
+                    </Typography>
+                  )}
                 </FormControl>
               </Grid>
 
               {/* Sales Status */}
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth sx={{ mb: 2 }}>
-                  <InputLabel id="sales-status-label">Sales Status</InputLabel>
+                <FormControl fullWidth error={!!fieldErrors.sales_status_id} required disabled={saving}>
+                  <InputLabel>Sales Status</InputLabel>
                   <Select
-                    labelId="sales-status-label"
-                    name="sales_status"
-                    value={formData.sales_status || 'not for sale'}
+                    name="sales_status_id"
+                    value={(formData.sales_status_id || 0).toString()}
                     label="Sales Status"
                     onChange={handleSelectChange}
+                    disabled={saving}
                   >
-                    <MenuItem value="not for sale">Not for Sale</MenuItem>
-                    <MenuItem value="for sale">For Sale</MenuItem>
+                    {salesStatusTypes.map(status => (
+                      <MenuItem key={status.id} value={status.id}>
+                        {status.name}
+                      </MenuItem>
+                    ))}
                   </Select>
+                  {fieldErrors.sales_status_id && (
+                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      {fieldErrors.sales_status_id}
+                    </Typography>
+                  )}
+                  {!salesStatusTypes.length && (
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, ml: 2, display: 'block' }}>
+                      No sales status types available. Please add one in the settings.
+                    </Typography>
+                  )}
                 </FormControl>
               </Grid>
             </Grid>

@@ -247,6 +247,8 @@ export class EmailService {
         phase: email.apartment_phase,
         owner_id: email.apartment_owner_id,
         paying_status: email.apartment_paying_status,
+        paying_status_id: 1, // Default value - should be fetched from DB if needed
+        sales_status_id: 1, // Default value - should be fetched from DB if needed
         created_by: email.apartment_created_by,
         created_at: new Date(email.apartment_created_at),
         updated_at: new Date(email.apartment_updated_at),
@@ -416,6 +418,8 @@ export class EmailService {
         phase: email.apartment_phase,
         owner_id: email.apartment_owner_id,
         paying_status: email.apartment_paying_status,
+        paying_status_id: 1, // Default value - should be fetched from DB if needed
+        sales_status_id: 1, // Default value - should be fetched from DB if needed
         created_by: email.apartment_created_by,
         created_at: new Date(email.apartment_created_at),
         updated_at: new Date(email.apartment_updated_at),

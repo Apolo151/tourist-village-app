@@ -15,6 +15,8 @@ import emailsRouter from './routes/emails';
 import paymentMethodsRouter from './routes/paymentMethods';
 import paymentsRouter from './routes/payments';
 import invoicesRouter from './routes/invoices';
+import { payingStatusTypesRouter } from './routes/payingStatusTypes';
+import { salesStatusTypesRouter } from './routes/salesStatusTypes';
 
 /**
  * Create and configure Express application
@@ -57,6 +59,8 @@ app.use('/emails', emailsRouter);
 app.use('/payment-methods', paymentMethodsRouter);
 app.use('/payments', paymentsRouter);
 app.use('/invoices', invoicesRouter);
+app.use('/paying-status-types', payingStatusTypesRouter);
+app.use('/sales-status-types', salesStatusTypesRouter);
 
 // Root endpoint - API documentation
 app.get('/', (req, res) => {

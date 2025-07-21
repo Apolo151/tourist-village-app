@@ -256,6 +256,8 @@ export class PaymentService {
         phase: payment.apartment_phase,
         owner_id: payment.apartment_owner_id,
         paying_status: payment.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: payment.apartment_created_by,
         created_at: new Date(payment.apartment_created_at),
         updated_at: new Date(payment.apartment_updated_at),
@@ -438,6 +440,8 @@ export class PaymentService {
         phase: payment.apartment_phase,
         owner_id: payment.apartment_owner_id,
         paying_status: payment.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: payment.apartment_created_by,
         created_at: new Date(payment.apartment_created_at),
         updated_at: new Date(payment.apartment_updated_at),

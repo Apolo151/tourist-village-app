@@ -11,8 +11,12 @@ import {
   ServiceType,
   Payment,
   PublicUser,
-  Village
+  Village,
+  PayingStatusType,
+  SalesStatusType
 } from '../types';
+import { payingStatusTypeService } from './payingStatusTypeService';
+import { salesStatusTypeService } from './salesStatusTypeService';
 
 export class ApartmentService {
   
@@ -26,6 +30,8 @@ export class ApartmentService {
       status,
       paying_status,
       sales_status,
+      paying_status_id,
+      sales_status_id,
       search,
       page = 1,
       limit = 10,
@@ -40,6 +46,8 @@ export class ApartmentService {
     let query = db('apartments as a')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
       .leftJoin('users as u', 'a.owner_id', 'u.id')
+      .leftJoin('paying_status_types as pst', 'a.paying_status_id', 'pst.id')
+      .leftJoin('sales_status_types as sst', 'a.sales_status_id', 'sst.id')
       .select(
         'a.*',
         'v.name as village_name',
@@ -50,7 +58,15 @@ export class ApartmentService {
         'u.email as owner_email',
         'u.phone_number as owner_phone',
         'u.role as owner_role',
-        'u.is_active as owner_is_active'
+        'u.is_active as owner_is_active',
+        'pst.name as paying_status_name',
+        'pst.display_name as paying_status_display_name',
+        'pst.description as paying_status_description',
+        'pst.color as paying_status_color',
+        'sst.name as sales_status_name',
+        'sst.display_name as sales_status_display_name',
+        'sst.description as sales_status_description',
+        'sst.color as sales_status_color'
       );
 
     // Build a separate count query without joins for better performance
@@ -77,16 +93,47 @@ export class ApartmentService {
       countQuery = countQuery.where('a.phase', phase);
     }
     if (paying_status) {
-      query = query.where('a.paying_status', paying_status);
-      countQuery = countQuery.where('a.paying_status', paying_status);
+      // Handle both old string format and new format
+      if (typeof paying_status === 'string') {
+        // Convert old string to new ID format by joining with status types
+        query = query.whereIn('a.paying_status_id', 
+          db('paying_status_types').select('id').where('name', paying_status)
+        );
+        countQuery = countQuery.whereIn('a.paying_status_id', 
+          db('paying_status_types').select('id').where('name', paying_status)
+        );
+      } else {
+        query = query.where('a.paying_status_id', paying_status);
+        countQuery = countQuery.where('a.paying_status_id', paying_status);
+      }
+    }
+    if (paying_status_id) {
+      query = query.where('a.paying_status_id', paying_status_id);
+      countQuery = countQuery.where('a.paying_status_id', paying_status_id);
     }
     if (status) {
       query = query.where('a.status', status);
       countQuery = countQuery.where('a.status', status);
     }
     if (sales_status) {
-      query = query.where('a.sales_status', sales_status);
-      countQuery = countQuery.where('a.sales_status', sales_status);
+      // Handle both old string format and new format
+      if (typeof sales_status === 'string') {
+        // Convert old string to new ID format by joining with status types
+        const normalizedSalesStatus = sales_status.replace(/ /g, '_');
+        query = query.whereIn('a.sales_status_id', 
+          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
+        );
+        countQuery = countQuery.whereIn('a.sales_status_id', 
+          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
+        );
+      } else {
+        query = query.where('a.sales_status_id', sales_status);
+        countQuery = countQuery.where('a.sales_status_id', sales_status);
+      }
+    }
+    if (sales_status_id) {
+      query = query.where('a.sales_status_id', sales_status_id);
+      countQuery = countQuery.where('a.sales_status_id', sales_status_id);
     }
     if (search && search.trim()) {
       const searchTerm = search.trim();
@@ -114,11 +161,13 @@ export class ApartmentService {
     const validSortFields = ['name', 'phase', 'purchase_date', 'paying_status', 'owner_name', 'village_name', 'created_at'];
     const sortField = validSortFields.includes(sort_by) ? sort_by : 'name';
     const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
-    
+
     if (sortField === 'owner_name') {
       query = query.orderBy('u.name', validSortOrder);
     } else if (sortField === 'village_name') {
       query = query.orderBy('v.name', validSortOrder);
+    } else if (sortField === 'paying_status') {
+      query = query.orderBy('pst.display_name', validSortOrder);
     } else {
       query = query.orderBy(`a.${sortField}`, validSortOrder);
     }
@@ -127,27 +176,21 @@ export class ApartmentService {
     const offset = (validatedPage - 1) * validatedLimit;
     query = query.limit(validatedLimit).offset(offset);
 
-    const apartments = await query;
+    // Execute query
+    const results = await query;
 
-    // Transform and add computed fields
-    const transformedApartments = await Promise.all(
-      apartments.map(async (apt: any) => {
-        const apartment = this.transformApartmentData(apt);
-        
-        // Add current occupancy status
-        apartment.status = await this.calculateApartmentStatus(apartment.id);
-        
-        return apartment;
-      })
-    );
+    // Transform data
+    const apartments = results.map((data: any) => this.transformApartmentData(data));
+
+    const totalPages = Math.ceil(total / validatedLimit);
 
     return {
-      data: transformedApartments,
+      data: apartments,
       pagination: {
         page: validatedPage,
         limit: validatedLimit,
         total,
-        total_pages: Math.ceil(total / validatedLimit)
+        total_pages: totalPages
       }
     };
   }
@@ -164,6 +207,8 @@ export class ApartmentService {
       .leftJoin('villages as v', 'a.village_id', 'v.id')
       .leftJoin('users as u', 'a.owner_id', 'u.id')
       .leftJoin('users as cb', 'a.created_by', 'cb.id')
+      .leftJoin('paying_status_types as pst', 'a.paying_status_id', 'pst.id')
+      .leftJoin('sales_status_types as sst', 'a.sales_status_id', 'sst.id')
       .select(
         'a.*',
         'v.name as village_name',
@@ -187,7 +232,23 @@ export class ApartmentService {
         'cb.role as created_by_role',
         'cb.is_active as created_by_is_active',
         'cb.created_at as created_by_created_at',
-        'cb.updated_at as created_by_updated_at'
+        'cb.updated_at as created_by_updated_at',
+        'pst.id as paying_status_type_id',
+        'pst.name as paying_status_name',
+        'pst.display_name as paying_status_display_name',
+        'pst.description as paying_status_description',
+        'pst.color as paying_status_color',
+        'pst.is_active as paying_status_is_active',
+        'pst.created_at as paying_status_created_at',
+        'pst.updated_at as paying_status_updated_at',
+        'sst.id as sales_status_type_id',
+        'sst.name as sales_status_name',
+        'sst.display_name as sales_status_display_name',
+        'sst.description as sales_status_description',
+        'sst.color as sales_status_color',
+        'sst.is_active as sales_status_is_active',
+        'sst.created_at as sales_status_created_at',
+        'sst.updated_at as sales_status_updated_at'
       )
       .where('a.id', id)
       .first();
@@ -236,8 +297,38 @@ export class ApartmentService {
     // Validate phase is within village phases
     await this.validatePhaseForVillage(data.village_id, data.phase);
 
-    // Validate sales_status
-    const salesStatus = data.sales_status === 'for sale' ? 'for sale' : 'not for sale';
+    // Handle status conversions
+    let payingStatusId = data.paying_status_id;
+    let salesStatusId = data.sales_status_id;
+
+    // Convert old string format to IDs if needed
+    if (!payingStatusId && data.paying_status) {
+      const payingStatusType = await payingStatusTypeService.getPayingStatusTypeByName(data.paying_status);
+      if (!payingStatusType) {
+        throw new Error(`Invalid paying status: ${data.paying_status}`);
+      }
+      payingStatusId = payingStatusType.id;
+    }
+
+    if (!salesStatusId && data.sales_status) {
+      const normalizedSalesStatus = data.sales_status.replace(/ /g, '_');
+      const salesStatusType = await salesStatusTypeService.getSalesStatusTypeByName(normalizedSalesStatus);
+      if (!salesStatusType) {
+        throw new Error(`Invalid sales status: ${data.sales_status}`);
+      }
+      salesStatusId = salesStatusType.id;
+    }
+
+    // Default values if not provided
+    if (!payingStatusId) {
+      const defaultPayingStatus = await payingStatusTypeService.getPayingStatusTypeByName('non-payer');
+      payingStatusId = defaultPayingStatus?.id || 1;
+    }
+
+    if (!salesStatusId) {
+      const defaultSalesStatus = await salesStatusTypeService.getSalesStatusTypeByName('not_for_sale');
+      salesStatusId = defaultSalesStatus?.id || 1;
+    }
 
     try {
       const [apartmentId] = await db('apartments')
@@ -247,8 +338,8 @@ export class ApartmentService {
           phase: data.phase,
           owner_id: data.owner_id,
           purchase_date: data.purchase_date ? new Date(data.purchase_date) : null,
-          paying_status: data.paying_status,
-          sales_status: salesStatus,
+          paying_status_id: payingStatusId,
+          sales_status_id: salesStatusId,
           created_by: createdBy,
           created_at: new Date(),
           updated_at: new Date()
@@ -318,12 +409,30 @@ export class ApartmentService {
     if (data.purchase_date !== undefined) {
       updateData.purchase_date = data.purchase_date ? new Date(data.purchase_date) : null;
     }
-    if (data.paying_status !== undefined) updateData.paying_status = data.paying_status;
-    if (data.sales_status !== undefined) {
-      if (data.sales_status !== 'for sale' && data.sales_status !== 'not for sale') {
-        throw new Error('Invalid sales_status value');
+    
+    // Handle paying status
+    if (data.paying_status_id !== undefined) {
+      updateData.paying_status_id = data.paying_status_id;
+    } else if (data.paying_status !== undefined) {
+      // Handle backward compatibility - convert string to ID
+      const payingStatusType = await payingStatusTypeService.getPayingStatusTypeByName(data.paying_status);
+      if (!payingStatusType) {
+        throw new Error(`Invalid paying status: ${data.paying_status}`);
       }
-      updateData.sales_status = data.sales_status;
+      updateData.paying_status_id = payingStatusType.id;
+    }
+    
+    // Handle sales status
+    if (data.sales_status_id !== undefined) {
+      updateData.sales_status_id = data.sales_status_id;
+    } else if (data.sales_status !== undefined) {
+      // Handle backward compatibility - convert string to ID
+      const normalizedSalesStatus = data.sales_status.replace(/ /g, '_');
+      const salesStatusType = await salesStatusTypeService.getSalesStatusTypeByName(normalizedSalesStatus);
+      if (!salesStatusType) {
+        throw new Error(`Invalid sales status: ${data.sales_status}`);
+      }
+      updateData.sales_status_id = salesStatusType.id;
     }
 
     try {
@@ -601,11 +710,16 @@ export class ApartmentService {
       phase: data.phase,
       owner_id: data.owner_id,
       purchase_date: data.purchase_date ? new Date(data.purchase_date) : undefined,
-      paying_status: data.paying_status,
+      paying_status_id: data.paying_status_id,
+      sales_status_id: data.sales_status_id,
       created_by: data.created_by,
       created_at: new Date(data.created_at),
       updated_at: new Date(data.updated_at),
-      sales_status: data.sales_status || 'not for sale',
+      
+      // Backward compatibility - use the actual status type name if available, otherwise fallback
+      paying_status: (data.paying_status_name || 'non-payer') as 'transfer' | 'rent' | 'non-payer',
+      sales_status: (data.sales_status_name === 'for_sale' ? 'for sale' : 'not for sale') as 'for sale' | 'not for sale',
+      
       village: data.village_name ? {
         id: data.village_id,
         name: data.village_name,
@@ -636,6 +750,28 @@ export class ApartmentService {
         is_active: Boolean(data.created_by_is_active),
         created_at: new Date(data.created_by_created_at || data.created_at),
         updated_at: new Date(data.created_by_updated_at || data.updated_at)
+      } : undefined,
+      paying_status_type: data.paying_status_type_id ? {
+        id: data.paying_status_type_id,
+        name: data.paying_status_name,
+        display_name: data.paying_status_display_name,
+        description: data.paying_status_description || undefined,
+        color: data.paying_status_color || 'default',
+        is_active: Boolean(data.paying_status_is_active),
+        created_by: data.paying_status_created_by || undefined,
+        created_at: new Date(data.paying_status_created_at || data.created_at),
+        updated_at: new Date(data.paying_status_updated_at || data.updated_at)
+      } : undefined,
+      sales_status_type: data.sales_status_type_id ? {
+        id: data.sales_status_type_id,
+        name: data.sales_status_name,
+        display_name: data.sales_status_display_name,
+        description: data.sales_status_description || undefined,
+        color: data.sales_status_color || 'default',
+        is_active: Boolean(data.sales_status_is_active),
+        created_by: data.sales_status_created_by || undefined,
+        created_at: new Date(data.sales_status_created_at || data.created_at),
+        updated_at: new Date(data.sales_status_updated_at || data.updated_at)
       } : undefined
     };
   }

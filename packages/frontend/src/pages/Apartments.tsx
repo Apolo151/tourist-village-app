@@ -45,8 +45,12 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
+import { payingStatusTypeService } from '../services/payingStatusTypeService';
+import { salesStatusTypeService } from '../services/salesStatusTypeService';
 import type { Apartment } from '../services/apartmentService';
 import type { Village } from '../services/villageService';
+import type { PayingStatusType } from '../services/payingStatusTypeService';
+import type { SalesStatusType } from '../services/salesStatusTypeService';
 import ExportButtons from '../components/ExportButtons';
 import CreateBooking from './CreateBooking';
 
@@ -65,6 +69,8 @@ export default function Apartments() {
   // Data state
   const [apartments, setApartments] = useState<ApartmentWithBalance[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
+  const [payingStatusTypes, setPayingStatusTypes] = useState<PayingStatusType[]>([]);
+  const [salesStatusTypes, setSalesStatusTypes] = useState<SalesStatusType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   
@@ -125,8 +131,14 @@ export default function Apartments() {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      const villagesData = await villageService.getVillages({ limit: 100 });
+      const [villagesData, payingStatusData, salesStatusData] = await Promise.all([
+        villageService.getVillages({ limit: 100 }),
+        payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
+        salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
+      ]);
       setVillages(villagesData.data);
+      setPayingStatusTypes(payingStatusData.data);
+      setSalesStatusTypes(salesStatusData.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load initial data');
     } finally {
@@ -142,8 +154,8 @@ export default function Apartments() {
         village_id: villageFilter ? parseInt(villageFilter) : undefined,
         phase: phaseFilter ? parseInt(phaseFilter) : undefined,
         status: statusFilter || undefined,
-        paying_status: payingStatusFilter || undefined,
-        sales_status: salesStatusFilter || undefined,
+        paying_status_id: payingStatusFilter ? parseInt(payingStatusFilter) : undefined,
+        sales_status_id: salesStatusFilter ? parseInt(salesStatusFilter) : undefined,
         page,
         limit,
         sort_by: orderBy,
@@ -245,13 +257,14 @@ export default function Apartments() {
     setPage(1);
   };
 
-  const handleFilterChange = (e: SelectChangeEvent<string>) => {
-    const { name, value } = e.target;
-    
+  // Update the filter handling to use ID-based filters when available
+  const handleFilterChange = (event: SelectChangeEvent<string>) => {
+    const { name, value } = event.target;
+
     switch (name) {
       case 'village':
         setVillageFilter(value);
-        setPhaseFilter('');
+        setPhaseFilter(''); // Reset phase filter when village changes
         break;
       case 'phase':
         setPhaseFilter(value);
@@ -264,6 +277,8 @@ export default function Apartments() {
         break;
       case 'salesStatus':
         setSalesStatusFilter(value);
+        break;
+      default:
         break;
     }
     setPage(1);
@@ -290,22 +305,20 @@ export default function Apartments() {
     return null;
   };
 
-  const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
-    switch (status) {
-      case 'transfer': return 'Paid By Owner';
-      case 'rent': return 'Paid By Tenant';
-      case 'non-payer': return 'Non-Payer';
-      default: return status;
-    }
+  const getPayingStatusDisplay = (apartment: Apartment) => {
+    return apartmentService.getPayingStatusDisplayName(apartment);
   };
 
-  const getPayingStatusColor = (status: 'transfer' | 'rent' | 'non-payer') => {
-    switch (status) {
-      case 'transfer': return 'success';
-      case 'rent': return 'info';
-      case 'non-payer': return 'error';
-      default: return 'default';
-    }
+  const getSalesStatusDisplay = (apartment: Apartment) => {
+    return apartmentService.getSalesStatusDisplayName(apartment);
+  };
+
+  const getPayingStatusColor = (apartment: Apartment) => {
+    return apartmentService.getPayingStatusColor(apartment);
+  };
+
+  const getSalesStatusColor = (apartment: Apartment) => {
+    return apartmentService.getSalesStatusColor(apartment);
   };
 
   const getStatusColor = (status?: string) => {
@@ -338,8 +351,8 @@ export default function Apartments() {
       village: apartment.village?.name || 'Unknown',
       phase: `Phase ${apartment.phase}`,
       owner: apartment.owner?.name || 'Unknown',
-      paying_status: apartment.paying_status === 'transfer' ? 'Paid By Owner' : 
-                     apartment.paying_status === 'rent' ? 'Paid By Tenant' : 'Non-Payer',
+      paying_status: getPayingStatusDisplay(apartment),
+      sales_status: getSalesStatusDisplay(apartment),
       status: apartment.status || 'Unknown',
       balance_EGP: apartment.balance?.EGP || 0,
       balance_GBP: apartment.balance?.GBP || 0
@@ -356,6 +369,30 @@ export default function Apartments() {
     );
   }
 
+  function renderPayingStatusChip(apartment: ApartmentWithBalance): React.ReactNode {
+    const label = getPayingStatusDisplay(apartment);
+    const color = getPayingStatusColor(apartment);
+    return (
+      <Chip
+        label={label}
+        color={color as any}
+        size="small"
+        variant="outlined"
+      />
+    );
+  }
+  function renderSalesStatusChip(apartment: ApartmentWithBalance): React.ReactNode {
+    const label = getSalesStatusDisplay(apartment);
+    const color = getSalesStatusColor(apartment);
+    return (
+      <Chip
+        label={label}
+        color={color as any}
+        size="small"
+        variant="outlined"
+      />
+    );
+  }
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
@@ -464,9 +501,11 @@ export default function Apartments() {
                 <MenuItem value="">
                   <em>All Paying Status</em>
                 </MenuItem>
-                <MenuItem value="transfer">Paid By Owner</MenuItem>
-                <MenuItem value="rent">Paid By Tenant</MenuItem>
-                <MenuItem value="non-payer">Non-Payer</MenuItem>
+                {payingStatusTypes.map(statusType => (
+                  <MenuItem key={statusType.id} value={statusType.id.toString()}>
+                    {statusType.display_name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
 
@@ -481,8 +520,11 @@ export default function Apartments() {
                 <MenuItem value="">
                   <em>All Sales Status</em>
                 </MenuItem>
-                <MenuItem value="for sale">For Sale</MenuItem>
-                <MenuItem value="not for sale">Not for Sale</MenuItem>
+                {salesStatusTypes.map(statusType => (
+                  <MenuItem key={statusType.id} value={statusType.id.toString()}>
+                    {statusType.display_name}
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
             
@@ -498,7 +540,7 @@ export default function Apartments() {
 
         {/* Export Buttons */}
         {(isAdmin) && (
-        <ExportButtons data={transformApartmentsForExport(apartments)} columns={["id","name","village","phase","owner","paying_status","status","balance_EGP","balance_GBP"]} excelFileName="apartments.xlsx" pdfFileName="apartments.pdf" />
+        <ExportButtons data={transformApartmentsForExport(apartments)} columns={["id","name","village","phase","owner","paying_status","sales_status","status","balance_EGP","balance_GBP"]} excelFileName="apartments.xlsx" pdfFileName="apartments.pdf" />
         )}
 
         <Paper>
@@ -575,11 +617,7 @@ export default function Apartments() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Chip 
-                        label={getPayingStatusDisplay(apartment.paying_status)} 
-                        color={getPayingStatusColor(apartment.paying_status) as any}
-                        size="small"
-                      />
+                      {renderPayingStatusChip(apartment)}
                     </TableCell>
                     {isAdmin && (
                       <TableCell>
@@ -593,11 +631,7 @@ export default function Apartments() {
                     )}
                     <TableCell>{apartment.owner?.name || 'Unknown'}</TableCell>
                     <TableCell>
-                      <Chip
-                        label={apartment.sales_status === 'for sale' ? 'For Sale' : 'Not for Sale'}
-                        color={apartment.sales_status === 'for sale' ? 'success' : 'default'}
-                        size="small"
-                      />
+                      {renderSalesStatusChip(apartment)}
                     </TableCell>
                     <TableCell align="right">
                       <Tooltip title="View Details">

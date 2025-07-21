@@ -264,6 +264,8 @@ export class ServiceRequestService {
         phase: sr.apartment_phase,
         owner_id: sr.apartment_id, // This should be the actual owner_id from a.owner_id
         paying_status: sr.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: 0, // Not fetched
         created_at: new Date(),
         updated_at: new Date(),
@@ -475,6 +477,8 @@ export class ServiceRequestService {
         phase: serviceRequest.apartment_phase,
         owner_id: serviceRequest.apartment_owner_id,
         paying_status: serviceRequest.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: serviceRequest.apartment_created_by,
         created_at: new Date(serviceRequest.apartment_created_at),
         updated_at: new Date(serviceRequest.apartment_updated_at),

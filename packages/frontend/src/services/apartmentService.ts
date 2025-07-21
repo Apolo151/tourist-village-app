@@ -23,6 +23,30 @@ export interface User {
   updated_at: string;
 }
 
+export interface PayingStatusType {
+  id: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string;
+  is_active: boolean;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SalesStatusType {
+  id: number;
+  name: string;
+  display_name: string;
+  description?: string;
+  color?: string;
+  is_active: boolean;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Booking {
   id: number;
   apartment_id: number;
@@ -44,28 +68,21 @@ export interface Apartment {
   phase: number;
   owner_id: number;
   purchase_date?: string;
-  paying_status: 'transfer' | 'rent' | 'non-payer';
+  paying_status_id: number;
+  sales_status_id: number;
   created_at: string;
   updated_at: string;
+  
+  // Backward compatibility fields
+  paying_status: 'transfer' | 'rent' | 'non-payer';
   sales_status: 'for sale' | 'not for sale';
   
   // Computed/joined fields
-  village?: {
-    electricity_price(waterStartReading: number, waterEndReading: number, arg2: string, electricity_price: any, water_price: number): unknown;
-    water_price: number;
-    id: number;
-    name: string;
-  };
-  owner?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  created_by_user?: {
-    id: number;
-    name: string;
-    email: string;
-  };
+  village?: Village;
+  owner?: User;
+  created_by_user?: User;
+  paying_status_type?: PayingStatusType;
+  sales_status_type?: SalesStatusType;
   status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
   current_booking?: Booking;
 }
@@ -75,6 +92,9 @@ export interface ApartmentFilters {
   phase?: number;
   status?: string;
   paying_status?: string;
+  sales_status?: string;
+  paying_status_id?: number;
+  sales_status_id?: number;
   search?: string;
   page?: number;
   limit?: number;
@@ -88,7 +108,13 @@ export interface CreateApartmentRequest {
   phase: number;
   owner_id: number;
   purchase_date?: string;
-  paying_status: 'transfer' | 'rent' | 'non-payer';
+  
+  // New ID-based fields (preferred)
+  paying_status_id?: number;
+  sales_status_id?: number;
+  
+  // Backward compatibility - old string fields
+  paying_status?: 'transfer' | 'rent' | 'non-payer';
   sales_status?: 'for sale' | 'not for sale';
 }
 
@@ -98,6 +124,12 @@ export interface UpdateApartmentRequest {
   phase?: number;
   owner_id?: number;
   purchase_date?: string;
+  
+  // New ID-based fields (preferred)
+  paying_status_id?: number;
+  sales_status_id?: number;
+  
+  // Backward compatibility - old string fields
   paying_status?: 'transfer' | 'rent' | 'non-payer';
   sales_status?: 'for sale' | 'not for sale';
 }
@@ -176,7 +208,7 @@ class ApartmentService {
       return response.data;
     }
     
-    throw new Error(response.message || 'Failed to fetch apartment statistics');
+    throw new Error(response.message || 'Failed to fetch apartment stats');
   }
 
   async getApartmentFinancialSummary(id: number): Promise<{
@@ -199,46 +231,65 @@ class ApartmentService {
     throw new Error(response.message || 'Failed to fetch apartment financial summary');
   }
 
-  // Helper methods to convert between frontend and backend formats
-  convertToFrontendApartment(backendApartment: Apartment): any {
-    return {
-      id: backendApartment.id.toString(),
-      name: backendApartment.name,
-      ownerId: backendApartment.owner_id.toString(),
-      ownerName: backendApartment.owner?.name,
-      village: backendApartment.village?.name || 'Unknown',
-      phase: `Phase ${backendApartment.phase}`,
-      status: backendApartment.status || 'Available',
-      payingStatus: this.convertPayingStatus(backendApartment.paying_status),
-      purchaseDate: backendApartment.purchase_date || '',
-      description: '', // Not in backend model
-      images: [], // Not in backend model
-      amenities: [], // Not in backend model
-      city: '', // Not in backend model
-      address: '', // Not in backend model
-      size: undefined, // Not in backend model
-      bedrooms: undefined, // Not in backend model
-      bathrooms: undefined, // Not in backend model
-    };
-  }
-
-  private convertPayingStatus(status: 'transfer' | 'rent' | 'non-payer'): string {
-    switch (status) {
+  /**
+   * Get the display name for a paying status
+   * This handles both the new status type objects and legacy string values
+   */
+  getPayingStatusDisplayName(apartment: Apartment): string {
+    // First check if the apartment has the new paying_status_type object
+    if (apartment.paying_status_type && apartment.paying_status_type.display_name) {
+      return apartment.paying_status_type.display_name;
+    }
+    
+    // Fall back to legacy string status conversion only for known legacy statuses
+    const statusName = apartment.paying_status as string;
+    switch (statusName) {
       case 'transfer':
-        return 'Paid By Transfer';
+        return 'Paid By Owner';
       case 'rent':
-        return 'Paid By Rent';
+        return 'Paid By Tenant';
       case 'non-payer':
         return 'Non-Payer';
       default:
-        return 'Unknown';
+        // For any unknown status, just return it capitalized as fallback
+        return statusName ? statusName.charAt(0).toUpperCase() + statusName.slice(1) : 'Unknown';
     }
   }
 
+  /**
+   * Get the display name for a sales status
+   * This handles both the new status type objects and legacy string values
+   */
+  getSalesStatusDisplayName(apartment: Apartment): string {
+    // First check if the apartment has the new sales_status_type object
+    if (apartment.sales_status_type && apartment.sales_status_type.display_name) {
+      return apartment.sales_status_type.display_name;
+    }
+    
+    // Fall back to legacy string status conversion only for known legacy statuses
+    const statusName = apartment.sales_status as string;
+    switch (statusName) {
+      case 'for sale':
+        return 'For Sale';
+      case 'not for sale':
+        return 'Not For Sale';
+      default:
+        // For any unknown status, just return it capitalized as fallback
+        return statusName ? statusName.charAt(0).toUpperCase() + statusName.slice(1) : 'Unknown';
+    }
+  }
+
+  /**
+   * Convert a frontend paying status to backend format
+   * @param status The frontend paying status
+   * @returns The backend paying status name
+   */
   convertFromFrontendPayingStatus(status: string): 'transfer' | 'rent' | 'non-payer' {
     switch (status) {
+      case 'Paid By Owner':
       case 'Paid By Transfer':
         return 'transfer';
+      case 'Paid By Tenant':
       case 'Paid By Rent':
         return 'rent';
       case 'Non-Payer':
@@ -247,6 +298,32 @@ class ApartmentService {
         return 'non-payer';
     }
   }
+
+  /**
+   * Get the color for a paying status - completely dynamic based on status type
+   */
+  getPayingStatusColor(apartment: Apartment): string {
+    // Use the dynamic color from status type if available
+    if (apartment.paying_status_type && apartment.paying_status_type.color) {
+      return apartment.paying_status_type.color;
+    }
+    
+    // Fallback to 'default' if no dynamic color is available
+    return 'default';
+  }
+
+  /**
+   * Get the color for a sales status - completely dynamic based on status type  
+   */
+  getSalesStatusColor(apartment: Apartment): string {
+    // Use the dynamic color from status type if available
+    if (apartment.sales_status_type && apartment.sales_status_type.color) {
+      return apartment.sales_status_type.color;
+    }
+    
+    // Fallback to 'default' if no dynamic color is available
+    return 'default';
+  }
 }
 
-export const apartmentService = new ApartmentService(); 
+export const apartmentService = new ApartmentService();

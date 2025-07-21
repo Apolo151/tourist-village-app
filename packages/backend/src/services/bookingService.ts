@@ -202,6 +202,8 @@ export class BookingService {
         phase: row.apartment_phase,
         owner_id: 0, // Not fetched in this query
         paying_status: row.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: 0, // Not fetched in this query
         created_at: new Date(), // Not fetched in this query
         updated_at: new Date(), // Not fetched in this query
@@ -306,6 +308,8 @@ export class BookingService {
         phase: result.apartment_phase,
         owner_id: result.apartment_owner_id,
         paying_status: result.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
         created_by: result.apartment_created_by,
         created_at: new Date(result.apartment_created_at),
         updated_at: new Date(result.apartment_updated_at),

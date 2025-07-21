@@ -284,13 +284,20 @@ export default function ApartmentDetails() {
   ];
   
   // Helper function to convert paying status for display
-  const getPayingStatusDisplay = (status: 'transfer' | 'rent' | 'non-payer') => {
-    switch (status) {
-      case 'transfer': return 'Paid By Owner';
-      case 'rent': return 'Paid By Tenant';
-      case 'non-payer': return 'Non-Payer';
-      default: return status;
-    }
+  const getPayingStatusDisplay = (apartment: Apartment) => {
+    return apartmentService.getPayingStatusDisplayName(apartment);
+  };
+
+  const getSalesStatusDisplay = (apartment: Apartment) => {
+    return apartmentService.getSalesStatusDisplayName(apartment);
+  };
+
+  const getPayingStatusColor = (apartment: Apartment) => {
+    return apartmentService.getPayingStatusColor(apartment);
+  };
+
+  const getSalesStatusColor = (apartment: Apartment) => {
+    return apartmentService.getSalesStatusColor(apartment);
   };
 
   // Determine tabs based on user role
@@ -491,11 +498,10 @@ export default function ApartmentDetails() {
                       primary="Paying Status" 
                       secondary={
                         <Chip 
-                        label={getPayingStatusDisplay(apartment.paying_status)} 
+                        label={getPayingStatusDisplay(apartment)} 
                           size="small"
                           color={
-                          apartment.paying_status === 'transfer' ? 'success' :
-                          apartment.paying_status === 'rent' ? 'info' : 'error'
+                          getPayingStatusColor(apartment)
                           }
                           sx={{ mt: 1 }}
                         />
@@ -507,8 +513,10 @@ export default function ApartmentDetails() {
                       primary="Sales Status"
                       secondary={
                         <Chip
-                          label={apartment.sales_status === 'for sale' ? 'For Sale' : 'Not for Sale'}
-                          color={apartment.sales_status === 'for sale' ? 'success' : 'default'}
+                          label={getSalesStatusDisplay(apartment)}
+                          color={
+                            getSalesStatusColor(apartment)
+                          }
                           size="small"
                           sx={{ mt: 1 }}
                         />
