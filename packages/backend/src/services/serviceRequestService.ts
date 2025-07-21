@@ -67,7 +67,7 @@ export class ServiceRequestService {
         // Apartment details
         'a.name as apartment_name',
         'a.phase as apartment_phase',
-        'a.paying_status as apartment_paying_status',
+        'a.paying_status_id as apartment_paying_status_id',
         'v.name as village_name',
         'v.electricity_price as village_electricity_price',
         'v.water_price as village_water_price',
@@ -386,7 +386,7 @@ export class ServiceRequestService {
         'a.village_id as apartment_village_id',
         'a.phase as apartment_phase',
         'a.owner_id as apartment_owner_id',
-        'a.paying_status as apartment_paying_status',
+        'a.paying_status_id as apartment_paying_status_id',
         'a.created_by as apartment_created_by',
         'a.created_at as apartment_created_at',
         'a.updated_at as apartment_updated_at',

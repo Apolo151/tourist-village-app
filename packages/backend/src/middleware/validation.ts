@@ -102,11 +102,11 @@ export class ValidationMiddleware {
       }
     }
 
-    if (data.paying_status !== undefined) {
-      if (!['transfer', 'rent', 'non-payer'].includes(data.paying_status)) {
-        errors.push({ field: 'paying_status', message: 'Paying status must be one of: transfer, rent, non-payer' });
-      }
-    }
+    // if (data.paying_status !== undefined) {
+    //   if (!['transfer', 'rent', 'non-payer'].includes(data.paying_status)) {
+    //     errors.push({ field: 'paying_status', message: 'Paying status must be one of: transfer, rent, non-payer' });
+    //   }
+    // }
 
     if (data.paying_status_id !== undefined) {
       if (typeof data.paying_status_id !== 'number' || data.paying_status_id <= 0) {
