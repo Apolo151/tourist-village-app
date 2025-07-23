@@ -106,6 +106,13 @@ export default function Services() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // New filter states
+  const [projectFilter, setProjectFilter] = useState(''); // Village filter
+  const [phaseFilter, setPhaseFilter] = useState('');
+  const [serviceTypeFilter, setServiceTypeFilter] = useState('');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
+  
   // Data states
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
@@ -143,12 +150,14 @@ export default function Services() {
     const loadInitialData = async () => {
       try {
         setLoading(true);
-        const [apartmentsData, usersData] = await Promise.all([
+        const [apartmentsData, usersData, serviceTypesData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
-          userService.getUsers({ limit: 100 })
+          userService.getUsers({ limit: 100 }),
+          serviceRequestService.getServiceTypes({ limit: 100 })
         ]);
         setApartments(apartmentsData.data);
         setUsers(usersData.data);
+        setServiceTypes(serviceTypesData.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load initial data');
       } finally {
@@ -159,6 +168,18 @@ export default function Services() {
     loadInitialData();
   }, []);
   
+  // Reset phase filter when project filter changes
+  useEffect(() => {
+    if (projectFilter === '') {
+      setPhaseFilter('');
+    }
+  }, [projectFilter]);
+
+  // Reset apartment filter when project or phase filter changes
+  useEffect(() => {
+    setApartmentFilter('');
+  }, [projectFilter, phaseFilter]);
+
   // Load service requests
   useEffect(() => {
     const loadServiceRequests = async () => {
@@ -170,6 +191,10 @@ export default function Services() {
           apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
           status: (statusFilter as 'Created' | 'In Progress' | 'Done' | undefined) || undefined,
           who_pays: (whoPayFilter as 'owner' | 'renter' | 'company' | undefined) || undefined,
+          type_id: serviceTypeFilter ? parseInt(serviceTypeFilter) : undefined,
+          village_id: projectFilter ? parseInt(projectFilter) : undefined,
+          date_action_start: dateFromFilter || undefined,
+          date_action_end: dateToFilter || undefined,
           sort_by: 'date_created',
           sort_order: 'desc' as const
         };
@@ -203,7 +228,7 @@ export default function Services() {
     if (tabValue === 0) {
       loadServiceRequests();
     }
-  }, [tabValue, searchTerm, apartmentFilter, statusFilter, whoPayFilter, serviceRequestsPagination.page]);
+  }, [tabValue, searchTerm, apartmentFilter, statusFilter, whoPayFilter, serviceTypeFilter, projectFilter, dateFromFilter, dateToFilter, serviceRequestsPagination.page]);
   
   // Load service types
   useEffect(() => {
@@ -288,16 +313,46 @@ export default function Services() {
     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
   };
   
+  const handleProjectFilterChange = (event: SelectChangeEvent) => {
+    setProjectFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handlePhaseFilterChange = (event: SelectChangeEvent) => {
+    setPhaseFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleServiceTypeFilterChange = (event: SelectChangeEvent) => {
+    setServiceTypeFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleDateFromFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setDateFromFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
+  const handleDateToFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setDateToFilter(event.target.value);
+    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+  };
+  
   const clearFilters = () => {
     setSearchTerm('');
     setApartmentFilter('');
     setStatusFilter('');
     setWhoPayFilter('');
+    setProjectFilter('');
+    setPhaseFilter('');
+    setServiceTypeFilter('');
+    setDateFromFilter('');
+    setDateToFilter('');
     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
   };
   
   const handleRequestService = (serviceType?: ServiceType) => {
-    navigate('/services/create-request' + (serviceType ? `?serviceTypeId=${serviceType.id}` : ''));
+    navigate('/services/requests/create' + (serviceType ? `?serviceTypeId=${serviceType.id}` : ''));
   };
   
   const handleAddServiceType = () => {
@@ -342,6 +397,10 @@ export default function Services() {
           apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
           status: (statusFilter as 'Created' | 'In Progress' | 'Done' | undefined) || undefined,
           who_pays: (whoPayFilter as 'owner' | 'renter' | 'company' | undefined) || undefined,
+          type_id: serviceTypeFilter ? parseInt(serviceTypeFilter) : undefined,
+          village_id: projectFilter ? parseInt(projectFilter) : undefined,
+          date_action_start: dateFromFilter || undefined,
+          date_action_end: dateToFilter || undefined,
           sort_by: 'date_created',
           sort_order: 'desc' as const
         };
@@ -409,6 +468,39 @@ export default function Services() {
     }));
   };
   
+  // Helper functions to get unique values for filters
+  const getUniqueVillages = () => {
+    const villages = apartments.map(apt => apt.village).filter(Boolean);
+    const uniqueVillages = villages.filter((village, index, self) => 
+      index === self.findIndex(v => v?.id === village?.id)
+    );
+    return uniqueVillages;
+  };
+
+  const getAvailablePhases = () => {
+    if (!projectFilter) return [];
+    const selectedVillageId = parseInt(projectFilter);
+    const apartmentsInVillage = apartments.filter(apt => apt.village?.id === selectedVillageId);
+    const phases = [...new Set(apartmentsInVillage.map(apt => apt.phase))].sort((a, b) => a - b);
+    return phases;
+  };
+
+  const getFilteredApartments = () => {
+    let filteredApartments = apartments;
+    
+    if (projectFilter) {
+      const selectedVillageId = parseInt(projectFilter);
+      filteredApartments = filteredApartments.filter(apt => apt.village?.id === selectedVillageId);
+    }
+    
+    if (phaseFilter) {
+      const selectedPhase = parseInt(phaseFilter);
+      filteredApartments = filteredApartments.filter(apt => apt.phase === selectedPhase);
+    }
+    
+    return filteredApartments;
+  };
+
   const showMessage = useCallback((message: string) => {
     setSnackbarMessage(message);
     setOpenSnackbar(true);
@@ -435,7 +527,7 @@ export default function Services() {
     try {
       await serviceRequestService.deleteServiceType(deleteDialog.serviceType.id);
       setDeleteDialog({ open: false, serviceType: null });
-      // Refresh list
+      // Refresh service types list
       const filters = {
         page: serviceTypesPagination.page,
         limit: serviceTypesPagination.limit,
@@ -507,7 +599,9 @@ export default function Services() {
             
         {/* Search and Filters */}
             <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Search Row */}
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                 <TextField
               label="Search"
                   variant="outlined"
@@ -525,7 +619,52 @@ export default function Services() {
             />
             
             {tabValue === 0 && (
-              <>
+              <Button
+                variant="outlined"
+                startIcon={<FilterListIcon />}
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </Button>
+            )}
+            </Box>
+            
+            {/* Filters Row */}
+            {tabValue === 0 && (
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                <FormControl sx={{ minWidth: 150 }} size="small">
+                  <InputLabel>Project</InputLabel>
+                  <Select
+                    value={projectFilter}
+                    label="Project"
+                    onChange={handleProjectFilterChange}
+                  >
+                    <MenuItem value="">
+                      <em>All Projects</em>
+                    </MenuItem>
+                    {getUniqueVillages().map(village => (
+                      <MenuItem key={village!.id} value={village!.id.toString()}>{village!.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl sx={{ minWidth: 120 }} size="small">
+                  <InputLabel>Phase</InputLabel>
+                  <Select
+                    value={phaseFilter}
+                    label="Phase"
+                    onChange={handlePhaseFilterChange}
+                    disabled={!projectFilter}
+                  >
+                    <MenuItem value="">
+                      <em>All Phases</em>
+                    </MenuItem>
+                    {getAvailablePhases().map(phase => (
+                      <MenuItem key={phase} value={phase.toString()}>Phase {phase}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
                 <FormControl sx={{ minWidth: 150 }} size="small">
                   <InputLabel>Apartment</InputLabel>
                   <Select
@@ -536,11 +675,51 @@ export default function Services() {
                     <MenuItem value="">
                       <em>All Apartments</em>
                     </MenuItem>
-                    {(apartments || []).map(apt => (
+                    {getFilteredApartments().map(apt => (
                       <MenuItem key={apt.id} value={apt.id.toString()}>{apt.name}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>
+
+                <FormControl sx={{ minWidth: 150 }} size="small">
+                  <InputLabel>Service Type</InputLabel>
+                  <Select
+                    value={serviceTypeFilter}
+                    label="Service Type"
+                    onChange={handleServiceTypeFilterChange}
+                  >
+                    <MenuItem value="">
+                      <em>All Service Types</em>
+                    </MenuItem>
+                    {serviceTypes.map(serviceType => (
+                      <MenuItem key={serviceType.id} value={serviceType.id.toString()}>{serviceType.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <TextField
+                  label="From Date"
+                  type="date"
+                  size="small"
+                  value={dateFromFilter}
+                  onChange={handleDateFromFilterChange}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{ minWidth: 150 }}
+                />
+
+                <TextField
+                  label="To Date"
+                  type="date"
+                  size="small"
+                  value={dateToFilter}
+                  onChange={handleDateToFilterChange}
+                  InputLabelProps={{
+                    shrink: true,
+                  }}
+                  sx={{ minWidth: 150 }}
+                />
                 
                 <FormControl sx={{ minWidth: 150 }} size="small">
                   <InputLabel>Status</InputLabel>
@@ -573,15 +752,7 @@ export default function Services() {
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
-
-                <Button
-                  variant="outlined"
-                  startIcon={<FilterListIcon />}
-                  onClick={clearFilters}
-                >
-                  Clear Filters
-                </Button>
-              </>
+              </Box>
             )}
               </Box>
             </Paper>
@@ -598,7 +769,11 @@ export default function Services() {
             <Button
               variant="contained"
               startIcon={<AddIcon />}
-              onClick={() => handleRequestService()}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRequestService();
+              }}
             >
               Request Service
             </Button>
@@ -783,7 +958,11 @@ export default function Services() {
                     <Button 
                       size="small" 
                       startIcon={<EventAvailableIcon />}
-                      onClick={() => handleRequestService(service)}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRequestService(service);
+                      }}
                       disabled={!currentUser}
                     >
                       Request Service

@@ -98,6 +98,10 @@ export default function CreateServiceRequest({
         currency: undefined,
     });
 
+    // Filter states for easier apartment selection
+    const [projectFilter, setProjectFilter] = useState(''); // Village filter
+    const [phaseFilter, setPhaseFilter] = useState('');
+
     // Load initial data
     useEffect(() => {
         const loadData = async () => {
@@ -218,6 +222,17 @@ export default function CreateServiceRequest({
         };
         fetchAndPrefill();
     }, [editId]);
+
+    // Auto-set project and phase filters when apartment is selected
+    useEffect(() => {
+        if (formData.apartment_id && apartments.length > 0) {
+            const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+            if (selectedApartment?.village) {
+                setProjectFilter(selectedApartment.village.id.toString());
+                setPhaseFilter(selectedApartment.phase.toString());
+            }
+        }
+    }, [formData.apartment_id, apartments]);
 
     // Effect to prefill cost with default village pricing when service type and apartment are selected
     useEffect(() => {
@@ -348,6 +363,25 @@ export default function CreateServiceRequest({
         }));
     };
 
+    const handleProjectFilterChange = (event: SelectChangeEvent) => {
+        setProjectFilter(event.target.value);
+        // Reset phase and apartment when project changes
+        setPhaseFilter('');
+        setFormData(prev => ({
+            ...prev,
+            apartment_id: 0
+        }));
+    };
+
+    const handlePhaseFilterChange = (event: SelectChangeEvent) => {
+        setPhaseFilter(event.target.value);
+        // Reset apartment when phase changes
+        setFormData(prev => ({
+            ...prev,
+            apartment_id: 0
+        }));
+    };
+
     const handleSubmit = async () => {
         try {
             setSubmitting(true);
@@ -422,6 +456,39 @@ export default function CreateServiceRequest({
 
     const getSelectedRequester = () => {
         return users.find((user) => user.id === formData.requester_id);
+    };
+
+    // Helper functions for project and phase filtering
+    const getUniqueVillages = () => {
+        const villages = apartments.map(apt => apt.village).filter(Boolean);
+        const uniqueVillages = villages.filter((village, index, self) => 
+            index === self.findIndex(v => v?.id === village?.id)
+        );
+        return uniqueVillages;
+    };
+
+    const getAvailablePhases = () => {
+        if (!projectFilter) return [];
+        const selectedVillageId = parseInt(projectFilter);
+        const apartmentsInVillage = apartments.filter(apt => apt.village?.id === selectedVillageId);
+        const phases = [...new Set(apartmentsInVillage.map(apt => apt.phase))].sort((a, b) => a - b);
+        return phases;
+    };
+
+    const getFilteredApartments = () => {
+        let filteredApartments = apartments;
+        
+        if (projectFilter) {
+            const selectedVillageId = parseInt(projectFilter);
+            filteredApartments = filteredApartments.filter(apt => apt.village?.id === selectedVillageId);
+        }
+        
+        if (phaseFilter) {
+            const selectedPhase = parseInt(phaseFilter);
+            filteredApartments = filteredApartments.filter(apt => apt.phase === selectedPhase);
+        }
+        
+        return filteredApartments;
     };
 
     if (loading) {
@@ -557,13 +624,55 @@ export default function CreateServiceRequest({
                         </Typography>
 
                         <Grid container spacing={3}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                                <FormControl fullWidth required>
+                                    <InputLabel>Project</InputLabel>
+                                    <Select
+                                        value={projectFilter}
+                                        label="Project"
+                                        onChange={handleProjectFilterChange}
+                                    >
+                                        <MenuItem value="">
+                                            <em>Select a project</em>
+                                        </MenuItem>
+                                        {getUniqueVillages().map(village => (
+                                            <MenuItem key={village!.id} value={village!.id.toString()}>
+                                                {village!.name}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                                <FormControl fullWidth>
+                                    <InputLabel>Phase</InputLabel>
+                                    <Select
+                                        value={phaseFilter}
+                                        label="Phase"
+                                        onChange={handlePhaseFilterChange}
+                                        disabled={!projectFilter}
+                                    >
+                                        <MenuItem value="">
+                                            <em>All Phases</em>
+                                        </MenuItem>
+                                        {getAvailablePhases().map(phase => (
+                                            <MenuItem key={phase} value={phase.toString()}>
+                                                Phase {phase}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Grid>
+
                             <Grid size={{ xs: 12 }}>
                                 <SearchableDropdown
-                                    options={apartments.map((apartment) => ({
+                                    options={getFilteredApartments().map((apartment) => ({
                                         id: apartment.id,
-                                        label: `${apartment.name} - ${apartment.village?.name}`,
+                                        label: `${apartment.name} - Phase ${apartment.phase}`,
                                         name: apartment.name,
                                         village: apartment.village,
+                                        phase: apartment.phase,
                                     }))}
                                     value={formData.apartment_id || null}
                                     onChange={handleApartmentChange}
@@ -585,7 +694,7 @@ export default function CreateServiceRequest({
                                                     variant="body2"
                                                     color="text.secondary"
                                                 >
-                                                    {option.village?.name}
+                                                    {option.village?.name} - Phase {option.phase}
                                                 </Typography>
                                             </Box>
                                         </li>
@@ -649,18 +758,19 @@ export default function CreateServiceRequest({
                                                 variant="body2"
                                                 color="text.secondary"
                                             >
-                                                Village:{" "}
-                                                {
-                                                    selectedApartment.village
-                                                        ?.name
-                                                }
+                                                Project: {selectedApartment.village?.name}
                                             </Typography>
                                             <Typography
                                                 variant="body2"
                                                 color="text.secondary"
                                             >
-                                                Owner:{" "}
-                                                {selectedApartment.owner?.name}
+                                                Phase: {selectedApartment.phase}
+                                            </Typography>
+                                            <Typography
+                                                variant="body2"
+                                                color="text.secondary"
+                                            >
+                                                Owner: {selectedApartment.owner?.name}
                                             </Typography>
                                         </CardContent>
                                     </Card>
