@@ -1,118 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Grid,
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  Box, 
+  Typography, 
+  Paper, 
+  Button, 
+  Container, 
+  Alert,
+  Chip,
+  Divider,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
-  Alert,
+  Grid,
+  TextField,
   Card,
   CardContent,
-  Divider,
   CircularProgress,
-  IconButton,
-  Tooltip,
-  Stack
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material/Select';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { 
+  ArrowBack as ArrowBackIcon,
+  Save as SaveIcon,
+  Edit as EditIcon,
+  Cancel as CancelIcon,
+  Delete as DeleteIcon
+} from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { serviceRequestService } from '../services/serviceRequestService';
-import type { 
-  ServiceType, 
-  CreateServiceTypeRequest, 
-  UpdateServiceTypeRequest
-} from '../services/serviceRequestService';
-import { userService } from '../services/userService';
-import type { User } from '../services/userService';
+import { serviceTypeService } from '../services/serviceTypeService';
+import type { ServiceType, UpdateServiceTypeRequest } from '../services/serviceTypeService';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
+
+interface VillagePriceForm {
+  village_id: number;
+  cost: number;
+  currency: 'EGP' | 'GBP';
+}
 
 export default function ServiceTypeDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [searchParams] = useSearchParams();
   
   const [serviceType, setServiceType] = useState<ServiceType | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [isNew] = useState(id === 'new');
+  const [submitting, setSubmitting] = useState(false);
   
-  // Form data
-  const [formData, setFormData] = useState<{
-    name: string;
-    cost: number | string;
-    currency: 'EGP' | 'GBP';
-    description: string;
-    default_assignee_id?: number;
-  }>({
+  // Form data for editing
+  const [formData, setFormData] = useState({
     name: '',
-    cost: 0,
-    currency: 'EGP',
-    description: '',
+    description: ''
   });
-
-  // Check if user is admin
-  useEffect(() => {
-    if (currentUser?.role !== 'admin' && currentUser?.role !== 'super_admin') {
-      navigate('/unauthorized');
-    }
-  }, [currentUser?.role, navigate]);
-
-  // Check for success messages
-  useEffect(() => {
-    const success = searchParams.get('success');
-    const message = searchParams.get('message');
-    
-    if (success && message) {
-      // Show success message (you can implement a snackbar here)
-      console.log('Success:', decodeURIComponent(message));
-    }
-  }, [searchParams]);
+  
+  const [villagePrices, setVillagePrices] = useState<VillagePriceForm[]>([]);
 
   // Load data
   useEffect(() => {
     const loadData = async () => {
+      if (!id) {
+        setError('Service type ID is required');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
 
-        console.log('Loading service type data for ID:', id);
-        
-        // // Load users for assignee selection
-        // const usersData = await userService.getUsers({ limit: 100 });
-        // setUsers(usersData.data);
+        const [serviceTypeData, villagesData] = await Promise.all([
+          serviceTypeService.getServiceTypeById(parseInt(id)),
+          villageService.getVillages({ limit: 100 })
+        ]);
 
-        if (!isNew && id) {
-          console.log('Fetching service type by ID:', id);
-          // Load service type
-          const serviceTypeData = await serviceRequestService.getServiceTypeById(parseInt(id));
-          console.log('Loaded service type:', serviceTypeData);
-          setServiceType(serviceTypeData);
-          setFormData({
-            name: serviceTypeData.name,
-            cost: serviceTypeData.cost,
-            currency: serviceTypeData.currency,
-            description: serviceTypeData.description || '',
-            default_assignee_id: undefined
-          });
-        } else if (isNew) {
-          setIsEditing(true);
-        }
+        setServiceType(serviceTypeData);
+        setVillages(villagesData.data);
+
+        // Initialize form data
+        setFormData({
+          name: serviceTypeData.name,
+          description: serviceTypeData.description || '',
+        });
+
+        // Initialize village prices
+        const prices = villagesData.data.map(village => {
+          const existingPrice = serviceTypeData.village_prices?.find(vp => vp.village_id === village.id);
+          return {
+            village_id: village.id,
+            cost: existingPrice?.cost || 0,
+            currency: existingPrice?.currency || 'EGP'
+          };
+        });
+        setVillagePrices(prices);
+
       } catch (err) {
-        console.error('Error loading service type data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load service type');
       } finally {
         setLoading(false);
@@ -120,29 +110,22 @@ export default function ServiceTypeDetails() {
     };
 
     loadData();
-  }, [id, isNew]);
-
-  // If error, set error if service type not found
-  useEffect(() => {
-    if (!isNew && !serviceType && !loading) {
-      setError('Service type not found');
-    }
-  }, [serviceType, isNew, loading]);
+  }, [id]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'cost' ? (value === '' ? '' : parseFloat(value)) : value
+      [name]: value
     }));
   };
 
-  const handleSelectChange = (event: SelectChangeEvent, fieldName: string) => {
-    const value = event.target.value;
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: fieldName === 'default_assignee_id' ? (value === '' ? undefined : parseInt(value)) : value
-    }));
+  const handleVillagePriceChange = (villageId: number, field: 'cost' | 'currency', value: string | number) => {
+    setVillagePrices(prev => prev.map(vp => 
+      vp.village_id === villageId 
+        ? { ...vp, [field]: field === 'cost' ? parseFloat(value as string) || 0 : value }
+        : vp
+    ));
   };
 
   const handleEdit = () => {
@@ -150,109 +133,89 @@ export default function ServiceTypeDetails() {
   };
 
   const handleCancel = () => {
-    if (isNew) {
-      navigate('/services');
-    } else {
-      setIsEditing(false);
-      // Reset form data
-      if (serviceType) {
-        setFormData({
-          name: serviceType.name,
-          cost: serviceType.cost,
-          currency: serviceType.currency,
-          description: serviceType.description || '',
-          default_assignee_id: undefined
-        });
-      }
+    setIsEditing(false);
+    if (serviceType) {
+      setFormData({
+        name: serviceType.name,
+        description: serviceType.description || '',
+      });
+      
+      // Reset village prices
+      const prices = villages.map(village => {
+        const existingPrice = serviceType.village_prices?.find(vp => vp.village_id === village.id);
+        return {
+          village_id: village.id,
+          cost: existingPrice?.cost || 0,
+          currency: existingPrice?.currency || 'EGP'
+        };
+      });
+      setVillagePrices(prices);
     }
   };
 
   const handleSave = async () => {
+    if (!id || !serviceType) return;
+
     try {
-      setLoading(true);
+      setSubmitting(true);
       setError(null);
 
-      // Validate form data
-      if (!formData.name || formData.name.trim() === '') {
-        setError('Service name is required');
-        return;
-      }
+      // Filter out village prices with cost 0 or less
+      const validVillagePrices = villagePrices.filter(vp => vp.cost > 0);
 
-      if (typeof formData.cost === 'number' && formData.cost <= 0) {
-        setError('Cost must be greater than 0');
-        return;
-      }
+      const updateData: UpdateServiceTypeRequest = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || undefined,
+        village_prices: validVillagePrices
+      };
 
-      console.log('Saving service type with data:', formData);
-
-      if (isNew) {
-        try {
-          const apiData = {
-            ...formData,
-            cost: typeof formData.cost === 'string' ? parseFloat(formData.cost) || 0 : formData.cost
-          };
-          const newServiceType = await serviceRequestService.createServiceType(apiData);
-          console.log('Created service type:', newServiceType);
-          
-          if (newServiceType && newServiceType.id) {
-            console.log('Navigating to service type detail page:', `/services/types/${newServiceType.id}`);
-            // Navigate to the created service type's detail page
-            navigate(`/services/types/${newServiceType.id}?success=true&message=${encodeURIComponent('Service type created successfully')}`);
-          } else {
-            console.error('Service type created but no ID returned:', newServiceType);
-            setError('Service type was created but navigation failed. Check the services list.');
-            // Navigate back to services list instead
-            navigate(`/services?success=true&message=${encodeURIComponent('Service type created successfully')}&tab=0`);
-          }
-        } catch (createError) {
-          console.error('Create service type error:', createError);
-          throw createError;
-        }
-      } else if (id) {
-        const updateData: UpdateServiceTypeRequest = {
-          name: formData.name,
-          cost: typeof formData.cost === 'string' ? parseFloat(formData.cost) || 0 : formData.cost,
-          currency: formData.currency,
-          description: formData.description,
-          default_assignee_id: undefined
-        };
-        
-        console.log('Updating service type with data:', updateData);
-        const updatedServiceType = await serviceRequestService.updateServiceType(parseInt(id), updateData);
-        console.log('Updated service type:', updatedServiceType);
-        
-        setServiceType(updatedServiceType);
-        setIsEditing(false);
-      }
+      const updatedServiceType = await serviceTypeService.updateServiceType(parseInt(id), updateData);
+      setServiceType(updatedServiceType);
+      setIsEditing(false);
     } catch (err) {
-      console.error('Error saving service type:', err);
-      if (err instanceof Error) {
-        setError(`Failed to save service type: ${err.message}`);
-      } else {
-        setError('Failed to save service type: Unknown error');
-      }
+      setError(err instanceof Error ? err.message : 'Failed to update service type');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!id || isNew) return;
+    if (!id) return;
     
-    if (window.confirm('Are you sure you want to delete this service type? This action cannot be undone.')) {
+    const confirmMessage = 'Are you sure you want to delete this service type? This action cannot be undone.';
+    if (window.confirm(confirmMessage)) {
       try {
-        setLoading(true);
-        await serviceRequestService.deleteServiceType(parseInt(id));
-        navigate(`/services?success=true&message=${encodeURIComponent('Service type deleted successfully')}&tab=0`);
+        setSubmitting(true);
+        await serviceTypeService.deleteServiceType(parseInt(id));
+        navigate('/services?tab=0'); // Navigate back to service types tab
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete service type');
-        setLoading(false);
+        setSubmitting(false);
       }
     }
   };
 
   const handleBack = () => {
-    navigate('/services');
+    navigate('/services?tab=0');
+  };
+
+  const copyPriceToAll = (villageId: number) => {
+    const sourcePrice = villagePrices.find(vp => vp.village_id === villageId);
+    if (sourcePrice && sourcePrice.cost > 0) {
+      setVillagePrices(prev => prev.map(vp => ({
+        ...vp,
+        cost: sourcePrice.cost,
+        currency: sourcePrice.currency
+      })));
+    }
+  };
+
+  const canEdit = () => {
+    return currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  };
+
+  const canDelete = () => {
+    return currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   };
 
   if (loading) {
@@ -265,7 +228,7 @@ export default function ServiceTypeDetails() {
     );
   }
 
-  if (error) {
+  if (error && !serviceType) {
     return (
       <Container maxWidth="md">
         <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
@@ -276,37 +239,57 @@ export default function ServiceTypeDetails() {
     );
   }
 
+  if (!serviceType) {
+    return (
+      <Container maxWidth="md">
+        <Alert severity="error" sx={{ mt: 4 }}>Service type not found</Alert>
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack} sx={{ mt: 2 }}>
+          Back to Services
+        </Button>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="md">
-      <Box sx={{ mb: 4 }}>
+      <Box sx={{ mb: 4, mt: 3 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Button variant="text" color="primary" startIcon={<ArrowBackIcon />} onClick={handleBack}>
               Back
             </Button>
-            <Typography variant="h4" sx={{ mt: 3 }}>
-              {isNew ? 'New Service Type' : serviceType?.name || 'Service Type'}
+            <Typography variant="h4">
+              {serviceType.name}
             </Typography>
           </Box>
           
           <Box sx={{ display: 'flex', gap: 1 }}>
-            {!isEditing && !isNew && (
-              <>
-                <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
-                  Edit
-                </Button>
-                <Tooltip title="Delete Service Type">
-                  <IconButton color="error" onClick={handleDelete}>
-                    <DeleteIcon />
-                  </IconButton>
-                </Tooltip>
-              </>
+            {!isEditing && canEdit() && (
+              <Button variant="contained" startIcon={<EditIcon />} onClick={handleEdit}>
+                Edit
+              </Button>
+            )}
+            {!isEditing && canDelete() && (
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={handleDelete}
+                disabled={submitting}
+              >
+                Delete
+              </Button>
             )}
             {isEditing && (
               <>
-                <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave}>
-                  Save
+                <Button
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                  onClick={handleSave}
+                  disabled={submitting}
+                >
+                  {submitting ? 'Saving...' : 'Save'}
                 </Button>
                 <Button variant="outlined" startIcon={<CancelIcon />} onClick={handleCancel}>
                   Cancel
@@ -316,65 +299,166 @@ export default function ServiceTypeDetails() {
           </Box>
         </Box>
 
-        {/* Form */}
-        <Paper sx={{ p: 3 }}>
-          <Stack spacing={3}>
-            <TextField
-              label="Service Name"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              fullWidth
-              required
-              disabled={!isEditing}
-              error={!formData.name}
-              helperText={!formData.name ? 'Service name is required' : ''}
-            />
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Basic Information */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Basic Information
+          </Typography>
+          <Divider sx={{ mb: 3 }} />
+          
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="subtitle2" color="text.secondary">Service Name</Typography>
+              {isEditing ? (
+                <TextField
+                  fullWidth
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  size="small"
+                  sx={{ mt: 1 }}
+                />
+              ) : (
+                <Typography variant="body1" sx={{ mt: 0.5 }}>{serviceType.name}</Typography>
+              )}
+            </Grid>
             
-            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
-              <TextField
-                label="Cost"
-                name="cost"
-                type="number"
-                value={formData.cost === '' ? '' : formData.cost}
-                onChange={handleInputChange}
-                fullWidth
-                required
-                disabled={!isEditing}
-                inputProps={{ min: 0, step: 0.01 }}
-                error={formData.cost !== '' && Number(formData.cost) <= 0}
-                helperText={formData.cost !== '' && Number(formData.cost) <= 0 ? 'Cost must be greater than 0' : ''}
-              />
-              
-              <FormControl fullWidth disabled={!isEditing}>
-                <InputLabel>Currency</InputLabel>
-                <Select
-                  value={formData.currency}
-                  label="Currency"
-                  onChange={(e) => handleSelectChange(e, 'currency')}
-                >
-                  <MenuItem value="EGP">EGP</MenuItem>
-                  <MenuItem value="GBP">GBP</MenuItem>
-                </Select>
-              </FormControl>
-            </Box>
-            
-            <TextField
-              label="Description"
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              fullWidth
-              multiline
-              rows={3}
-              disabled={!isEditing}
-            />
-          </Stack>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="subtitle2" color="text.secondary">Description</Typography>
+              {isEditing ? (
+                <TextField
+                  fullWidth
+                  multiline
+                  rows={3}
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  size="small"
+                  sx={{ mt: 1 }}
+                />
+              ) : (
+                <Typography variant="body1" sx={{ mt: 0.5 }}>
+                  {serviceType.description || 'No description provided'}
+                </Typography>
+              )}
+            </Grid>
+          </Grid>
         </Paper>
 
-        {/* Service Type Info (when not editing) */}
-        {!isEditing && serviceType && (
-          <Card sx={{ mt: 3 }}>
+        {/* Village-Specific Pricing */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Village-Specific Pricing
+          </Typography>
+          <Divider sx={{ mb: 3 }} />
+          
+          {isEditing ? (
+            <Grid container spacing={3}>
+              {villages.map(village => {
+                const villagePrice = villagePrices.find(vp => vp.village_id === village.id);
+                
+                return (
+                  <Grid size={{ xs: 12, sm: 6, md: 4 }} key={village.id}>
+                    <Card variant="outlined">
+                      <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                          <Typography variant="subtitle1" fontWeight="medium">
+                            {village.name}
+                          </Typography>
+                          {villagePrice && villagePrice.cost > 0 && (
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => copyPriceToAll(village.id)}
+                              title="Copy this price to all villages"
+                            >
+                              Copy to All
+                            </Button>
+                          )}
+                        </Box>
+                        
+                        <Grid container spacing={2}>
+                          <Grid size={{ xs: 8 }}>
+                            <TextField
+                              fullWidth
+                              label="Cost"
+                              type="number"
+                              value={villagePrice?.cost || 0}
+                              onChange={(e) => handleVillagePriceChange(village.id, 'cost', e.target.value)}
+                              inputProps={{ min: 0, step: 0.01 }}
+                              size="small"
+                            />
+                          </Grid>
+                          <Grid size={{ xs: 4 }}>
+                            <FormControl fullWidth size="small">
+                              <InputLabel>Currency</InputLabel>
+                              <Select
+                                value={villagePrice?.currency || 'EGP'}
+                                label="Currency"
+                                onChange={(e) => handleVillagePriceChange(village.id, 'currency', e.target.value)}
+                              >
+                                <MenuItem value="EGP">EGP</MenuItem>
+                                <MenuItem value="GBP">GBP</MenuItem>
+                              </Select>
+                            </FormControl>
+                          </Grid>
+                        </Grid>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              })}
+            </Grid>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Village</TableCell>
+                    <TableCell align="right">Cost</TableCell>
+                    <TableCell align="right">Currency</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {serviceType.village_prices?.map(vp => {
+                    const village = villages.find(v => v.id === vp.village_id);
+                    return (
+                      <TableRow key={vp.id}>
+                        <TableCell>{village?.name || 'Unknown Village'}</TableCell>
+                        <TableCell align="right">{vp.cost.toFixed(2)}</TableCell>
+                        <TableCell align="right">
+                          <Chip 
+                            label={vp.currency} 
+                            size="small" 
+                            color={vp.currency === 'EGP' ? 'primary' : 'secondary'}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  }) || (
+                    <TableRow>
+                      <TableCell colSpan={3} align="center">
+                        <Typography color="text.secondary">
+                          No pricing information available
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
+
+        {/* Additional Information */}
+        {!isEditing && (
+          <Card>
             <CardContent>
               <Typography variant="h6" gutterBottom>Service Type Information</Typography>
               <Divider sx={{ mb: 2 }} />

@@ -101,8 +101,8 @@ router.get(
         let serviceRequestsQuery = db('service_requests as sr')
           .leftJoin('service_types as st', 'sr.type_id', 'st.id')
           .select(
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_service_requests_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_service_requests_gbp")
+            db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END), 0) as total_service_requests_egp"),
+            db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_service_requests_gbp")
           )
           .where('sr.apartment_id', apt.apartment_id);
         const srDateFilter = buildDateFilter('sr.date_created');
@@ -316,8 +316,8 @@ router.get(
         .select(
           'sr.*',
           'st.name as service_name',
-          'st.cost',
-          'st.currency',
+          'sr.cost',
+          'sr.currency',
           'b.arrival_date as booking_arrival_date',
           'u.name as person_name'
         )
@@ -833,8 +833,8 @@ router.get(
         .select(
           'u.name as renter_name',
           'u.id as renter_id',
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+          db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_gbp")
         )
         .where('sr.apartment_id', apartmentId)
         .where('u.role', 'renter')
@@ -988,8 +988,8 @@ router.get(
           'sr.id',
           db.raw("'Service Request' as type"),
           db.raw("COALESCE(sr.notes, st.name) as description"),
-          'st.cost as amount',
-          'st.currency',
+          'sr.cost as amount',
+          'sr.currency',
           'sr.date_created as date',
           'sr.who_pays as user_type',
           'sr.created_by',

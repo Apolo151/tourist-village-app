@@ -48,6 +48,7 @@ export interface CreateServiceRequestProps {
     onSuccess?: () => void;
     onCancel?: () => void;
     lockApartment?: boolean;
+    disableEditMode?: boolean; // Add this prop to disable edit mode when used in dialogs
 }
 
 export default function CreateServiceRequest({
@@ -57,11 +58,15 @@ export default function CreateServiceRequest({
     onSuccess,
     onCancel,
     lockApartment,
+    disableEditMode,
 }: CreateServiceRequestProps) {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const { currentUser } = useAuth();
     const { id } = useParams<{ id: string }>();
+    
+    // Only use route parameter id for edit mode when not disabled
+    const editId = disableEditMode ? null : id;
 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -89,6 +94,8 @@ export default function CreateServiceRequest({
         who_pays: whoPays ?? "owner", // Use the passed whoPays or default to owner
         notes: "",
         assignee_id: undefined,
+        cost: undefined,
+        currency: undefined,
     });
 
     // Load initial data
@@ -119,7 +126,6 @@ export default function CreateServiceRequest({
                         setFormData((prev) => ({
                             ...prev,
                             type_id: serviceType.id,
-                            assignee_id: serviceType.default_assignee_id,
                         }));
                     }
                 }
@@ -184,12 +190,12 @@ export default function CreateServiceRequest({
     // Prefill form in edit mode
     useEffect(() => {
         const fetchAndPrefill = async () => {
-            if (!id) return;
+            if (!editId) return;
             try {
                 setLoading(true);
                 setError(null);
                 const data = await serviceRequestService.getServiceRequestById(
-                    Number(id)
+                    Number(editId)
                 );
                 setFormData({
                     type_id: data.type_id,
@@ -201,6 +207,8 @@ export default function CreateServiceRequest({
                     who_pays: data.who_pays,
                     notes: data.notes,
                     assignee_id: data.assignee_id,
+                    cost: data.cost,
+                    currency: data.currency,
                 });
             } catch (err) {
                 setError("Failed to load service request for editing");
@@ -209,7 +217,87 @@ export default function CreateServiceRequest({
             }
         };
         fetchAndPrefill();
-    }, [id]);
+    }, [editId]);
+
+    // Effect to prefill cost with default village pricing when service type and apartment are selected
+    useEffect(() => {
+        const prefillDefaultCost = () => {
+            if (!formData.type_id || !formData.apartment_id) {
+                // Clear cost fields if service type or apartment is not selected
+                setFormData(prev => ({
+                    ...prev,
+                    cost: undefined,
+                    currency: undefined
+                }));
+                return;
+            }
+
+            // Don't override if user has already set custom cost
+            if (formData.cost !== undefined && formData.currency !== undefined) {
+                return;
+            }
+
+            const selectedServiceType = serviceTypes.find(st => st.id === formData.type_id);
+            const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+
+            if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                
+                if (villagePrice) {
+                    setFormData(prev => ({
+                        ...prev,
+                        cost: villagePrice.cost,
+                        currency: villagePrice.currency
+                    }));
+                } else if (selectedServiceType.village_prices.length > 0) {
+                    // Fallback to first available price
+                    const firstPrice = selectedServiceType.village_prices[0];
+                    setFormData(prev => ({
+                        ...prev,
+                        cost: firstPrice.cost,
+                        currency: firstPrice.currency
+                    }));
+                }
+            } else if (selectedServiceType?.cost && selectedServiceType?.currency) {
+                // Backward compatibility fallback
+                setFormData(prev => ({
+                    ...prev,
+                    cost: selectedServiceType.cost,
+                    currency: selectedServiceType.currency
+                }));
+            }
+        };
+
+        prefillDefaultCost();
+    }, [formData.type_id, formData.apartment_id, serviceTypes, apartments]);
+
+    // Clear cost when service type or apartment changes (to allow new defaults)
+    const handleServiceTypeChange = (event: SelectChangeEvent) => {
+        handleSelectChange(event, 'type_id');
+        // Clear custom cost to allow new defaults
+        setFormData(prev => ({
+            ...prev,
+            cost: undefined,
+            currency: undefined
+        }));
+    };
+
+    const handleApartmentChange = (value: string | number | null) => {
+        handleSelectChange(
+            {
+                target: {
+                    value: value?.toString() || "",
+                },
+            } as SelectChangeEvent,
+            "apartment_id"
+        );
+        // Clear custom cost to allow new defaults
+        setFormData(prev => ({
+            ...prev,
+            cost: undefined,
+            currency: undefined
+        }));
+    };
 
     const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = event.target;
@@ -289,10 +377,10 @@ export default function CreateServiceRequest({
                 apartment_id: formData.apartment_id,
             };
 
-            if (id) {
+            if (editId) {
                 // Edit mode - update existing service request
                 await serviceRequestService.updateServiceRequest(
-                    Number(id),
+                    Number(editId),
                     requestData
                 );
             } else {
@@ -407,9 +495,7 @@ export default function CreateServiceRequest({
                                             formData.type_id?.toString() || ""
                                         }
                                         label="Service Type"
-                                        onChange={(e) =>
-                                            handleSelectChange(e, "type_id")
-                                        }
+                                        onChange={handleServiceTypeChange}
                                     >
                                         <MenuItem value="">
                                             <em>Select a service type</em>
@@ -432,7 +518,25 @@ export default function CreateServiceRequest({
                                                         {serviceType.name}
                                                     </span>
                                                     <Chip
-                                                        label={`${serviceType.cost} ${serviceType.currency}`}
+                                                        label={
+                                                            (() => {
+                                                                if (formData.apartment_id) {
+                                                                    const apartment = apartments.find(a => a.id === formData.apartment_id);
+                                                                    if (apartment?.village_id && serviceType.village_prices) {
+                                                                        const villagePrice = serviceType.village_prices.find(vp => vp.village_id === apartment.village_id);
+                                                                        if (villagePrice) {
+                                                                            return `${villagePrice.cost} ${villagePrice.currency}`;
+                                                                        }
+                                                                    }
+                                                                }
+                                                                // Fallback to first available price
+                                                                if (serviceType.village_prices && serviceType.village_prices.length > 0) {
+                                                                    const firstPrice = serviceType.village_prices[0];
+                                                                    return `${firstPrice.cost} ${firstPrice.currency}`;
+                                                                }
+                                                                return serviceType.cost && serviceType.currency ? `${serviceType.cost} ${serviceType.currency}` : 'No pricing';
+                                                            })()
+                                                        }
                                                         size="small"
                                                         color="primary"
                                                         variant="outlined"
@@ -462,17 +566,7 @@ export default function CreateServiceRequest({
                                         village: apartment.village,
                                     }))}
                                     value={formData.apartment_id || null}
-                                    onChange={(value) =>
-                                        handleSelectChange(
-                                            {
-                                                target: {
-                                                    value:
-                                                        value?.toString() || "",
-                                                },
-                                            } as SelectChangeEvent,
-                                            "apartment_id"
-                                        )
-                                    }
+                                    onChange={handleApartmentChange}
                                     label="Apartment"
                                     placeholder="Search apartments by name..."
                                     required
@@ -683,6 +777,107 @@ export default function CreateServiceRequest({
                                 </FormControl>
                             </Grid>
 
+                            {/* Cost Override Section */}
+                            <Grid size={{ xs: 12 }}>
+                                <Typography variant="subtitle2" gutterBottom>
+                                    Service Cost
+                                </Typography>
+                                
+                                {/* Show current default cost */}
+                                {formData.type_id && formData.apartment_id && (
+                                    <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                                            Default Cost for {selectedServiceType?.name} in {selectedApartment?.village?.name}:
+                                        </Typography>
+                                        <Typography variant="h6" color="primary">
+                                            {(() => {
+                                                if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                    const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                    if (villagePrice) {
+                                                        return `${villagePrice.cost} ${villagePrice.currency}`;
+                                                    }
+                                                }
+                                                if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                    const firstPrice = selectedServiceType.village_prices[0];
+                                                    return `${firstPrice.cost} ${firstPrice.currency}`;
+                                                }
+                                                return selectedServiceType?.cost && selectedServiceType?.currency 
+                                                    ? `${selectedServiceType.cost} ${selectedServiceType.currency}`
+                                                    : 'No pricing available';
+                                            })()}
+                                        </Typography>
+                                    </Box>
+                                )}
+
+                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                    Override the default cost if needed:
+                                </Typography>
+                                <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                                    <TextField
+                                        label="Custom Cost"
+                                        type="number"
+                                        value={formData.cost || ''}
+                                        onChange={(e) => setFormData(prev => ({ 
+                                            ...prev, 
+                                            cost: e.target.value ? parseFloat(e.target.value) : undefined 
+                                        }))}
+                                        placeholder={(() => {
+                                            if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                if (villagePrice) return villagePrice.cost.toString();
+                                            }
+                                            if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                return selectedServiceType.village_prices[0].cost.toString();
+                                            }
+                                            return selectedServiceType?.cost?.toString() || 'Enter cost';
+                                        })()}
+                                        inputProps={{ min: 0, step: 0.01 }}
+                                        sx={{ flex: 1 }}
+                                        helperText="Leave empty to use default pricing"
+                                    />
+                                    <FormControl sx={{ minWidth: 120 }}>
+                                        <InputLabel>Currency</InputLabel>
+                                        <Select
+                                            value={formData.currency || ''}
+                                            label="Currency"
+                                            onChange={(e) => setFormData(prev => ({ 
+                                                ...prev, 
+                                                currency: e.target.value as 'EGP' | 'GBP' || undefined 
+                                            }))}
+                                        >
+                                            <MenuItem value="">
+                                                <em>Default ({(() => {
+                                                    if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                        const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                        if (villagePrice) return villagePrice.currency;
+                                                    }
+                                                    if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                        return selectedServiceType.village_prices[0].currency;
+                                                    }
+                                                    return selectedServiceType?.currency || 'EGP';
+                                                })()})</em>
+                                            </MenuItem>
+                                            <MenuItem value="EGP">EGP</MenuItem>
+                                            <MenuItem value="GBP">GBP</MenuItem>
+                                        </Select>
+                                    </FormControl>
+                                    {(formData.cost !== undefined || formData.currency !== undefined) && (
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            onClick={() => setFormData(prev => ({
+                                                ...prev,
+                                                cost: undefined,
+                                                currency: undefined
+                                            }))}
+                                            sx={{ mt: 1 }}
+                                        >
+                                            Reset to Default
+                                        </Button>
+                                    )}
+                                </Box>
+                            </Grid>
+
                             <Grid size={{ xs: 12 }}>
                                 <TextField
                                     label="Notes (Optional)"
@@ -736,8 +931,58 @@ export default function CreateServiceRequest({
                                                 Cost
                                             </Typography>
                                             <Typography variant="body1">
-                                                {selectedServiceType?.cost}{" "}
-                                                {selectedServiceType?.currency}
+                                                {(() => {
+                                                    // If custom cost is set, show it
+                                                    if (formData.cost !== undefined && formData.currency !== undefined) {
+                                                        return `${formData.cost.toFixed(2)} ${formData.currency} (Custom)`;
+                                                    }
+                                                    
+                                                    // If only cost is custom, show mixed
+                                                    if (formData.cost !== undefined) {
+                                                        const defaultCurrency = (() => {
+                                                            if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                                const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                                if (villagePrice) return villagePrice.currency;
+                                                            }
+                                                            if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                                return selectedServiceType.village_prices[0].currency;
+                                                            }
+                                                            return selectedServiceType?.currency || 'EGP';
+                                                        })();
+                                                        return `${formData.cost.toFixed(2)} ${defaultCurrency} (Custom Cost)`;
+                                                    }
+                                                    
+                                                    // If only currency is custom, show mixed
+                                                    if (formData.currency !== undefined) {
+                                                        const defaultCost = (() => {
+                                                            if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                                const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                                if (villagePrice) return villagePrice.cost;
+                                                            }
+                                                            if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                                return selectedServiceType.village_prices[0].cost;
+                                                            }
+                                                            return selectedServiceType?.cost || 0;
+                                                        })();
+                                                        return `${defaultCost} ${formData.currency} (Custom Currency)`;
+                                                    }
+                                                    
+                                                    // Otherwise show default village pricing
+                                                    if (selectedServiceType && selectedApartment?.village_id && selectedServiceType.village_prices) {
+                                                        const villagePrice = selectedServiceType.village_prices.find(vp => vp.village_id === selectedApartment.village_id);
+                                                        if (villagePrice) {
+                                                            return `${villagePrice.cost} ${villagePrice.currency} (Default)`;
+                                                        }
+                                                    }
+                                                    // Fallback to first available price or backward compatibility
+                                                    if (selectedServiceType?.village_prices && selectedServiceType.village_prices.length > 0) {
+                                                        const firstPrice = selectedServiceType.village_prices[0];
+                                                        return `${firstPrice.cost} ${firstPrice.currency} (Default)`;
+                                                    }
+                                                    return selectedServiceType?.cost && selectedServiceType?.currency 
+                                                        ? `${selectedServiceType.cost} ${selectedServiceType.currency} (Default)`
+                                                        : 'No pricing available';
+                                                })()}
                                             </Typography>
                                         </Box>
                                         <Box>
@@ -827,10 +1072,10 @@ export default function CreateServiceRequest({
                             }
                         >
                             {submitting
-                                ? id
+                                ? editId
                                     ? "Saving..."
                                     : "Creating..."
-                                : id
+                                : editId
                                 ? "Edit Request"
                                 : "Create Request"}
                         </Button>

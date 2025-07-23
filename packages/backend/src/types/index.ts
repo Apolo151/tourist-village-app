@@ -159,6 +159,8 @@ export interface ServiceRequest {
   created_by: number;
   created_at: Date;
   updated_at: Date;
+  cost: number;
+  currency: 'EGP' | 'GBP';
   
   // Joined fields for API responses
   type?: ServiceType;
@@ -169,20 +171,34 @@ export interface ServiceRequest {
   created_by_user?: PublicUser;
 }
 
+export interface ServiceTypeVillagePrice {
+  id: number;
+  service_type_id: number;
+  village_id: number;
+  cost: number;
+  currency: 'EGP' | 'GBP';
+  created_at: Date;
+  updated_at: Date;
+  
+  // Joined fields for API responses
+  village?: Village;
+}
+
 export interface ServiceType {
   id: number;
   name: string;
-  cost: number;
-  currency: 'EGP' | 'GBP';
   description?: string;
-  default_assignee_id?: number;
   created_by: number;
   created_at: Date;
   updated_at: Date;
   
   // Joined fields for API responses
-  default_assignee?: PublicUser;
   created_by_user?: PublicUser;
+  village_prices?: ServiceTypeVillagePrice[];
+  
+  // Computed fields for backward compatibility
+  cost?: number; // Will be populated based on context (e.g., selected village)
+  currency?: 'EGP' | 'GBP'; // Will be populated based on context
 }
 
 export interface Payment {
@@ -486,22 +502,27 @@ export interface UpdateBookingRequest {
 // Service Type related interfaces
 export interface CreateServiceTypeRequest {
   name: string;
-  cost: number;
-  currency: 'EGP' | 'GBP';
   description?: string;
-  default_assignee_id?: number;
+  village_prices: {
+    village_id: number;
+    cost: number;
+    currency: 'EGP' | 'GBP';
+  }[];
 }
 
 export interface UpdateServiceTypeRequest {
   name?: string;
-  cost?: number;
-  currency?: 'EGP' | 'GBP';
   description?: string;
-  default_assignee_id?: number;
+  village_prices?: {
+    village_id: number;
+    cost: number;
+    currency: 'EGP' | 'GBP';
+  }[];
 }
 
 export interface ServiceTypeFilters {
   search?: string;
+  village_id?: number; // Filter by village to get appropriate pricing
   currency?: 'EGP' | 'GBP';
   min_cost?: number;
   max_cost?: number;
@@ -522,6 +543,9 @@ export interface CreateServiceRequestRequest {
   who_pays: 'owner' | 'renter' | 'company';
   notes?: string;
   assignee_id?: number; // Optional - will default to service type assignee
+  // Cost fields - if not provided, will default to village-specific pricing
+  cost?: number;
+  currency?: 'EGP' | 'GBP';
 }
 
 export interface UpdateServiceRequestRequest {
@@ -534,6 +558,9 @@ export interface UpdateServiceRequestRequest {
   who_pays?: 'owner' | 'renter' | 'company';
   notes?: string;
   assignee_id?: number;
+  // Cost fields - can be updated to override default pricing
+  cost?: number;
+  currency?: 'EGP' | 'GBP';
 }
 
 export interface ServiceRequestFilters {

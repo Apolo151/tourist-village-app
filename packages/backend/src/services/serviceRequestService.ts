@@ -52,6 +52,10 @@ export class ServiceRequestService {
       .leftJoin('service_types as st', 'sr.type_id', 'st.id')
       .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('service_type_village_prices as stvp', function() {
+        this.on('st.id', '=', 'stvp.service_type_id')
+            .andOn('a.village_id', '=', 'stvp.village_id');
+      })
       .leftJoin('bookings as b', 'sr.booking_id', 'b.id')
       .leftJoin('users as requester', 'sr.requester_id', 'requester.id')
       .leftJoin('users as assignee', 'sr.assignee_id', 'assignee.id')
@@ -59,10 +63,10 @@ export class ServiceRequestService {
       .leftJoin('users as owner', 'a.owner_id', 'owner.id')
       .select(
         'sr.*',
-        // Service type details
+        // Service type details with village-specific pricing (for reference only)
         'st.name as service_type_name',
-        'st.cost as service_type_cost',
-        'st.currency as service_type_currency',
+        'stvp.cost as service_type_village_cost',
+        'stvp.currency as service_type_village_currency',
         'st.description as service_type_description',
         // Apartment details
         'a.name as apartment_name',
@@ -173,6 +177,10 @@ export class ServiceRequestService {
       .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
       .leftJoin('service_types as st', 'sr.type_id', 'st.id')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('service_type_village_prices as stvp', function() {
+        this.on('st.id', '=', 'stvp.service_type_id')
+            .andOn('a.village_id', '=', 'stvp.village_id');
+      })
       .leftJoin('users as requester', 'sr.requester_id', 'requester.id')
       .leftJoin('users as assignee', 'sr.assignee_id', 'assignee.id');
 
@@ -247,11 +255,13 @@ export class ServiceRequestService {
       created_by: sr.created_by,
       created_at: new Date(sr.created_at),
       updated_at: new Date(sr.updated_at),
+      cost: parseFloat(sr.cost),
+      currency: sr.currency,
       type: {
         id: sr.type_id,
         name: sr.service_type_name,
-        cost: parseFloat(sr.service_type_cost),
-        currency: sr.service_type_currency,
+        cost: parseFloat(sr.service_type_village_cost),
+        currency: sr.service_type_village_currency,
         description: sr.service_type_description || undefined,
         created_by: 0, // Not fetched
         created_at: new Date(), // Not fetched
@@ -367,6 +377,10 @@ export class ServiceRequestService {
       .leftJoin('service_types as st', 'sr.type_id', 'st.id')
       .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('service_type_village_prices as stvp', function() {
+        this.on('st.id', '=', 'stvp.service_type_id')
+            .andOn('a.village_id', '=', 'stvp.village_id');
+      })
       .leftJoin('bookings as b', 'sr.booking_id', 'b.id')
       .leftJoin('users as requester', 'sr.requester_id', 'requester.id')
       .leftJoin('users as assignee', 'sr.assignee_id', 'assignee.id')
@@ -376,8 +390,8 @@ export class ServiceRequestService {
         'sr.*',
         // Service type details
         'st.name as service_type_name',
-        'st.cost as service_type_cost',
-        'st.currency as service_type_currency',
+        'stvp.cost as service_type_village_cost',
+        'stvp.currency as service_type_village_currency',
         'st.description as service_type_description',
         'st.created_at as service_type_created_at',
         'st.updated_at as service_type_updated_at',
@@ -460,11 +474,13 @@ export class ServiceRequestService {
       created_by: serviceRequest.created_by,
       created_at: new Date(serviceRequest.created_at),
       updated_at: new Date(serviceRequest.updated_at),
+      cost: parseFloat(serviceRequest.cost),
+      currency: serviceRequest.currency,
       type: {
         id: serviceRequest.type_id,
         name: serviceRequest.service_type_name,
-        cost: parseFloat(serviceRequest.service_type_cost),
-        currency: serviceRequest.service_type_currency,
+        cost: parseFloat(serviceRequest.service_type_village_cost),
+        currency: serviceRequest.service_type_village_currency,
         description: serviceRequest.service_type_description || undefined,
         created_by: 0, // Not fetched
         created_at: new Date(serviceRequest.service_type_created_at),
@@ -570,10 +586,41 @@ export class ServiceRequestService {
       throw new Error('Service type not found');
     }
 
-    // Validate apartment exists
-    const apartment = await db('apartments').where('id', data.apartment_id).first();
+    // Validate apartment exists and get its village
+    const apartment = await db('apartments')
+      .join('villages', 'apartments.village_id', 'villages.id')
+      .select('apartments.*', 'villages.id as village_id')
+      .where('apartments.id', data.apartment_id)
+      .first();
     if (!apartment) {
       throw new Error('Apartment not found');
+    }
+
+    // Get default cost from village-specific pricing if not provided
+    let cost: number = data.cost ?? 0;
+    let currency: 'EGP' | 'GBP' = data.currency ?? 'EGP';
+    
+    if (data.cost === undefined || data.currency === undefined) {
+      const villagePricing = await db('service_type_village_prices')
+        .where('service_type_id', data.type_id)
+        .where('village_id', apartment.village_id)
+        .first();
+      
+      if (!villagePricing) {
+        throw new Error('No pricing available for this service type in the apartment\'s village');
+      }
+      
+      cost = data.cost ?? parseFloat(villagePricing.cost);
+      currency = data.currency ?? villagePricing.currency;
+    }
+
+    // Validate cost and currency
+    if (cost <= 0) {
+      throw new Error('Cost must be greater than 0');
+    }
+    
+    if (!['EGP', 'GBP'].includes(currency)) {
+      throw new Error('Currency must be EGP or GBP');
     }
 
     // Validate requester exists
@@ -622,11 +669,13 @@ export class ServiceRequestService {
           requester_id: data.requester_id,
           date_action: dateAction,
           date_created: new Date(),
-          status: data.status || 'pending',
+          status: data.status || 'Created',
           who_pays: data.who_pays,
           notes: data.notes?.trim() || null,
-          assignee_id: data.assignee_id || serviceType.default_assignee_id || null,
+          assignee_id: data.assignee_id || null,
           created_by: createdBy,
+          cost: cost,
+          currency: currency,
           created_at: new Date(),
           updated_at: new Date()
         })
@@ -709,6 +758,15 @@ export class ServiceRequestService {
       throw new Error('Valid who_pays value is required (owner, renter, or company)');
     }
 
+    // Validate cost and currency if provided
+    if (data.cost !== undefined && data.cost <= 0) {
+      throw new Error('Cost must be greater than 0');
+    }
+    
+    if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
+      throw new Error('Currency must be EGP or GBP');
+    }
+
     // Prepare update data
     const updateData: any = { updated_at: new Date() };
 
@@ -720,6 +778,8 @@ export class ServiceRequestService {
     if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
     if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
     if (data.assignee_id !== undefined) updateData.assignee_id = data.assignee_id || null;
+    if (data.cost !== undefined) updateData.cost = data.cost;
+    if (data.currency !== undefined) updateData.currency = data.currency;
 
     if (data.date_action !== undefined) {
       if (data.date_action === null || data.date_action === '') {
@@ -805,12 +865,11 @@ export class ServiceRequestService {
       .orderBy('count', 'desc')
       .limit(10);
 
-    // Total cost estimate by currency
-    const costEstimate = await db('service_requests as sr')
-      .join('service_types as st', 'sr.type_id', 'st.id')
-      .select('st.currency')
-      .sum('st.cost as total_cost')
-      .groupBy('st.currency');
+    // Total cost estimate by currency using actual service request costs
+    const costEstimate = await db('service_requests')
+      .select('currency')
+      .sum('cost as total_cost')
+      .groupBy('currency');
 
     const totalCostEstimate = { EGP: 0, GBP: 0 };
     costEstimate.forEach(item => {

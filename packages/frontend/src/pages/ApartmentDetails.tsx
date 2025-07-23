@@ -150,6 +150,13 @@ export default function ApartmentDetails() {
       lockApartment: true,
       ...extraProps
     };
+
+    // Add specific props for service requests
+    if (type === 'serviceRequest' && apartment) {
+      dialogProps.whoPays = 'owner'; // Default to owner for apartment-level service requests
+      dialogProps.disableEditMode = true; // Disable edit mode when used in dialog
+    }
+
     return (
       <Dialog open={dialogState[type]} onClose={() => closeDialog(type)} maxWidth="md" fullWidth>
         <Component {...dialogProps} />
@@ -501,7 +508,7 @@ export default function ApartmentDetails() {
                         label={getPayingStatusDisplay(apartment)} 
                           size="small"
                           color={
-                          getPayingStatusColor(apartment)
+                            getPayingStatusColor(apartment) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
                           }
                           sx={{ mt: 1 }}
                         />
@@ -515,7 +522,7 @@ export default function ApartmentDetails() {
                         <Chip
                           label={getSalesStatusDisplay(apartment)}
                           color={
-                            getSalesStatusColor(apartment)
+                            getSalesStatusColor(apartment) as 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning'
                           }
                           size="small"
                           sx={{ mt: 1 }}
@@ -901,7 +908,7 @@ export default function ApartmentDetails() {
                             <TableCell>{request.service_type_name || request.type?.name || request.type_id}</TableCell>
                             <TableCell>{new Date(request.date_created).toLocaleDateString()}</TableCell>
                             <TableCell>{request.date_action ? new Date(request.date_action).toLocaleDateString() : 'N/A'}</TableCell>
-                            <TableCell>{request.service_type_cost} {request.service_type_currency}</TableCell>
+                            <TableCell>{request.cost} {request.currency}</TableCell>
                             <TableCell>{request.who_pays || 'N/A'}</TableCell>
                             <TableCell>
                               <Chip 

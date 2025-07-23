@@ -538,23 +538,21 @@ export class ApartmentService {
     );
 
     // Calculate total money requested (service requests)
-    const serviceRequests = await db('service_requests as sr')
-      .join('service_types as st', 'sr.type_id', 'st.id')
+    const totalMoneyRequested = { EGP: 0, GBP: 0 };
+    // Get service requests cost estimate
+    const serviceRequestsCost = await db('service_requests as sr')
+      .leftJoin('service_types as st', 'sr.type_id', 'st.id')
       .where('sr.apartment_id', id)
-      .select('st.cost', 'st.currency');
+      .select('sr.cost', 'sr.currency');
 
-    const totalMoneyRequested = serviceRequests.reduce(
-      (acc, request) => {
-        const cost = parseFloat(request.cost);
-        if (request.currency === 'EGP') {
-          acc.EGP += cost;
-        } else if (request.currency === 'GBP') {
-          acc.GBP += cost;
-        }
-        return acc;
-      },
-      { EGP: 0, GBP: 0 }
-    );
+    serviceRequestsCost.forEach(request => {
+      const cost = parseFloat(request.cost);
+      if (request.currency === 'EGP') {
+        totalMoneyRequested.EGP += cost;
+      } else if (request.currency === 'GBP') {
+        totalMoneyRequested.GBP += cost;
+      }
+    });
 
     // Calculate net money
     const netMoney = {

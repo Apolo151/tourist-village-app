@@ -907,14 +907,33 @@ export class ValidationMiddleware {
       errors.push({ field: 'name', message: 'Service type name must not exceed 100 characters' });
     }
 
-    if (!data.cost || typeof data.cost !== 'number' || data.cost <= 0) {
-      errors.push({ field: 'cost', message: 'Cost is required and must be a positive number' });
-    } else if (data.cost > 999999.99) {
-      errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
-    }
+    // Validate village_prices array
+    if (!data.village_prices || !Array.isArray(data.village_prices) || data.village_prices.length === 0) {
+      errors.push({ field: 'village_prices', message: 'At least one village pricing is required' });
+    } else {
+      // Validate each village price entry
+      data.village_prices.forEach((price, index) => {
+        if (!price.village_id || typeof price.village_id !== 'number' || price.village_id <= 0) {
+          errors.push({ field: `village_prices[${index}].village_id`, message: 'Village ID is required and must be a positive number' });
+        }
 
-    if (!data.currency || !['EGP', 'GBP'].includes(data.currency)) {
-      errors.push({ field: 'currency', message: 'Currency is required and must be either EGP or GBP' });
+        if (!price.cost || typeof price.cost !== 'number' || price.cost <= 0) {
+          errors.push({ field: `village_prices[${index}].cost`, message: 'Cost is required and must be a positive number' });
+        } else if (price.cost > 999999.99) {
+          errors.push({ field: `village_prices[${index}].cost`, message: 'Cost must not exceed 999,999.99' });
+        }
+
+        if (!price.currency || !['EGP', 'GBP'].includes(price.currency)) {
+          errors.push({ field: `village_prices[${index}].currency`, message: 'Currency is required and must be either EGP or GBP' });
+        }
+      });
+
+      // Check for duplicate village IDs
+      const villageIds = data.village_prices.map(p => p.village_id);
+      const duplicates = villageIds.filter((id, index) => villageIds.indexOf(id) !== index);
+      if (duplicates.length > 0) {
+        errors.push({ field: 'village_prices', message: 'Duplicate village IDs are not allowed' });
+      }
     }
 
     // Optional fields validation
@@ -923,12 +942,6 @@ export class ValidationMiddleware {
         errors.push({ field: 'description', message: 'Description must be a string' });
       } else if (data.description.length > 1000) {
         errors.push({ field: 'description', message: 'Description must not exceed 1000 characters' });
-      }
-    }
-
-    if (data.default_assignee_id !== undefined) {
-      if (typeof data.default_assignee_id !== 'number' || data.default_assignee_id <= 0) {
-        errors.push({ field: 'default_assignee_id', message: 'Default assignee ID must be a positive number' });
       }
     }
 
@@ -952,10 +965,8 @@ export class ValidationMiddleware {
 
     // At least one field should be provided for update
     const hasValidField = data.name !== undefined || 
-                         data.cost !== undefined || 
-                         data.currency !== undefined || 
                          data.description !== undefined || 
-                         data.default_assignee_id !== undefined;
+                         data.village_prices !== undefined;
 
     if (!hasValidField) {
       errors.push({ field: 'general', message: 'At least one field must be provided for update' });
@@ -970,16 +981,35 @@ export class ValidationMiddleware {
       }
     }
 
-    if (data.cost !== undefined) {
-      if (typeof data.cost !== 'number' || data.cost <= 0) {
-        errors.push({ field: 'cost', message: 'Cost must be a positive number' });
-      } else if (data.cost > 999999.99) {
-        errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
-      }
-    }
+    // Validate village_prices array if provided
+    if (data.village_prices !== undefined) {
+      if (!Array.isArray(data.village_prices) || data.village_prices.length === 0) {
+        errors.push({ field: 'village_prices', message: 'Village prices must be a non-empty array' });
+      } else {
+        // Validate each village price entry
+        data.village_prices.forEach((price, index) => {
+          if (!price.village_id || typeof price.village_id !== 'number' || price.village_id <= 0) {
+            errors.push({ field: `village_prices[${index}].village_id`, message: 'Village ID is required and must be a positive number' });
+          }
 
-    if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
-      errors.push({ field: 'currency', message: 'Currency must be either EGP or GBP' });
+          if (!price.cost || typeof price.cost !== 'number' || price.cost <= 0) {
+            errors.push({ field: `village_prices[${index}].cost`, message: 'Cost is required and must be a positive number' });
+          } else if (price.cost > 999999.99) {
+            errors.push({ field: `village_prices[${index}].cost`, message: 'Cost must not exceed 999,999.99' });
+          }
+
+          if (!price.currency || !['EGP', 'GBP'].includes(price.currency)) {
+            errors.push({ field: `village_prices[${index}].currency`, message: 'Currency is required and must be either EGP or GBP' });
+          }
+        });
+
+        // Check for duplicate village IDs
+        const villageIds = data.village_prices.map(p => p.village_id);
+        const duplicates = villageIds.filter((id, index) => villageIds.indexOf(id) !== index);
+        if (duplicates.length > 0) {
+          errors.push({ field: 'village_prices', message: 'Duplicate village IDs are not allowed' });
+        }
+      }
     }
 
     if (data.description !== undefined) {
@@ -987,12 +1017,6 @@ export class ValidationMiddleware {
         errors.push({ field: 'description', message: 'Description must be a string' });
       } else if (data.description.length > 1000) {
         errors.push({ field: 'description', message: 'Description must not exceed 1000 characters' });
-      }
-    }
-
-    if (data.default_assignee_id !== undefined && data.default_assignee_id !== null) {
-      if (typeof data.default_assignee_id !== 'number' || data.default_assignee_id <= 0) {
-        errors.push({ field: 'default_assignee_id', message: 'Default assignee ID must be a positive number' });
       }
     }
 
@@ -1050,10 +1074,8 @@ export class ValidationMiddleware {
     }
 
     if (data.status !== undefined) {
-      if (typeof data.status !== 'string' || !data.status.trim()) {
-        errors.push({ field: 'status', message: 'Status must be a non-empty string' });
-      } else if (data.status.length > 50) {
-        errors.push({ field: 'status', message: 'Status must not exceed 50 characters' });
+      if (!['Created', 'In Progress', 'Done'].includes(data.status)) {
+        errors.push({ field: 'status', message: 'Status must be one of: Created, In Progress, Done' });
       }
     }
 
@@ -1069,6 +1091,27 @@ export class ValidationMiddleware {
       if (typeof data.assignee_id !== 'number' || data.assignee_id <= 0) {
         errors.push({ field: 'assignee_id', message: 'Assignee ID must be a positive number' });
       }
+    }
+
+    // Cost and currency validation (optional - will default to village pricing if not provided)
+    if (data.cost !== undefined) {
+      if (typeof data.cost !== 'number' || data.cost <= 0) {
+        errors.push({ field: 'cost', message: 'Cost must be a positive number' });
+      } else if (data.cost > 999999.99) {
+        errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
+      }
+    }
+
+    if (data.currency !== undefined) {
+      if (!['EGP', 'GBP'].includes(data.currency)) {
+        errors.push({ field: 'currency', message: 'Currency must be either EGP or GBP' });
+      }
+    }
+
+    // If cost is provided, currency should also be provided and vice versa (optional but consistent)
+    if ((data.cost !== undefined && data.currency === undefined) || 
+        (data.cost === undefined && data.currency !== undefined)) {
+      errors.push({ field: 'cost_currency', message: 'If custom cost is provided, both cost and currency must be specified' });
     }
 
     if (errors.length > 0) {
@@ -1098,7 +1141,9 @@ export class ValidationMiddleware {
                          data.status !== undefined || 
                          data.who_pays !== undefined || 
                          data.notes !== undefined || 
-                         data.assignee_id !== undefined;
+                         data.assignee_id !== undefined ||
+                         data.cost !== undefined ||
+                         data.currency !== undefined;
 
     if (!hasValidField) {
       errors.push({ field: 'general', message: 'At least one field must be provided for update' });
@@ -1145,10 +1190,8 @@ export class ValidationMiddleware {
     }
 
     if (data.status !== undefined) {
-      if (typeof data.status !== 'string' || !data.status.trim()) {
-        errors.push({ field: 'status', message: 'Status must be a non-empty string' });
-      } else if (data.status.length > 50) {
-        errors.push({ field: 'status', message: 'Status must not exceed 50 characters' });
+      if (!['Created', 'In Progress', 'Done'].includes(data.status)) {
+        errors.push({ field: 'status', message: 'Status must be one of: Created, In Progress, Done' });
       }
     }
 
@@ -1163,6 +1206,21 @@ export class ValidationMiddleware {
     if (data.assignee_id !== undefined && data.assignee_id !== null) {
       if (typeof data.assignee_id !== 'number' || data.assignee_id <= 0) {
         errors.push({ field: 'assignee_id', message: 'Assignee ID must be a positive number' });
+      }
+    }
+
+    // Cost and currency validation (optional)
+    if (data.cost !== undefined) {
+      if (typeof data.cost !== 'number' || data.cost <= 0) {
+        errors.push({ field: 'cost', message: 'Cost must be a positive number' });
+      } else if (data.cost > 999999.99) {
+        errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
+      }
+    }
+
+    if (data.currency !== undefined) {
+      if (!['EGP', 'GBP'].includes(data.currency)) {
+        errors.push({ field: 'currency', message: 'Currency must be either EGP or GBP' });
       }
     }
 

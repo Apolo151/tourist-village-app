@@ -1,111 +1,80 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
   Box,
+  Typography,
+  Paper,
+  Button,
+  TextField,
   FormControl,
   InputLabel,
   Select,
   MenuItem,
   Alert,
+  Container,
   CircularProgress,
   Grid,
   Card,
   CardContent,
+  IconButton,
   Divider
 } from '@mui/material';
-import type { SelectChangeEvent } from '@mui/material/Select';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import {
   ArrowBack as ArrowBackIcon,
   Save as SaveIcon,
-  Cancel as CancelIcon
+  Cancel as CancelIcon,
+  Add as AddIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-import { serviceRequestService } from '../services/serviceRequestService';
-import type { 
-  ServiceType, 
-  CreateServiceTypeRequest, 
-  UpdateServiceTypeRequest
-} from '../services/serviceRequestService';
-import { userService } from '../services/userService';
-import type { User } from '../services/userService';
+import { serviceTypeService } from '../services/serviceTypeService';
+import type { CreateServiceTypeRequest } from '../services/serviceTypeService';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
+
+interface VillagePriceForm {
+  village_id: number;
+  cost: number;
+  currency: 'EGP' | 'GBP';
+}
 
 export default function CreateServiceType() {
-  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const [searchParams] = useSearchParams();
   
-  const [serviceType, setServiceType] = useState<ServiceType | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isNew = id === 'new' || !id;
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Data states
+  const [villages, setVillages] = useState<Village[]>([]);
   
   // Form data
-  const [formData, setFormData] = useState<{
-    name: string;
-    cost: number | string;
-    currency: 'EGP' | 'GBP';
-    description: string;
-    default_assignee_id?: number;
-  }>({
+  const [formData, setFormData] = useState({
     name: '',
-    cost: 0,
-    currency: 'EGP',
-    description: '',
+    description: ''
   });
-
-  // Check if user is admin
-  useEffect(() => {
-    if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
-      navigate('/unauthorized');
-    }
-  }, [currentUser, navigate]);
-
-  // Check for success messages
-  useEffect(() => {
-    const success = searchParams.get('success');
-    const message = searchParams.get('message');
-    
-    if (success && message) {
-      // Show success message if needed
-      console.log('Success:', decodeURIComponent(message));
-    }
-  }, [searchParams]);
-
-  // Load data
+  
+  const [villagePrices, setVillagePrices] = useState<VillagePriceForm[]>([]);
+  
+  // Load initial data
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Load users for assignee selection
-        const usersData = await userService.getUsers({ limit: 100 });
-        setUsers(usersData.data || []);
-
-        // If editing, load the service type
-        if (!isNew && id && id !== 'new') {
-          const serviceTypeData = await serviceRequestService.getServiceTypeById(parseInt(id));
-          setServiceType(serviceTypeData);
-          
-          // Pre-fill form with existing data
-          setFormData({
-            name: serviceTypeData.name,
-            cost: serviceTypeData.cost,
-            currency: serviceTypeData.currency,
-            description: serviceTypeData.description || '',
-            default_assignee_id: serviceTypeData.default_assignee_id
-          });
-        }
+        const villagesData = await villageService.getVillages({ limit: 100 });
+        setVillages(villagesData.data);
+        
+        // Initialize village prices with default values
+        const initialPrices = villagesData.data.map(village => ({
+          village_id: village.id,
+          cost: 0,
+          currency: 'EGP' as 'EGP' | 'GBP'
+        }));
+        setVillagePrices(initialPrices);
+        
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
@@ -114,80 +83,62 @@ export default function CreateServiceType() {
     };
 
     loadData();
-  }, [isNew, id]);
+  }, []);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'cost' ? (value === '' ? 0 : parseFloat(value)) : value
+      [name]: value
     }));
   };
 
-  const handleSelectChange = (event: SelectChangeEvent, fieldName: string) => {
-    const value = event.target.value;
-    setFormData(prev => ({
-      ...prev,
-      [fieldName]: fieldName === 'default_assignee_id' 
-        ? (value ? parseInt(value) : undefined)
-        : value
-    }));
+  const handleVillagePriceChange = (villageId: number, field: 'cost' | 'currency', value: string | number) => {
+    setVillagePrices(prev => prev.map(vp => 
+      vp.village_id === villageId 
+        ? { ...vp, [field]: field === 'cost' ? parseFloat(value as string) || 0 : value }
+        : vp
+    ));
   };
 
   const validateForm = (): string | null => {
-    if (!formData.name || formData.name.trim() === '') {
-      return 'Service name is required';
+    if (!formData.name.trim()) {
+      return 'Service type name is required';
     }
 
-    if (Number(formData.cost) <= 0) {
-      return 'Cost must be greater than 0';
-    }
-
-    if (formData.name.length > 100) {
-      return 'Service name must be 100 characters or less';
-    }
-
-    if (formData.description && formData.description.length > 1000) {
-      return 'Description must be 1000 characters or less';
+    // Validate that at least one village has a valid price
+    const validPrices = villagePrices.filter(vp => vp.cost > 0);
+    if (validPrices.length === 0) {
+      return 'At least one village must have a valid price greater than 0';
     }
 
     return null;
   };
 
   const handleSubmit = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
 
-      // Validate form data
-      const validationError = validateForm();
-      if (validationError) {
-        setError(validationError);
-        return;
-      }
+      // Filter out village prices with cost 0 or less
+      const validVillagePrices = villagePrices.filter(vp => vp.cost > 0);
 
-      if (isNew) {
-        // Create new service type
-        await serviceRequestService.createServiceType({
-          ...formData,
-          cost: Number(formData.cost)
-        });
-        navigate('/services?tab=0&success=Service%20type%20created%20successfully');
-      } else if (id) {
-        // Update existing service type
-        const updateData: UpdateServiceTypeRequest = {
-          name: formData.name,
-          cost: Number(formData.cost),
-          currency: formData.currency,
-          description: formData.description,
-          default_assignee_id: formData.default_assignee_id
-        };
-        
-        await serviceRequestService.updateServiceType(parseInt(id), updateData);
-        navigate('/services?tab=0&success=Service%20type%20updated%20successfully');
-      }
+      const requestData: CreateServiceTypeRequest = {
+        name: formData.name.trim(),
+        description: formData.description.trim() || undefined,
+        village_prices: validVillagePrices
+      };
+
+      await serviceTypeService.createServiceType(requestData);
+      navigate('/services?tab=0'); // Navigate to service types tab
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save service type');
+      setError(err instanceof Error ? err.message : 'Failed to create service type');
     } finally {
       setSubmitting(false);
     }
@@ -195,6 +146,17 @@ export default function CreateServiceType() {
 
   const handleCancel = () => {
     navigate('/services');
+  };
+
+  const copyPriceToAll = (villageId: number) => {
+    const sourcePrice = villagePrices.find(vp => vp.village_id === villageId);
+    if (sourcePrice && sourcePrice.cost > 0) {
+      setVillagePrices(prev => prev.map(vp => ({
+        ...vp,
+        cost: sourcePrice.cost,
+        currency: sourcePrice.currency
+      })));
+    }
   };
 
   if (loading) {
@@ -207,144 +169,202 @@ export default function CreateServiceType() {
     );
   }
 
-  return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+  if (error && villages.length === 0) {
+    return (
       <Container maxWidth="md">
-        <Box sx={{ mb: 4 }}>
-          {/* Header */}
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Button
-              variant="text"
-              color="primary"
-              startIcon={<ArrowBackIcon />}
-              onClick={handleCancel}
-            >
-              Back
-            </Button>
-            <Typography variant="h4" sx={{ mt: 3, ml: 2 }}>
-              {isNew ? 'Create New Service Type' : `Edit Service Type`}
+        <Alert severity="error" sx={{ mt: 4 }}>{error}</Alert>
+        <Button startIcon={<ArrowBackIcon />} onClick={handleCancel} sx={{ mt: 2 }}>
+          Back to Services
+        </Button>
+      </Container>
+    );
+  }
+
+  return (
+    <Container maxWidth="md">
+      <Box sx={{ mb: 4, mt: 3 }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+          <Button
+            variant="text"
+            color="primary"
+            startIcon={<ArrowBackIcon />}
+            onClick={handleCancel}
+          >
+            Back
+          </Button>
+          <Typography variant="h4" sx={{ ml: 2 }}>
+            Create Service Type
+          </Typography>
+        </Box>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>
+        )}
+
+        {/* Basic Information */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Basic Information
+          </Typography>
+          
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Service Type Name"
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                required
+                placeholder="e.g., Plumbing Repair, Electrical Maintenance"
+              />
+            </Grid>
+            
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                fullWidth
+                label="Description"
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                multiline
+                rows={3}
+                placeholder="Describe what this service includes..."
+              />
+            </Grid>
+            
+            {/* Removed Default Assignee Field */}
+          </Grid>
+        </Paper>
+
+        {/* Village-Specific Pricing */}
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+            <Typography variant="h6">
+              Village-Specific Pricing
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Set different prices for each village
             </Typography>
           </Box>
           
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
+          <Grid container spacing={3}>
+            {villages.map((village, index) => {
+              const villagePrice = villagePrices.find(vp => vp.village_id === village.id);
+              
+              return (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={village.id}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="subtitle1" fontWeight="medium">
+                          {village.name}
+                        </Typography>
+                        {villagePrice && villagePrice.cost > 0 && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => copyPriceToAll(village.id)}
+                            title="Copy this price to all villages"
+                          >
+                            Copy to All
+                          </Button>
+                        )}
+                      </Box>
+                      
+                      <Grid container spacing={2}>
+                        <Grid size={{ xs: 8 }}>
+                          <TextField
+                            fullWidth
+                            label="Cost"
+                            type="number"
+                            value={villagePrice?.cost || 0}
+                            onChange={(e) => handleVillagePriceChange(village.id, 'cost', e.target.value)}
+                            inputProps={{ min: 0, step: 0.01 }}
+                            size="small"
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 4 }}>
+                          <FormControl fullWidth size="small">
+                            <InputLabel>Currency</InputLabel>
+                            <Select
+                              value={villagePrice?.currency || 'EGP'}
+                              label="Currency"
+                              onChange={(e) => handleVillagePriceChange(village.id, 'currency', e.target.value)}
+                            >
+                              <MenuItem value="EGP">EGP</MenuItem>
+                              <MenuItem value="GBP">GBP</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              );
+            })}
+          </Grid>
+        </Paper>
 
-          {/* Form */}
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Typography variant="h6" gutterBottom>Service Type Information</Typography>
+        {/* Summary */}
+        <Card sx={{ mb: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Summary
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
             
-            <Grid container spacing={3}>
-              <Grid size={{xs: 12}}>
-                <TextField
-                  label="Service Name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  fullWidth
-                  required
-                  error={!formData.name && formData.name !== ''}
-                  helperText={!formData.name && formData.name !== '' ? 'Service name is required' : 'Enter a descriptive name for this service type'}
-                  inputProps={{ maxLength: 100 }}
-                />
-              </Grid>
-              
-              <Grid size={{xs: 12, sm: 6}}>
-                <TextField
-                  label="Cost"
-                  name="cost"
-                  type="number"
-                  value={formData.cost}
-                  onChange={handleInputChange}
-                  fullWidth
-                  required
-                  error={typeof formData.cost === 'number' && formData.cost <= 0}
-                  helperText={typeof formData.cost === 'number' && formData.cost <= 0 ? 'Cost must be greater than 0' : 'Enter the service cost'}
-                  inputProps={{ min: 0, step: 0.01, max: 999999.99 }}
-                />
-              </Grid>
-              
-              <Grid size={{xs: 12, sm: 6}}>
-                <FormControl fullWidth required>
-                  <InputLabel>Currency</InputLabel>
-                  <Select
-                    value={formData.currency}
-                    label="Currency"
-                    onChange={(e) => handleSelectChange(e, 'currency')}
-                  >
-                    <MenuItem value="EGP">EGP (Egyptian Pound)</MenuItem>
-                    <MenuItem value="GBP">GBP (British Pound)</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-              
-              <Grid size={{xs: 12}}>
-                <TextField
-                  label="Description"
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  fullWidth
-                  multiline
-                  rows={4}
-                  helperText="Provide a detailed description of what this service includes (optional)"
-                  inputProps={{ maxLength: 1000 }}
-                />
-              </Grid>
-            </Grid>
-          </Paper>
-
-          {/* Preview */}
-          {formData.name && typeof formData.cost === 'number' && formData.cost > 0 && (
-            <Card>
-              <CardContent>
-                <Typography variant="h6" gutterBottom>Preview</Typography>
-                <Divider sx={{ mb: 2 }} />
-                
-                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Service Name</Typography>
-                    <Typography variant="body1">{formData.name}</Typography>
-                  </Box>
-                  <Box>
-                    <Typography variant="subtitle2" color="text.secondary">Cost</Typography>
-                    <Typography variant="body1" color="primary" fontWeight="bold">
-                      {formData.cost.toFixed(2)} {formData.currency}
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 2 }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">Service Name</Typography>
+                <Typography variant="body1">{formData.name || 'Not specified'}</Typography>
+              </Box>
+              {/* Removed Default Assignee Summary */}
+              <Box sx={{ gridColumn: { sm: 'span 2' } }}>
+                <Typography variant="subtitle2" color="text.secondary">Village Pricing</Typography>
+                <Box sx={{ mt: 1 }}>
+                  {villagePrices
+                    .filter(vp => vp.cost > 0)
+                    .map(vp => {
+                      const village = villages.find(v => v.id === vp.village_id);
+                      return (
+                        <Typography key={vp.village_id} variant="body2" sx={{ mb: 0.5 }}>
+                          <strong>{village?.name}:</strong> {vp.cost.toFixed(2)} {vp.currency}
+                        </Typography>
+                      );
+                    })
+                  }
+                  {villagePrices.filter(vp => vp.cost > 0).length === 0 && (
+                    <Typography variant="body2" color="error">
+                      No valid pricing set
                     </Typography>
-                  </Box>
-                  {formData.description && (
-                    <Box sx={{ gridColumn: { sm: 'span 2' } }}>
-                      <Typography variant="subtitle2" color="text.secondary">Description</Typography>
-                      <Typography variant="body1">{formData.description}</Typography>
-                    </Box>
                   )}
                 </Box>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Action Buttons */}
-          <Box sx={{ mt: 4, display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-            <Button 
-              variant="outlined" 
-              startIcon={<CancelIcon />} 
-              onClick={handleCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={<SaveIcon />}
-              onClick={handleSubmit}
-              disabled={submitting || !formData.name || typeof formData.cost === 'number' && formData.cost <= 0}
-            >
-              {submitting ? (isNew ? 'Creating...' : 'Updating...') : (isNew ? 'Create Service Type' : 'Update Service Type')}
-            </Button>
-          </Box>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        {/* Action Buttons */}
+        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+          <Button
+            variant="outlined"
+            startIcon={<CancelIcon />}
+            onClick={handleCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<SaveIcon />}
+            onClick={handleSubmit}
+            disabled={submitting || !formData.name.trim()}
+          >
+            {submitting ? 'Creating...' : 'Create Service Type'}
+          </Button>
         </Box>
-      </Container>
-    </LocalizationProvider>
+      </Box>
+    </Container>
   );
 } 

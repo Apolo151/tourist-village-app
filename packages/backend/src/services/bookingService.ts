@@ -741,8 +741,6 @@ export class BookingService {
       .select(
         'sr.*',
         'st.name as service_type_name',
-        'st.cost as service_type_cost',
-        'st.currency as service_type_currency',
         'assignee.name as assignee_name'
       )
       .where('sr.booking_id', bookingId)

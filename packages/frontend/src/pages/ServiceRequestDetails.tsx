@@ -101,7 +101,9 @@ export default function ServiceRequestDetails() {
           status: serviceRequestData.status,
           who_pays: serviceRequestData.who_pays,
           notes: serviceRequestData.notes,
-          assignee_id: undefined
+          assignee_id: undefined,
+          cost: serviceRequestData.cost,
+          currency: serviceRequestData.currency
         });
 
         // Load bookings for the apartment
@@ -168,7 +170,9 @@ export default function ServiceRequestDetails() {
         status: serviceRequest.status,
         who_pays: serviceRequest.who_pays,
         notes: serviceRequest.notes,
-        assignee_id: undefined
+        assignee_id: undefined,
+        cost: serviceRequest.cost,
+        currency: serviceRequest.currency
       });
     }
   };
@@ -394,9 +398,31 @@ export default function ServiceRequestDetails() {
               
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Cost</Typography>
-                <Typography variant="body1">
-                  {(serviceRequest.type?.cost != null && !isNaN(serviceRequest.type.cost)) ? serviceRequest.type.cost : 0} {serviceRequest.type?.currency || 'EGP'}
-                </Typography>
+                {isEditing ? (
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <TextField
+                      type="number"
+                      value={formData.cost || serviceRequest.cost}
+                      onChange={(e) => setFormData(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
+                      size="small"
+                      inputProps={{ min: 0, step: 0.01 }}
+                      sx={{ flex: 1 }}
+                    />
+                    <FormControl size="small" sx={{ minWidth: 80 }}>
+                      <Select
+                        value={formData.currency || serviceRequest.currency}
+                        onChange={(e) => setFormData(prev => ({ ...prev, currency: e.target.value as 'EGP' | 'GBP' }))}
+                      >
+                        <MenuItem value="EGP">EGP</MenuItem>
+                        <MenuItem value="GBP">GBP</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Box>
+                ) : (
+                  <Typography variant="body1">
+                    {serviceRequest.cost.toFixed(2)} {serviceRequest.currency}
+                  </Typography>
+                )}
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>

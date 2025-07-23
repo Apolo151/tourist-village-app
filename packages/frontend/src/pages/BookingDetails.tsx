@@ -603,6 +603,8 @@ const BookingDetails: React.FC = () => {
       componentProps.lockApartment = true;
       // Set who pays based on user type
       componentProps.whoPays = booking.user_type;
+      // Disable edit mode when used in dialog
+      componentProps.disableEditMode = true;
     }
 
     return (
@@ -669,7 +671,7 @@ const BookingDetails: React.FC = () => {
   };
 
   const getBookingServiceCostTotal = (currency: 'EGP' | 'GBP') => {
-    return relatedData?.service_requests?.filter(sr => sr.service_type_currency === currency).reduce((sum, sr) => sum + (sr.service_type_cost || 0), 0) || 0;
+    return relatedData?.service_requests?.filter(sr => sr.currency === currency).reduce((sum, sr) => sum + (sr.cost || 0), 0) || 0;
   };
 
   const getBookingNetBalance = (currency: 'EGP' | 'GBP') => {
@@ -1347,7 +1349,7 @@ const BookingDetails: React.FC = () => {
                                 <TableCell>{request.service_type_name}</TableCell>
                                 <TableCell>{formatDate(request.date_created)}</TableCell>
                                 <TableCell>{request.date_action ? formatDate(request.date_action) : 'N/A'}</TableCell>
-                                <TableCell>{request.service_type_cost} {request.service_type_currency}</TableCell>
+                                <TableCell>{request.cost} {request.currency}</TableCell>
                                 <TableCell>{request.who_pays || 'N/A'}</TableCell>
                                 
                                 <TableCell>

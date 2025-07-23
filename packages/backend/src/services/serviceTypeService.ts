@@ -1,21 +1,24 @@
 import { db } from '../database/connection';
 import {
   ServiceType,
+  ServiceTypeVillagePrice,
   CreateServiceTypeRequest,
   UpdateServiceTypeRequest,
   ServiceTypeFilters,
   PaginatedResponse,
-  PublicUser
+  PublicUser,
+  Village
 } from '../types';
 
 export class ServiceTypeService {
   
   /**
-   * Get all service types with filtering, sorting, and pagination
+   * Get all service types with village-specific pricing, filtering, sorting, and pagination
    */
-  async getServiceTypes(filters: ServiceTypeFilters = {}): Promise<PaginatedResponse<ServiceType & { default_assignee?: PublicUser; created_by_user?: PublicUser }>> {
+  async getServiceTypes(filters: ServiceTypeFilters = {}): Promise<PaginatedResponse<ServiceType>> {
     const {
       search,
+      village_id,
       currency,
       min_cost,
       max_cost,
@@ -30,17 +33,9 @@ export class ServiceTypeService {
     const validatedLimit = Math.min(Math.max(1, limit), 100);
 
     let query = db('service_types as st')
-      .leftJoin('users as assignee', 'st.default_assignee_id', 'assignee.id')
       .leftJoin('users as creator', 'st.created_by', 'creator.id')
       .select(
         'st.*',
-        'assignee.name as assignee_name',
-        'assignee.email as assignee_email',
-        'assignee.phone_number as assignee_phone',
-        'assignee.role as assignee_role',
-        'assignee.is_active as assignee_is_active',
-        'assignee.created_at as assignee_created_at',
-        'assignee.updated_at as assignee_updated_at',
         'creator.name as creator_name',
         'creator.email as creator_email',
         'creator.phone_number as creator_phone',
@@ -59,16 +54,28 @@ export class ServiceTypeService {
       });
     }
 
-    if (currency) {
-      query = query.where('st.currency', currency);
-    }
-
-    if (min_cost !== undefined) {
-      query = query.where('st.cost', '>=', min_cost);
-    }
-
-    if (max_cost !== undefined) {
-      query = query.where('st.cost', '<=', max_cost);
+    // Filter by village pricing if specified
+    if (village_id || currency || min_cost !== undefined || max_cost !== undefined) {
+      query = query.join('service_type_village_prices as stvp', 'st.id', 'stvp.service_type_id');
+      
+      if (village_id) {
+        query = query.where('stvp.village_id', village_id);
+      }
+      
+      if (currency) {
+        query = query.where('stvp.currency', currency);
+      }
+      
+      if (min_cost !== undefined) {
+        query = query.where('stvp.cost', '>=', min_cost);
+      }
+      
+      if (max_cost !== undefined) {
+        query = query.where('stvp.cost', '<=', max_cost);
+      }
+      
+      // Ensure distinct results when joining with pricing table
+      query = query.distinct();
     }
 
     // Get total count for pagination
@@ -77,7 +84,7 @@ export class ServiceTypeService {
     const total = parseInt(count as string);
 
     // Apply sorting
-    const validSortFields = ['name', 'cost', 'currency', 'created_at', 'updated_at'];
+    const validSortFields = ['name', 'created_at', 'updated_at'];
     const sortField = validSortFields.includes(sort_by) ? sort_by : 'name';
     const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
     
@@ -89,38 +96,50 @@ export class ServiceTypeService {
 
     const serviceTypes = await query;
 
+    // Load village prices for each service type
+    const serviceTypeIds = serviceTypes.map((st: any) => st.id);
+    const villagePrices = await this.getVillagePricesForServiceTypes(serviceTypeIds);
+
     // Transform data
-    const transformedServiceTypes = serviceTypes.map((serviceType: any) => ({
-      id: serviceType.id,
-      name: serviceType.name,
-      cost: parseFloat(serviceType.cost),
-      currency: serviceType.currency,
-      description: serviceType.description,
-      default_assignee_id: serviceType.default_assignee_id,
-      created_by: serviceType.created_by,
-      created_at: new Date(serviceType.created_at),
-      updated_at: new Date(serviceType.updated_at),
-      default_assignee: serviceType.assignee_name ? {
-        id: serviceType.default_assignee_id,
-        name: serviceType.assignee_name,
-        email: serviceType.assignee_email,
-        phone_number: serviceType.assignee_phone || undefined,
-        role: serviceType.assignee_role,
-        is_active: Boolean(serviceType.assignee_is_active),
-        created_at: serviceType.assignee_created_at ? new Date(serviceType.assignee_created_at) : new Date(0),
-        updated_at: serviceType.assignee_updated_at ? new Date(serviceType.assignee_updated_at) : new Date(0)
-      } : undefined,
-      created_by_user: serviceType.creator_name ? {
-        id: serviceType.created_by,
-        name: serviceType.creator_name,
-        email: serviceType.creator_email,
-        phone_number: serviceType.creator_phone || undefined,
-        role: serviceType.creator_role,
-        is_active: Boolean(serviceType.creator_is_active),
-        created_at: serviceType.creator_created_at ? new Date(serviceType.creator_created_at) : new Date(0),
-        updated_at: serviceType.creator_updated_at ? new Date(serviceType.creator_updated_at) : new Date(0)
-      } : undefined
-    }));
+    const transformedServiceTypes = serviceTypes.map((serviceType: any) => {
+      const prices = villagePrices.filter(vp => vp.service_type_id === serviceType.id);
+      
+      // For backward compatibility, set cost and currency based on context
+      let contextualCost: number | undefined;
+      let contextualCurrency: 'EGP' | 'GBP' | undefined;
+      
+      if (village_id) {
+        const villagePrice = prices.find(p => p.village_id === village_id);
+        contextualCost = villagePrice?.cost;
+        contextualCurrency = villagePrice?.currency;
+      } else if (prices.length > 0) {
+        // Use first price as default
+        contextualCost = prices[0].cost;
+        contextualCurrency = prices[0].currency;
+      }
+
+      return {
+        id: serviceType.id,
+        name: serviceType.name,
+        description: serviceType.description || undefined,
+        created_by: serviceType.created_by,
+        created_at: new Date(serviceType.created_at),
+        updated_at: new Date(serviceType.updated_at),
+        cost: contextualCost,
+        currency: contextualCurrency,
+        village_prices: prices,
+        created_by_user: serviceType.creator_name ? {
+          id: serviceType.created_by,
+          name: serviceType.creator_name,
+          email: serviceType.creator_email,
+          phone_number: serviceType.creator_phone || undefined,
+          role: serviceType.creator_role,
+          is_active: Boolean(serviceType.creator_is_active),
+          created_at: serviceType.creator_created_at ? new Date(serviceType.creator_created_at) : new Date(0),
+          updated_at: serviceType.creator_updated_at ? new Date(serviceType.creator_updated_at) : new Date(0)
+        } : undefined
+      };
+    });
 
     return {
       data: transformedServiceTypes,
@@ -134,25 +153,17 @@ export class ServiceTypeService {
   }
 
   /**
-   * Get service type by ID
+   * Get service type by ID with all village pricing
    */
-  async getServiceTypeById(id: number): Promise<(ServiceType & { default_assignee?: PublicUser; created_by_user?: PublicUser }) | null> {
+  async getServiceTypeById(id: number): Promise<ServiceType | null> {
     if (!id || id <= 0) {
       return null;
     }
 
     const serviceType = await db('service_types as st')
-      .leftJoin('users as assignee', 'st.default_assignee_id', 'assignee.id')
       .leftJoin('users as creator', 'st.created_by', 'creator.id')
       .select(
         'st.*',
-        'assignee.name as assignee_name',
-        'assignee.email as assignee_email',
-        'assignee.phone_number as assignee_phone',
-        'assignee.role as assignee_role',
-        'assignee.is_active as assignee_is_active',
-        'assignee.created_at as assignee_created_at',
-        'assignee.updated_at as assignee_updated_at',
         'creator.name as creator_name',
         'creator.email as creator_email',
         'creator.phone_number as creator_phone',
@@ -168,26 +179,19 @@ export class ServiceTypeService {
       return null;
     }
 
+    // Load village prices
+    const villagePrices = await this.getVillagePricesForServiceTypes([id]);
+
     return {
       id: serviceType.id,
       name: serviceType.name,
-      cost: parseFloat(serviceType.cost),
-      currency: serviceType.currency,
       description: serviceType.description || undefined,
-      default_assignee_id: serviceType.default_assignee_id || undefined,
       created_by: serviceType.created_by,
       created_at: new Date(serviceType.created_at),
       updated_at: new Date(serviceType.updated_at),
-      default_assignee: serviceType.assignee_name ? {
-        id: serviceType.default_assignee_id,
-        name: serviceType.assignee_name,
-        email: serviceType.assignee_email,
-        phone_number: serviceType.assignee_phone || undefined,
-        role: serviceType.assignee_role,
-        is_active: Boolean(serviceType.assignee_is_active),
-        created_at: serviceType.assignee_created_at ? new Date(serviceType.assignee_created_at) : new Date(0),
-        updated_at: serviceType.assignee_updated_at ? new Date(serviceType.assignee_updated_at) : new Date(0)
-      } : undefined,
+      cost: villagePrices[0]?.cost, // First price as default
+      currency: villagePrices[0]?.currency, // First currency as default
+      village_prices: villagePrices,
       created_by_user: serviceType.creator_name ? {
         id: serviceType.created_by,
         name: serviceType.creator_name,
@@ -202,7 +206,7 @@ export class ServiceTypeService {
   }
 
   /**
-   * Create new service type
+   * Create new service type with village-specific pricing
    */
   async createServiceType(data: CreateServiceTypeRequest, createdBy: number): Promise<ServiceType> {
     // Input validation
@@ -210,33 +214,35 @@ export class ServiceTypeService {
       throw new Error('Service type name is required');
     }
 
-    if (!data.cost || data.cost <= 0) {
-      throw new Error('Valid cost is required and must be greater than 0');
+    if (!data.village_prices || data.village_prices.length === 0) {
+      throw new Error('At least one village pricing is required');
     }
 
-    if (!data.currency || !['EGP', 'GBP'].includes(data.currency)) {
-      throw new Error('Valid currency is required (EGP or GBP)');
-    }
-
-    // Validate default assignee if provided
-    if (data.default_assignee_id) {
-      const assignee = await db('users').where('id', data.default_assignee_id).first();
-      if (!assignee) {
-        throw new Error('Default assignee not found');
+    // Validate village prices
+    for (const price of data.village_prices) {
+      if (!price.village_id || price.cost <= 0) {
+        throw new Error('Valid village ID and cost are required for all village prices');
       }
-      if (!['admin', 'super_admin'].includes(assignee.role)) {
-        throw new Error('Default assignee must be an admin or super admin');
+      
+      if (!['EGP', 'GBP'].includes(price.currency)) {
+        throw new Error('Currency must be EGP or GBP for all village prices');
+      }
+      
+      // Validate village exists
+      const village = await db('villages').where('id', price.village_id).first();
+      if (!village) {
+        throw new Error(`Village with ID ${price.village_id} not found`);
       }
     }
 
+    const trx = await db.transaction();
+    
     try {
-      const [serviceTypeId] = await db('service_types')
+      // Create service type
+      const [serviceTypeId] = await trx('service_types')
         .insert({
           name: data.name.trim(),
-          cost: data.cost,
-          currency: data.currency,
           description: data.description?.trim() || null,
-          default_assignee_id: data.default_assignee_id || null,
           created_by: createdBy,
           created_at: new Date(),
           updated_at: new Date()
@@ -244,7 +250,21 @@ export class ServiceTypeService {
         .returning('id');
 
       const id = typeof serviceTypeId === 'object' ? serviceTypeId.id : serviceTypeId;
-      
+
+      // Create village prices
+      const villagePriceInserts = data.village_prices.map(price => ({
+        service_type_id: id,
+        village_id: price.village_id,
+        cost: price.cost,
+        currency: price.currency,
+        created_at: new Date(),
+        updated_at: new Date()
+      }));
+
+      await trx('service_type_village_prices').insert(villagePriceInserts);
+
+      await trx.commit();
+
       const serviceType = await this.getServiceTypeById(id);
       if (!serviceType) {
         throw new Error('Failed to create service type');
@@ -252,18 +272,20 @@ export class ServiceTypeService {
 
       return serviceType;
     } catch (error: any) {
+      await trx.rollback();
+      
       if (error.code === '23505' || error.message?.includes('unique')) {
         throw new Error('Service type with this name already exists');
       }
       if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid assignee reference');
+        throw new Error('Invalid reference to village or assignee');
       }
       throw new Error(`Failed to create service type: ${error.message}`);
     }
   }
 
   /**
-   * Update service type
+   * Update service type with village-specific pricing
    */
   async updateServiceType(id: number, data: UpdateServiceTypeRequest): Promise<ServiceType> {
     if (!id || id <= 0) {
@@ -281,35 +303,58 @@ export class ServiceTypeService {
       throw new Error('Service type name cannot be empty');
     }
 
-    if (data.cost !== undefined && data.cost <= 0) {
-      throw new Error('Cost must be greater than 0');
-    }
-
-    if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
-      throw new Error('Currency must be EGP or GBP');
-    }
-
-    if (data.default_assignee_id !== undefined && data.default_assignee_id !== null) {
-      const assignee = await db('users').where('id', data.default_assignee_id).first();
-      if (!assignee) {
-        throw new Error('Default assignee not found');
+    if (data.village_prices) {
+      // Validate village prices
+      for (const price of data.village_prices) {
+        if (!price.village_id || price.cost <= 0) {
+          throw new Error('Valid village ID and cost are required for all village prices');
+        }
+        
+        if (!['EGP', 'GBP'].includes(price.currency)) {
+          throw new Error('Currency must be EGP or GBP for all village prices');
+        }
+        
+        // Validate village exists
+        const village = await db('villages').where('id', price.village_id).first();
+        if (!village) {
+          throw new Error(`Village with ID ${price.village_id} not found`);
+        }
       }
-      if (!['admin', 'super_admin'].includes(assignee.role)) {
-        throw new Error('Default assignee must be an admin or super admin');
-      }
     }
 
-    // Prepare update data
-    const updateData: any = { updated_at: new Date() };
-
-    if (data.name !== undefined) updateData.name = data.name.trim();
-    if (data.cost !== undefined) updateData.cost = data.cost;
-    if (data.currency !== undefined) updateData.currency = data.currency;
-    if (data.description !== undefined) updateData.description = data.description?.trim() || null;
-    if (data.default_assignee_id !== undefined) updateData.default_assignee_id = data.default_assignee_id || null;
+    const trx = await db.transaction();
 
     try {
-      await db('service_types').where('id', id).update(updateData);
+      // Prepare update data for service type
+      const updateData: any = { updated_at: new Date() };
+
+      if (data.name !== undefined) updateData.name = data.name.trim();
+      if (data.description !== undefined) updateData.description = data.description?.trim() || null;
+
+      // Update service type
+      if (Object.keys(updateData).length > 1) { // More than just updated_at
+        await trx('service_types').where('id', id).update(updateData);
+      }
+
+      // Update village prices if provided
+      if (data.village_prices) {
+        // Delete existing prices
+        await trx('service_type_village_prices').where('service_type_id', id).del();
+        
+        // Insert new prices
+        const villagePriceInserts = data.village_prices.map(price => ({
+          service_type_id: id,
+          village_id: price.village_id,
+          cost: price.cost,
+          currency: price.currency,
+          created_at: new Date(),
+          updated_at: new Date()
+        }));
+
+        await trx('service_type_village_prices').insert(villagePriceInserts);
+      }
+
+      await trx.commit();
 
       const updatedServiceType = await this.getServiceTypeById(id);
       if (!updatedServiceType) {
@@ -318,18 +363,20 @@ export class ServiceTypeService {
 
       return updatedServiceType;
     } catch (error: any) {
+      await trx.rollback();
+      
       if (error.code === '23505' || error.message?.includes('unique')) {
         throw new Error('Service type with this name already exists');
       }
       if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid assignee reference');
+        throw new Error('Invalid reference to village or assignee');
       }
       throw new Error(`Failed to update service type: ${error.message}`);
     }
   }
 
   /**
-   * Delete service type
+   * Delete service type (also deletes village prices due to CASCADE)
    */
   async deleteServiceType(id: number): Promise<void> {
     if (!id || id <= 0) {
@@ -359,18 +406,59 @@ export class ServiceTypeService {
   }
 
   /**
+   * Get village prices for multiple service types
+   */
+  private async getVillagePricesForServiceTypes(serviceTypeIds: number[]): Promise<ServiceTypeVillagePrice[]> {
+    if (serviceTypeIds.length === 0) return [];
+
+    const prices = await db('service_type_village_prices as stvp')
+      .leftJoin('villages as v', 'stvp.village_id', 'v.id')
+      .select(
+        'stvp.*',
+        'v.name as village_name',
+        'v.electricity_price as village_electricity_price',
+        'v.water_price as village_water_price',
+        'v.phases as village_phases',
+        'v.created_at as village_created_at',
+        'v.updated_at as village_updated_at'
+      )
+      .whereIn('stvp.service_type_id', serviceTypeIds)
+      .orderBy(['stvp.service_type_id', 'v.name']);
+
+    return prices.map((price: any) => ({
+      id: price.id,
+      service_type_id: price.service_type_id,
+      village_id: price.village_id,
+      cost: parseFloat(price.cost),
+      currency: price.currency,
+      created_at: new Date(price.created_at),
+      updated_at: new Date(price.updated_at),
+      village: price.village_name ? {
+        id: price.village_id,
+        name: price.village_name,
+        electricity_price: parseFloat(price.village_electricity_price || '0'),
+        water_price: parseFloat(price.village_water_price || '0'),
+        phases: price.village_phases || 1,
+        created_at: new Date(price.village_created_at),
+        updated_at: new Date(price.village_updated_at)
+      } : undefined
+    }));
+  }
+
+  /**
    * Get service type statistics
    */
   async getServiceTypeStats(): Promise<{
     total_service_types: number;
     by_currency: { currency: string; count: number; avg_cost: number }[];
     most_used: { id: number; name: string; usage_count: number }[];
+    by_village: { village_name: string; service_count: number; avg_cost: number }[];
   }> {
     // Total service types
     const [{ count: totalServiceTypes }] = await db('service_types').count('id as count');
 
-    // By currency with average cost
-    const byCurrency = await db('service_types')
+    // By currency with average cost (from village prices)
+    const byCurrency = await db('service_type_village_prices')
       .select('currency')
       .count('id as count')
       .avg('cost as avg_cost')
@@ -385,6 +473,15 @@ export class ServiceTypeService {
       .orderBy('usage_count', 'desc')
       .limit(5);
 
+    // By village statistics
+    const byVillage = await db('service_type_village_prices as stvp')
+      .join('villages as v', 'stvp.village_id', 'v.id')
+      .select('v.name as village_name')
+      .count('stvp.id as service_count')
+      .avg('stvp.cost as avg_cost')
+      .groupBy('v.name')
+      .orderBy('service_count', 'desc');
+
     return {
       total_service_types: parseInt(totalServiceTypes as string),
       by_currency: byCurrency.map(item => ({
@@ -396,6 +493,11 @@ export class ServiceTypeService {
         id: Number(item.id),
         name: String(item.name),
         usage_count: parseInt(item.usage_count as string)
+      })),
+      by_village: byVillage.map(item => ({
+        village_name: String(item.village_name),
+        service_count: parseInt(item.service_count as string),
+        avg_cost: parseFloat(item.avg_cost as string) || 0
       }))
     };
   }

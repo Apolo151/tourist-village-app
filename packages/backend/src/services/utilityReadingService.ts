@@ -487,44 +487,320 @@ export class UtilityReadingService {
         paying_status: 'transfer' as 'transfer' | 'rent' | 'non-payer' | undefined, // Backward compatibility default
         paying_status_id: utilityReading.apartment_paying_status_id || 1,
         sales_status_id: utilityReading.apartment_sales_status_id || 1,
-            created_by: utilityReading.apartment_created_by,
-            created_at: new Date(utilityReading.apartment_created_at),
-            updated_at: new Date(utilityReading.apartment_updated_at)
-          },
-          booking: utilityReading.booking_arrival_date ? {
-            id: utilityReading.booking_id,
-            apartment_id: utilityReading.apartment_id,
-            user_id: utilityReading.booking_user_id,
-            user_type: utilityReading.booking_user_type,
-            number_of_people: utilityReading.booking_number_of_people || 0,
-            arrival_date: new Date(utilityReading.booking_arrival_date),
-            leaving_date: new Date(utilityReading.booking_leaving_date),
-            status: utilityReading.booking_status,
-            notes: utilityReading.booking_notes || undefined,
-            created_by: utilityReading.booking_created_by,
-            created_at: new Date(utilityReading.booking_created_at),
-            updated_at: new Date(utilityReading.booking_updated_at),
-            user: utilityReading.booking_user_name ? {
-              id: utilityReading.booking_user_id,
-              name: utilityReading.booking_user_name,
-              email: utilityReading.booking_user_email,
-              phone_number: utilityReading.booking_user_phone || undefined,
-              role: utilityReading.booking_user_role,
-              is_active: Boolean(utilityReading.booking_user_is_active),
-              created_at: new Date(),
-              updated_at: new Date()
-            } : undefined
-          } : undefined,
-          created_by_user: utilityReading.creator_name ? {
-            id: utilityReading.created_by,
-            name: utilityReading.creator_name,
-            email: utilityReading.creator_email,
-            phone_number: utilityReading.creator_phone || undefined,
-            role: utilityReading.creator_role,
-            is_active: Boolean(utilityReading.creator_is_active),
-            created_at: utilityReading.creator_created_at ? new Date(utilityReading.creator_created_at) : new Date(0),
-            updated_at: utilityReading.creator_updated_at ? new Date(utilityReading.creator_updated_at) : new Date(0)
-          } : undefined
-      };
+        sales_status: 'not for sale' as 'for sale' | 'not for sale',
+        created_by: utilityReading.apartment_created_by,
+        created_at: new Date(utilityReading.apartment_created_at),
+        updated_at: new Date(utilityReading.apartment_updated_at),
+        village: {
+          id: utilityReading.apartment_village_id,
+          name: utilityReading.village_name,
+          electricity_price: parseFloat(utilityReading.village_electricity_price),
+          water_price: parseFloat(utilityReading.village_water_price),
+          phases: utilityReading.village_phases,
+          created_at: new Date(utilityReading.village_created_at),
+          updated_at: new Date(utilityReading.village_updated_at)
+        },
+        owner: utilityReading.owner_name ? {
+          id: utilityReading.apartment_owner_id,
+          name: utilityReading.owner_name,
+          email: utilityReading.owner_email,
+          phone_number: utilityReading.owner_phone || undefined,
+          role: utilityReading.owner_role,
+          is_active: Boolean(utilityReading.owner_is_active),
+          created_at: new Date(utilityReading.owner_created_at),
+          updated_at: new Date(utilityReading.owner_updated_at)
+        } : undefined
+      },
+      booking: utilityReading.booking_arrival_date ? {
+        id: utilityReading.booking_id,
+        apartment_id: utilityReading.apartment_id,
+        user_id: utilityReading.booking_user_id,
+        user_type: utilityReading.booking_user_type,
+        number_of_people: utilityReading.booking_number_of_people || 0,
+        arrival_date: new Date(utilityReading.booking_arrival_date),
+        leaving_date: new Date(utilityReading.booking_leaving_date),
+        status: utilityReading.booking_status,
+        notes: utilityReading.booking_notes || undefined,
+        created_by: utilityReading.booking_created_by,
+        created_at: new Date(utilityReading.booking_created_at),
+        updated_at: new Date(utilityReading.booking_updated_at),
+        user: utilityReading.booking_user_name ? {
+          id: utilityReading.booking_user_id,
+          name: utilityReading.booking_user_name,
+          email: utilityReading.booking_user_email,
+          phone_number: utilityReading.booking_user_phone || undefined,
+          role: utilityReading.booking_user_role,
+          is_active: Boolean(utilityReading.booking_user_is_active),
+          created_at: new Date(),
+          updated_at: new Date()
+        } : undefined
+      } : undefined,
+      created_by_user: utilityReading.creator_name ? {
+        id: utilityReading.created_by,
+        name: utilityReading.creator_name,
+        email: utilityReading.creator_email,
+        phone_number: utilityReading.creator_phone || undefined,
+        role: utilityReading.creator_role,
+        is_active: Boolean(utilityReading.creator_is_active),
+        created_at: utilityReading.creator_created_at ? new Date(utilityReading.creator_created_at) : new Date(0),
+        updated_at: utilityReading.creator_updated_at ? new Date(utilityReading.creator_updated_at) : new Date(0)
+      } : undefined
+    };
+  }
+
+  /**
+   * Create a new utility reading
+   */
+  async createUtilityReading(data: CreateUtilityReadingRequest, createdBy: number): Promise<UtilityReading> {
+    // Input validation
+    if (!data.apartment_id || data.apartment_id <= 0) {
+      throw new Error('Valid apartment ID is required');
+    }
+
+    if (!data.start_date || !data.end_date) {
+      throw new Error('Start date and end date are required');
+    }
+
+    const startDate = new Date(data.start_date);
+    const endDate = new Date(data.end_date);
+
+    if (startDate >= endDate) {
+      throw new Error('End date must be after start date');
+    }
+
+    if (!['owner', 'renter', 'company'].includes(data.who_pays)) {
+      throw new Error('who_pays must be owner, renter, or company');
+    }
+
+    // Validate apartment exists
+    const apartment = await db('apartments').where('id', data.apartment_id).first();
+    if (!apartment) {
+      throw new Error('Apartment not found');
+    }
+
+    // Validate booking if provided
+    if (data.booking_id) {
+      const booking = await db('bookings').where('id', data.booking_id).first();
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+      
+      if (booking.apartment_id !== data.apartment_id) {
+        throw new Error('Booking must belong to the specified apartment');
+      }
+    }
+
+    try {
+      const [utilityReadingId] = await db('utility_readings')
+        .insert({
+          apartment_id: data.apartment_id,
+          booking_id: data.booking_id || null,
+          water_start_reading: data.water_start_reading || null,
+          water_end_reading: data.water_end_reading || null,
+          electricity_start_reading: data.electricity_start_reading || null,
+          electricity_end_reading: data.electricity_end_reading || null,
+          start_date: startDate,
+          end_date: endDate,
+          who_pays: data.who_pays,
+          created_by: createdBy,
+          created_at: new Date(),
+          updated_at: new Date()
+        })
+        .returning('id');
+
+      const id = typeof utilityReadingId === 'object' ? utilityReadingId.id : utilityReadingId;
+
+      const utilityReading = await this.getUtilityReadingById(id);
+      if (!utilityReading) {
+        throw new Error('Failed to create utility reading');
+      }
+
+      return utilityReading;
+    } catch (error: any) {
+      if (error.code === '23503' || error.message?.includes('foreign key')) {
+        throw new Error('Invalid reference to apartment or booking');
+      }
+      throw new Error(`Failed to create utility reading: ${error.message}`);
+    }
+  }
+
+  /**
+   * Update a utility reading
+   */
+  async updateUtilityReading(id: number, data: UpdateUtilityReadingRequest): Promise<UtilityReading> {
+    if (!id || id <= 0) {
+      throw new Error('Invalid utility reading ID');
+    }
+
+    // Check if utility reading exists
+    const existingReading = await this.getUtilityReadingById(id);
+    if (!existingReading) {
+      throw new Error('Utility reading not found');
+    }
+
+    // Validate dates if provided
+    if (data.start_date && data.end_date) {
+      const startDate = new Date(data.start_date);
+      const endDate = new Date(data.end_date);
+      
+      if (startDate >= endDate) {
+        throw new Error('End date must be after start date');
+      }
+    }
+
+    // Validate who_pays if provided
+    if (data.who_pays && !['owner', 'renter', 'company'].includes(data.who_pays)) {
+      throw new Error('who_pays must be owner, renter, or company');
+    }
+
+    // Validate apartment if provided
+    if (data.apartment_id) {
+      const apartment = await db('apartments').where('id', data.apartment_id).first();
+      if (!apartment) {
+        throw new Error('Apartment not found');
+      }
+    }
+
+    // Validate booking if provided
+    if (data.booking_id) {
+      const booking = await db('bookings').where('id', data.booking_id).first();
+      if (!booking) {
+        throw new Error('Booking not found');
+      }
+
+      const apartmentId = data.apartment_id || existingReading.apartment_id;
+      if (booking.apartment_id !== apartmentId) {
+        throw new Error('Booking must belong to the specified apartment');
+      }
+    }
+
+    try {
+      // Prepare update data
+      const updateData: any = { updated_at: new Date() };
+
+      if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
+      if (data.booking_id !== undefined) updateData.booking_id = data.booking_id;
+      if (data.water_start_reading !== undefined) updateData.water_start_reading = data.water_start_reading;
+      if (data.water_end_reading !== undefined) updateData.water_end_reading = data.water_end_reading;
+      if (data.electricity_start_reading !== undefined) updateData.electricity_start_reading = data.electricity_start_reading;
+      if (data.electricity_end_reading !== undefined) updateData.electricity_end_reading = data.electricity_end_reading;
+      if (data.start_date !== undefined) updateData.start_date = new Date(data.start_date);
+      if (data.end_date !== undefined) updateData.end_date = new Date(data.end_date);
+      if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
+
+      await db('utility_readings').where('id', id).update(updateData);
+
+      const updatedReading = await this.getUtilityReadingById(id);
+      if (!updatedReading) {
+        throw new Error('Failed to update utility reading');
+      }
+
+      return updatedReading;
+    } catch (error: any) {
+      if (error.code === '23503' || error.message?.includes('foreign key')) {
+        throw new Error('Invalid reference to apartment or booking');
+      }
+      throw new Error(`Failed to update utility reading: ${error.message}`);
+    }
+  }
+
+  /**
+   * Delete a utility reading
+   */
+  async deleteUtilityReading(id: number): Promise<void> {
+    if (!id || id <= 0) {
+      throw new Error('Invalid utility reading ID');
+    }
+
+    // Check if utility reading exists
+    const utilityReading = await this.getUtilityReadingById(id);
+    if (!utilityReading) {
+      throw new Error('Utility reading not found');
+    }
+
+    try {
+      await db('utility_readings').where('id', id).del();
+    } catch (error: any) {
+      throw new Error(`Failed to delete utility reading: ${error.message}`);
+    }
+  }
+
+  /**
+   * Get utility reading statistics
+   */
+  async getUtilityReadingStats(): Promise<{
+    total_readings: number;
+    by_who_pays: { who_pays: string; count: number; avg_cost: number }[];
+    by_village: { village_name: string; reading_count: number; avg_cost: number }[];
+    recent_readings: number;
+  }> {
+    // Total utility readings
+    const [{ count: totalReadings }] = await db('utility_readings').count('id as count');
+
+    // By who_pays with average cost
+    const byWhoPays = await db('utility_readings as ur')
+      .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .select('ur.who_pays')
+      .count('ur.id as count')
+      .avg(db.raw(`
+        CASE 
+          WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL 
+            AND ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+          THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price + 
+               (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+          WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL
+          THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price
+          WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+          THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+          ELSE 0
+        END
+      `)).as('avg_cost')
+      .groupBy('ur.who_pays');
+
+    // By village statistics
+    const byVillage = await db('utility_readings as ur')
+      .join('apartments as a', 'ur.apartment_id', 'a.id')
+      .join('villages as v', 'a.village_id', 'v.id')
+      .select('v.name as village_name')
+      .count('ur.id as reading_count')
+      .avg(db.raw(`
+        CASE 
+          WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL 
+            AND ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+          THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price + 
+               (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+          WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL
+          THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price
+          WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+          THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+          ELSE 0
+        END
+      `)).as('avg_cost')
+      .groupBy('v.name')
+      .orderBy('reading_count', 'desc');
+
+    // Recent readings (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const [{ count: recentReadings }] = await db('utility_readings')
+      .where('created_at', '>=', thirtyDaysAgo)
+      .count('id as count');
+
+    return {
+      total_readings: parseInt(totalReadings as string),
+      by_who_pays: byWhoPays.map(item => ({
+        who_pays: String(item.who_pays),
+        count: parseInt(item.count as string),
+        avg_cost: parseFloat(item.avg_cost as string) || 0
+      })),
+      by_village: byVillage.map(item => ({
+        village_name: String(item.village_name),
+        reading_count: parseInt(item.reading_count as string),
+        avg_cost: parseFloat(item.avg_cost as string) || 0
+      })),
+      recent_readings: parseInt(recentReadings as string)
+    };
   }
 }

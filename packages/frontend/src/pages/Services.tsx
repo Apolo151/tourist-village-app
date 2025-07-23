@@ -297,7 +297,7 @@ export default function Services() {
   };
   
   const handleRequestService = (serviceType?: ServiceType) => {
-    navigate('/services/requests/create' + (serviceType ? `?serviceTypeId=${serviceType.id}` : ''));
+    navigate('/services/create-request' + (serviceType ? `?serviceTypeId=${serviceType.id}` : ''));
   };
   
   const handleAddServiceType = () => {
