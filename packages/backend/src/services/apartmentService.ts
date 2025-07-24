@@ -182,6 +182,33 @@ export class ApartmentService {
     // Transform data
     const apartments = results.map((data: any) => this.transformApartmentData(data));
 
+    // Batch fetch current bookings for all apartments to determine status
+    const apartmentIds = apartments.map(a => a.id);
+    if (apartmentIds.length > 0) {
+      const now = new Date();
+      const currentBookings = await db('bookings')
+        .whereIn('apartment_id', apartmentIds)
+        .where('arrival_date', '<=', now)
+        .where('leaving_date', '>=', now)
+        .where('status', '!=', 'Checked Out');
+      const bookingMap = new Map<number, any>();
+      currentBookings.forEach(b => {
+        bookingMap.set(b.apartment_id, b);
+      });
+      apartments.forEach(apartment => {
+        const booking = bookingMap.get(apartment.id);
+        if (!booking) {
+          apartment.status = 'Available';
+        } else if (booking.status === 'Checked In') {
+          apartment.status = booking.user_type === 'owner'
+            ? 'Occupied by Owner'
+            : 'Occupied by Tenant';
+        } else {
+          apartment.status = 'Available';
+        }
+      });
+    }
+
     const totalPages = Math.ceil(total / validatedLimit);
 
     return {
@@ -774,7 +801,7 @@ export class ApartmentService {
     };
   }
 
-  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Occupied by Owner' | 'Occupied By Renter'> {
+  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Not Available' | 'Occupied by Owner' | 'Occupied By Renter'> {
     const now = new Date();
     
     const currentBooking = await db('bookings')

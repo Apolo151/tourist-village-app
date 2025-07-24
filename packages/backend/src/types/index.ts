@@ -115,7 +115,7 @@ export interface Apartment {
   created_by_user?: PublicUser;
   paying_status_type?: PayingStatusType;
   sales_status_type?: SalesStatusType;
-  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
+  status?: 'Available' | 'Not Available' | 'Occupied by Owner' | 'Occupied By Renter' | 'Occupied by Tenant';
   current_booking?: Booking;
   
   // Backward compatibility - these will be populated from the related entities
