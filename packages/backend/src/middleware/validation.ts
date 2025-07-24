@@ -921,7 +921,7 @@ export class ValidationMiddleware {
           errors.push({ field: `village_prices[${index}].cost`, message: 'Cost is required and must be a positive number' });
         } else if (price.cost > 999999.99) {
           errors.push({ field: `village_prices[${index}].cost`, message: 'Cost must not exceed 999,999.99' });
-        }
+    }
 
         if (!price.currency || !['EGP', 'GBP'].includes(price.currency)) {
           errors.push({ field: `village_prices[${index}].currency`, message: 'Currency is required and must be either EGP or GBP' });
@@ -996,7 +996,7 @@ export class ValidationMiddleware {
             errors.push({ field: `village_prices[${index}].cost`, message: 'Cost is required and must be a positive number' });
           } else if (price.cost > 999999.99) {
             errors.push({ field: `village_prices[${index}].cost`, message: 'Cost must not exceed 999,999.99' });
-          }
+    }
 
           if (!price.currency || !['EGP', 'GBP'].includes(price.currency)) {
             errors.push({ field: `village_prices[${index}].currency`, message: 'Currency is required and must be either EGP or GBP' });

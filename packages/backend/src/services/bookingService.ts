@@ -765,12 +765,209 @@ export class BookingService {
   }
 
   /**
+   * Get count of currently occupied apartments
+   */
+  async getCurrentlyOccupiedApartmentsCount(villageId?: number): Promise<number> {
+    const now = new Date();
+
+    let query = db('bookings as b')
+      .join('apartments as a', 'b.apartment_id', 'a.id')
+      .where('b.arrival_date', '<=', now)
+      .where('b.leaving_date', '>=', now)
+      .whereIn('b.status', ['Booked', 'Checked In'])
+      .distinct('b.apartment_id');
+
+    if (villageId) {
+      query = query.where('a.village_id', villageId);
+    }
+
+    const occupiedApartments = await query.select('b.apartment_id');
+    return occupiedApartments.length;
+  }
+
+  /**
+   * Calculate occupancy rate for a given date range
+   */
+  async getOccupancyRate(
+    startDate: Date,
+    endDate: Date,
+    villageId?: number
+  ): Promise<{
+    total_apartments: number;
+    total_booked_days: number;
+    total_days_in_period: number;
+    occupancy_rate: number;
+    by_apartment: Array<{
+      apartment_id: number;
+      apartment_name: string;
+      village_name: string;
+      booked_days: number;
+      total_days: number;
+      occupancy_rate: number;
+    }>;
+  }> {
+    // Calculate total days in the period
+    const totalDaysInPeriod = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Get all apartments (filtered by village if specified)
+    let apartmentsQuery = db('apartments as a')
+      .join('villages as v', 'a.village_id', 'v.id')
+      .select('a.id as apartment_id', 'a.name as apartment_name', 'v.name as village_name');
+
+    if (villageId) {
+      apartmentsQuery = apartmentsQuery.where('a.village_id', villageId);
+    }
+
+    const apartments = await apartmentsQuery;
+    const totalApartments = apartments.length;
+
+    if (totalApartments === 0) {
+      return {
+        total_apartments: 0,
+        total_booked_days: 0,
+        total_days_in_period: totalDaysInPeriod,
+        occupancy_rate: 0,
+        by_apartment: []
+      };
+    }
+
+    // Get all bookings that overlap with the date range
+    let bookingsQuery = db('bookings as b')
+      .join('apartments as a', 'b.apartment_id', 'a.id')
+      .join('villages as v', 'a.village_id', 'v.id')
+      .select(
+        'b.apartment_id',
+        'a.name as apartment_name',
+        'v.name as village_name',
+        'b.arrival_date',
+        'b.leaving_date'
+      )
+      .whereIn('b.status', ['Booked', 'Checked In'])
+      .where(function() {
+        this.where(function() {
+          // Booking overlaps with date range if:
+          // (booking.arrival <= endDate AND booking.leaving >= startDate)
+          this.where('b.arrival_date', '<=', endDate)
+              .where('b.leaving_date', '>=', startDate);
+        });
+      });
+
+    if (villageId) {
+      bookingsQuery = bookingsQuery.where('a.village_id', villageId);
+    }
+
+    const bookings = await bookingsQuery;
+
+    // Calculate booked days for each apartment
+    const apartmentStats = new Map<number, {
+      apartment_id: number;
+      apartment_name: string;
+      village_name: string;
+      booked_days: number;
+      total_days: number;
+      occupancy_rate: number;
+    }>();
+
+    // Initialize all apartments with 0 booked days
+    apartments.forEach(apt => {
+      apartmentStats.set(apt.apartment_id, {
+        apartment_id: apt.apartment_id,
+        apartment_name: apt.apartment_name,
+        village_name: apt.village_name,
+        booked_days: 0,
+        total_days: totalDaysInPeriod,
+        occupancy_rate: 0
+      });
+    });
+
+    // Group bookings by apartment
+    const bookingsByApartment = new Map<number, Array<{start: Date, end: Date}>>();
+    
+    bookings.forEach(booking => {
+      const bookingStart = new Date(booking.arrival_date);
+      const bookingEnd = new Date(booking.leaving_date);
+
+      // Calculate overlap between booking and date range
+      const overlapStart = new Date(Math.max(bookingStart.getTime(), startDate.getTime()));
+      const overlapEnd = new Date(Math.min(bookingEnd.getTime(), endDate.getTime()));
+
+      if (overlapStart <= overlapEnd) {
+        if (!bookingsByApartment.has(booking.apartment_id)) {
+          bookingsByApartment.set(booking.apartment_id, []);
+        }
+        bookingsByApartment.get(booking.apartment_id)!.push({
+          start: overlapStart,
+          end: overlapEnd
+        });
+      }
+    });
+
+    // Calculate actual booked days for each apartment by merging overlapping periods
+    bookingsByApartment.forEach((periods, apartmentId) => {
+      if (periods.length === 0) return;
+
+      // Sort periods by start date
+      periods.sort((a, b) => a.start.getTime() - b.start.getTime());
+
+      // Merge overlapping periods
+      const mergedPeriods: Array<{start: Date, end: Date}> = [];
+      let currentPeriod = periods[0];
+
+      for (let i = 1; i < periods.length; i++) {
+        const nextPeriod = periods[i];
+        
+        // If current period overlaps or is adjacent to next period, merge them
+        if (currentPeriod.end >= nextPeriod.start) {
+          currentPeriod.end = new Date(Math.max(currentPeriod.end.getTime(), nextPeriod.end.getTime()));
+        } else {
+          // No overlap, add current period to merged list and start new current period
+          mergedPeriods.push(currentPeriod);
+          currentPeriod = nextPeriod;
+        }
+      }
+      
+      // Add the last period
+      mergedPeriods.push(currentPeriod);
+
+      // Calculate total booked days from merged periods
+      let totalBookedDays = 0;
+      mergedPeriods.forEach(period => {
+        const days = Math.ceil((period.end.getTime() - period.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        totalBookedDays += days;
+      });
+
+      const apartmentStat = apartmentStats.get(apartmentId);
+      if (apartmentStat) {
+        apartmentStat.booked_days = totalBookedDays;
+      }
+    });
+
+    // Calculate occupancy rates
+    let totalBookedDays = 0;
+    apartmentStats.forEach(stat => {
+      stat.occupancy_rate = (stat.booked_days / stat.total_days) * 100;
+      totalBookedDays += stat.booked_days;
+    });
+
+    const overallOccupancyRate = (totalBookedDays / (totalApartments * totalDaysInPeriod)) * 100;
+
+    return {
+      total_apartments: totalApartments,
+      total_booked_days: totalBookedDays,
+      total_days_in_period: totalDaysInPeriod,
+      occupancy_rate: overallOccupancyRate,
+      by_apartment: Array.from(apartmentStats.values())
+    };
+  }
+
+  /**
    * Check for booking conflicts
    * 
    * Rules:
    * - A booking cannot overlap with existing bookings for the same apartment
    * - Exception: A new booking can start on the same day another booking ends (back-to-back bookings allowed)
    * - Comparison is done using date comparison (not datetime) to allow same-day transitions
+   * - Cancelled bookings are not considered for conflict detection
    */
   private async checkBookingConflicts(
     apartmentId: number,
@@ -785,6 +982,7 @@ export class BookingService {
 
     let query = db('bookings')
       .where('apartment_id', apartmentId)
+      .whereNot('status', 'Cancelled') // Exclude cancelled bookings from conflict detection
       .where(function() {
         this.where(function() {
           // Overlap if: existing.arrival < newLeaving AND existing.leaving > newArrival
@@ -797,7 +995,7 @@ export class BookingService {
       query = query.where('id', '!=', excludeBookingId);
     }
 
-    const conflicts = await query.select('id', 'arrival_date', 'leaving_date');
+    const conflicts = await query.select('id', 'arrival_date', 'leaving_date', 'status');
     // Debug log for troubleshooting
     // console.log('Booking conflict check:', { apartmentId, newArrivalDateStr, newLeavingDateStr, excludeBookingId, conflicts });
 
@@ -806,7 +1004,7 @@ export class BookingService {
       const conflictDetails = conflicts.map(conflict => {
         const conflictArrival = new Date(conflict.arrival_date).toDateString();
         const conflictLeaving = new Date(conflict.leaving_date).toDateString();
-        return `Booking ID ${conflict.id} (${conflictArrival} to ${conflictLeaving})`;
+        return `Booking ID ${conflict.id} (${conflictArrival} to ${conflictLeaving}, Status: ${conflict.status})`;
       }).join(', ');
 
       throw new Error(

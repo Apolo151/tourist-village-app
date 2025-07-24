@@ -83,6 +83,21 @@ export interface BookingStats {
   };
 }
 
+export interface OccupancyRateData {
+  total_apartments: number;
+  total_booked_days: number;
+  total_days_in_period: number;
+  occupancy_rate: number;
+  by_apartment: Array<{
+    apartment_id: number;
+    apartment_name: string;
+    village_name: string;
+    booked_days: number;
+    total_days: number;
+    occupancy_rate: number;
+  }>;
+}
+
 export interface BookingRelatedData {
   booking: Booking;
   payments: any[];
@@ -179,6 +194,44 @@ class BookingService {
     throw new Error(response.message || 'Failed to fetch booking statistics');
   }
 
+  async getOccupancyRate(
+    startDate: Date,
+    endDate: Date,
+    villageId?: number
+  ): Promise<OccupancyRateData> {
+    const params = new URLSearchParams({
+      start_date: startDate.toISOString(),
+      end_date: endDate.toISOString()
+    });
+
+    if (villageId) {
+      params.append('village_id', villageId.toString());
+    }
+
+    const response = await apiClient.get<ApiResponse<OccupancyRateData>>(`/bookings/occupancy?${params}`);
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    throw new Error(response.message || 'Failed to fetch occupancy rate');
+  }
+
+  async getCurrentlyOccupiedApartmentsCount(villageId?: number): Promise<number> {
+    const params = new URLSearchParams();
+    if (villageId) {
+      params.append('village_id', villageId.toString());
+    }
+
+    const response = await apiClient.get<ApiResponse<{ occupied_count: number }>>(`/bookings/currently-occupied?${params}`);
+    
+    if (response.success && response.data) {
+      return response.data.occupied_count;
+    }
+    
+    throw new Error(response.message || 'Failed to fetch currently occupied apartments count');
+  }
+
   async getBookingsByApartment(apartmentId: number, options: { page?: number; limit?: number } = {}): Promise<Booking[]> {
     const params = new URLSearchParams();
     if (options.page) params.append('page', options.page.toString());
@@ -222,15 +275,16 @@ class BookingService {
       const filters: BookingFilters = {
         apartment_id: apartmentId,
         arrival_date_start: arrivalDate,
-        leaving_date_end: leavingDate,
-        status: 'Booked' // Only check active bookings
+        leaving_date_end: leavingDate
+        // Remove status filter to check all active bookings (Booked, Checked In, Checked Out)
+        // Cancelled bookings will be filtered out by the backend
       };
 
       const result = await this.getBookings(filters);
       
-      // Filter out the booking being edited (if any)
+      // Filter out the booking being edited (if any) and cancelled bookings
       const conflictingBookings = result.bookings.filter(
-        booking => booking.id !== excludeBookingId
+        booking => booking.id !== excludeBookingId && booking.status !== 'Cancelled'
       );
 
       return conflictingBookings.length > 0;

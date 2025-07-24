@@ -419,9 +419,9 @@ export default function ServiceRequestDetails() {
                     </FormControl>
                   </Box>
                 ) : (
-                  <Typography variant="body1">
+                <Typography variant="body1">
                     {serviceRequest.cost.toFixed(2)} {serviceRequest.currency}
-                  </Typography>
+                </Typography>
                 )}
               </Grid>
               

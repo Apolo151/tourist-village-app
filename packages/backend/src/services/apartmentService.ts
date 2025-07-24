@@ -546,12 +546,12 @@ export class ApartmentService {
       .select('sr.cost', 'sr.currency');
 
     serviceRequestsCost.forEach(request => {
-      const cost = parseFloat(request.cost);
-      if (request.currency === 'EGP') {
+        const cost = parseFloat(request.cost);
+        if (request.currency === 'EGP') {
         totalMoneyRequested.EGP += cost;
-      } else if (request.currency === 'GBP') {
+        } else if (request.currency === 'GBP') {
         totalMoneyRequested.GBP += cost;
-      }
+        }
     });
 
     // Calculate net money

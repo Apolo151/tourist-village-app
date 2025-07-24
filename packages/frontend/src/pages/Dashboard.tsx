@@ -21,7 +21,8 @@ import {
   Container,
   Chip,
   Grid,
-  Divider
+  Divider,
+  TextField
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { Bar, Pie } from 'react-chartjs-2';
@@ -40,7 +41,9 @@ import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   AccountBalance as AccountBalanceIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  Hotel as HotelIcon,
+  CalendarToday as CalendarTodayIcon
 } from '@mui/icons-material';
 import { invoiceService, type InvoiceSummaryItem, type InvoiceTotals } from '../services/invoiceService';
 import { villageService } from '../services/villageService';
@@ -48,7 +51,7 @@ import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import { bookingService } from '../services/bookingService';
-import type { Booking } from '../services/bookingService';
+import type { Booking, OccupancyRateData } from '../services/bookingService';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -89,6 +92,24 @@ export default function Dashboard() {
   const [userBookingsLoading, setUserBookingsLoading] = useState(false);
   const [userBookingsError, setUserBookingsError] = useState('');
 
+  // Occupancy rate state
+  const [occupancyData, setOccupancyData] = useState<OccupancyRateData | null>(null);
+  const [occupancyLoading, setOccupancyLoading] = useState(false);
+  const [occupancyError, setOccupancyError] = useState('');
+  const [occupancyDateFrom, setOccupancyDateFrom] = useState(() => {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    return firstDayOfMonth.toISOString().split('T')[0];
+  });
+  const [occupancyDateTo, setOccupancyDateTo] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+
+  // Currently occupied apartments state
+  const [currentlyOccupiedCount, setCurrentlyOccupiedCount] = useState<number>(0);
+  const [currentlyOccupiedLoading, setCurrentlyOccupiedLoading] = useState(false);
+  const [currentlyOccupiedError, setCurrentlyOccupiedError] = useState('');
+
   const currentYear = new Date().getFullYear();
 
   // Load user bookings
@@ -113,6 +134,53 @@ export default function Dashboard() {
 
     loadUserBookings();
   }, [currentUser]);
+
+  // Load occupancy rate data
+  useEffect(() => {
+    const loadOccupancyData = async () => {
+      if (!['admin', 'super_admin'].includes(currentUser?.role || '')) return;
+      
+      setOccupancyLoading(true);
+      setOccupancyError('');
+      
+      try {
+        const startDate = new Date(occupancyDateFrom);
+        const endDate = new Date(occupancyDateTo);
+        const villageId = village ? villages.find(v => v.name === village)?.id : undefined;
+        
+        const data = await bookingService.getOccupancyRate(startDate, endDate, villageId);
+        setOccupancyData(data);
+      } catch (err) {
+        setOccupancyError(err instanceof Error ? err.message : 'Failed to load occupancy data');
+      } finally {
+        setOccupancyLoading(false);
+      }
+    };
+
+    loadOccupancyData();
+  }, [currentUser, occupancyDateFrom, occupancyDateTo, village, villages]);
+
+  // Load currently occupied apartments count
+  useEffect(() => {
+    const loadCurrentlyOccupiedCount = async () => {
+      if (!['admin', 'super_admin'].includes(currentUser?.role || '')) return;
+      
+      setCurrentlyOccupiedLoading(true);
+      setCurrentlyOccupiedError('');
+      
+      try {
+        const villageId = village ? villages.find(v => v.name === village)?.id : undefined;
+        const count = await bookingService.getCurrentlyOccupiedApartmentsCount(villageId);
+        setCurrentlyOccupiedCount(count);
+      } catch (err) {
+        setCurrentlyOccupiedError(err instanceof Error ? err.message : 'Failed to load currently occupied count');
+      } finally {
+        setCurrentlyOccupiedLoading(false);
+      }
+    };
+
+    loadCurrentlyOccupiedCount();
+  }, [currentUser, village, villages]);
 
   // Load dashboard data
   useEffect(() => {
@@ -288,33 +356,52 @@ export default function Dashboard() {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {/* Summary Cards */}
           <Grid container spacing={3}>
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <HomeIcon sx={{ color: 'primary.main', mr: 1, fontSize: 28 }} />
                     <Typography color="text.secondary" variant="h6">
-                  Total Apartments
-                </Typography>
+                      Total Apartments
+                    </Typography>
                   </Box>
                   <Typography variant="h3" color="primary" sx={{ fontWeight: 'bold' }}>
                     {filteredData.length}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active properties
-                </Typography>
-              </CardContent>
-            </Card>
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
             
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
+              <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
+                <CardContent sx={{ p: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <CalendarTodayIcon sx={{ color: 'warning.main', mr: 1, fontSize: 28 }} />
+                    <Typography color="text.secondary" variant="h6">
+                      Currently Occupied
+                    </Typography>
+                  </Box>
+                  <Typography variant="h3" color="warning.main" sx={{ fontWeight: 'bold' }}>
+                    {currentlyOccupiedLoading ? '...' : currentlyOccupiedCount}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {currentlyOccupiedLoading ? 'Loading...' : 'Occupied today'}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <TrendingUpIcon sx={{ color: 'success.main', mr: 1, fontSize: 28 }} />
                     <Typography color="text.secondary" variant="h6">
-                  Total Income
-                </Typography>
+                      Total Payment
+                    </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
                     <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
@@ -331,13 +418,13 @@ export default function Dashboard() {
               </Card>
             </Grid>
             
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <TrendingDownIcon sx={{ color: 'error.main', mr: 1, fontSize: 28 }} />
                     <Typography color="text.secondary" variant="h6">
-                      Total Expenses
+                      Total Outstanding
                     </Typography>
                   </Box>
                   <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
@@ -355,118 +442,87 @@ export default function Dashboard() {
               </Card>
             </Grid>
             
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <AccountBalanceIcon sx={{ color: invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP >= 0 ? 'success.main' : 'error.main', mr: 1, fontSize: 28 }} />
+                    <HotelIcon sx={{ color: 'info.main', mr: 1, fontSize: 28 }} />
                     <Typography color="text.secondary" variant="h6">
-                      Net Balance
-                    </Typography>
-          </Box>
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
-                    <Typography variant="h4" color={invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                      {(invoiceTypeStats.payments.totalEGP - invoiceTypeStats.serviceRequests.totalEGP).toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
-                    </Typography>
-                    <Typography variant="h4" color={invoiceTypeStats.payments.totalGBP - invoiceTypeStats.serviceRequests.totalGBP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                      {(invoiceTypeStats.payments.totalGBP - invoiceTypeStats.serviceRequests.totalGBP).toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>GBP</span>
+                      Occupancy Rate
                     </Typography>
                   </Box>
+                  <Typography variant="h3" color="info.main" sx={{ fontWeight: 'bold' }}>
+                    {occupancyData ? `${occupancyData.occupancy_rate.toFixed(1)}%` : '0%'}
+                  </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    Net = Income - Expenses
+                    {occupancyData ? `${occupancyData.total_booked_days} / ${occupancyData.total_apartments * occupancyData.total_days_in_period} days` : 'Loading...'}
                   </Typography>
                 </CardContent>
               </Card>
             </Grid>
           </Grid>
           
-          {/* Financial Report */}
-          <Paper sx={{ p: 4, boxShadow: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-              <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
-                Comprehensive Financial Report
-              </Typography>
+          {/* Occupancy Rate Section */}
+          {['admin', 'super_admin'].includes(currentUser?.role || '') && (
+            <Paper sx={{ p: 4, boxShadow: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+                  Occupancy Rate Analysis
+                </Typography>
+              </Box>
               
-              {/* Export Buttons */}
-              <ExportButtons 
-                data={transformDataForExport(filteredData)} 
-                columns={["apartment","village","owner","total_spent_EGP","total_spent_GBP","total_requested_EGP","total_requested_GBP","net_EGP","net_GBP"]} 
-                excelFileName="financial-dashboard.xlsx" 
-                pdfFileName="financial-dashboard.pdf" 
-              />
-            </Box>
-            
-            {/* Filter Section */}
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
-              <FilterListIcon sx={{ mr: 2, color: 'primary.main' }} />
-              <FormControl sx={{ minWidth: 250 }}>
-                <InputLabel>Project Filter</InputLabel>
-                <Select
-                  value={village}
-                  label="Project Filter"
-                  onChange={handleVillageChange}
-                >
-                  <MenuItem value="">
-                    <em>All Projects</em>
-                  </MenuItem>
-                  {villages.map(villageItem => (
-                    <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Box>
-            
-            {/* Data Table */}
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ backgroundColor: 'primary.main' }}>
-                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Project</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Apartment</TableCell>
-                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Owner</TableCell>
-                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Income (EGP/GBP)</TableCell>
-                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Expenses (EGP/GBP)</TableCell>
-                    <TableCell align="right" sx={{ color: 'white', fontWeight: 'bold' }}>Net Balance (EGP/GBP)</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filteredData.length > 0 ? filteredData.map((row) => (
-                    <TableRow key={row.id} sx={{ '&:hover': { backgroundColor: 'action.hover' } }}>
-                      <TableCell>{row.village}</TableCell>
-                      <TableCell>{row.apartment}</TableCell>
-                      <TableCell>{row.owner}</TableCell>
-                      <TableCell align="right">
-                        {row.totalSpentEGP > 0 && `${row.totalSpentEGP.toLocaleString()} EGP`}
-                        {row.totalSpentEGP > 0 && row.totalSpentGBP > 0 && ' / '}
-                        {row.totalSpentGBP > 0 && `${row.totalSpentGBP.toLocaleString()} GBP`}
-                        {row.totalSpentEGP === 0 && row.totalSpentGBP === 0 && '-'}
-                      </TableCell>
-                      <TableCell align="right">
-                        {row.totalRequestedEGP > 0 && `${row.totalRequestedEGP.toLocaleString()} EGP`}
-                        {row.totalRequestedEGP > 0 && row.totalRequestedGBP > 0 && ' / '}
-                        {row.totalRequestedGBP > 0 && `${row.totalRequestedGBP.toLocaleString()} GBP`}
-                        {row.totalRequestedEGP === 0 && row.totalRequestedGBP === 0 && '-'}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography color={row.netEGP >= 0 ? 'success.main' : 'error.main'} sx={{ fontWeight: 'bold' }}>
-                          {row.netEGP !== 0 && `${row.netEGP.toLocaleString()} EGP`}
-                          {row.netEGP !== 0 && row.netGBP !== 0 && ' / '}
-                          {row.netGBP !== 0 && `${row.netGBP.toLocaleString()} GBP`}
-                          {row.netEGP === 0 && row.netGBP === 0 && '-'}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  )) : (
-                    <TableRow>
-                      <TableCell colSpan={6} align="center">
-                        <Typography color="text.secondary">No financial data available</Typography>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Paper>
+              {/* Filter Section */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                <FilterListIcon sx={{ color: 'primary.main' }} />
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel>Project Filter</InputLabel>
+                  <Select
+                    value={village}
+                    label="Project Filter"
+                    onChange={handleVillageChange}
+                  >
+                    <MenuItem value="">
+                      <em>All Projects</em>
+                    </MenuItem>
+                    {villages.map(villageItem => (
+                      <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                
+                <TextField
+                  label="From Date"
+                  type="date"
+                  value={occupancyDateFrom}
+                  onChange={(e) => setOccupancyDateFrom(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 150 }}
+                />
+                
+                <TextField
+                  label="To Date"
+                  type="date"
+                  value={occupancyDateTo}
+                  onChange={(e) => setOccupancyDateTo(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 150 }}
+                />
+              </Box>
+              
+              {/* Loading and Error States */}
+              {occupancyLoading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              )}
+              
+              {occupancyError && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {occupancyError}
+                </Alert>
+              )}
+            </Paper>
+          )}
         </Box>
       </Box>
     </Container>

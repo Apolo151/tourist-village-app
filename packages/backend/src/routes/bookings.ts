@@ -112,6 +112,85 @@ bookingsRouter.get(
 );
 
 /**
+ * GET /api/bookings/occupancy
+ * Get occupancy rate for a given date range
+ */
+bookingsRouter.get(
+  '/occupancy',
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const startDate = req.query.start_date ? new Date(req.query.start_date as string) : new Date();
+      const endDate = req.query.end_date ? new Date(req.query.end_date as string) : new Date();
+      const villageId = req.query.village_id ? parseInt(req.query.village_id as string) : undefined;
+
+      // Validate dates
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          error: 'Bad request',
+          message: 'Invalid date format'
+        });
+      }
+
+      if (startDate > endDate) {
+        return res.status(400).json({
+          success: false,
+          error: 'Bad request',
+          message: 'Start date must be before or equal to end date'
+        });
+      }
+
+      const occupancyData = await bookingService.getOccupancyRate(startDate, endDate, villageId);
+      
+      res.json({
+        success: true,
+        data: occupancyData
+      });
+    } catch (error) {
+      console.error('Error getting occupancy rate:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to get occupancy rate'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/bookings/currently-occupied
+ * Get count of currently occupied apartments
+ */
+bookingsRouter.get(
+  '/currently-occupied',
+  authenticateToken,
+  requireAdmin,
+  async (req: Request, res: Response) => {
+    try {
+      const villageId = req.query.village_id ? parseInt(req.query.village_id as string) : undefined;
+
+      const occupiedCount = await bookingService.getCurrentlyOccupiedApartmentsCount(villageId);
+      
+      res.json({
+        success: true,
+        data: { occupied_count: occupiedCount }
+      });
+    } catch (error) {
+      console.error('Error getting currently occupied apartments count:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to get currently occupied apartments count'
+      });
+    }
+  }
+);
+
+/**
  * GET /api/bookings/apartment/:apartmentId
  * Get bookings for a specific apartment
  */
