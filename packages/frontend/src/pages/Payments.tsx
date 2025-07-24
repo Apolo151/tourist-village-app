@@ -51,6 +51,8 @@ import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 import { format, parseISO } from 'date-fns';
 import ExportButtons from '../components/ExportButtons';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
 
 export default function Payments() {
   const navigate = useNavigate();
@@ -71,6 +73,9 @@ export default function Payments() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('');
   
   // UI states
   const [loading, setLoading] = useState(true);
@@ -96,15 +101,17 @@ export default function Payments() {
     const loadInitialData = async () => {
       try {
         setLoading(true);
-        const [apartmentsData, usersData, paymentMethodsData] = await Promise.all([
+        const [apartmentsData, usersData, paymentMethodsData, villagesData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
           userService.getUsers({ limit: 100 }),
-          paymentService.getPaymentMethods({ limit: 100 })
+          paymentService.getPaymentMethods({ limit: 100 }),
+          villageService.getVillages({ limit: 100 })
         ]);
         
         setApartments(apartmentsData.data);
         setUsers(usersData.data);
         setPaymentMethods(paymentMethodsData.data);
+        setVillages(villagesData.data);
         
         // Load bookings if user has access
         if (isAdmin) {
@@ -324,6 +331,20 @@ export default function Payments() {
     setMethodFilter('');
     setPagination(prev => ({ ...prev, page: 1 }));
   }
+
+  // Compute available phases for the selected project
+  const selectedVillage = villages.find(v => v.id === parseInt(projectFilter));
+  const availablePhases = selectedVillage
+    ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
+    : [];
+
+  // Filter apartments by project and phase
+  const filteredApartments = apartments.filter(apartment => {
+    if (projectFilter && parseInt(projectFilter) !== apartment.village_id) return false;
+    if (phaseFilter && parseInt(phaseFilter) !== apartment.phase) return false;
+    return true;
+  });
+
   return (
     <Container maxWidth="lg">
       <Box sx={{ mb: 4 }}>
@@ -372,7 +393,49 @@ export default function Payments() {
                 ),
               }}
             />
-            
+            {/* Project (Village) */}
+            <FormControl sx={{ minWidth: 150 }} size="small">
+              <InputLabel>Project</InputLabel>
+              <Select
+                value={projectFilter}
+                label="Project"
+                onChange={e => {
+                  setProjectFilter(e.target.value);
+                  setPhaseFilter('');
+                  setApartmentFilter('');
+                }}
+              >
+                <MenuItem value="">
+                  <em>All Projects</em>
+                </MenuItem>
+                {villages.map(village => (
+                  <MenuItem key={village.id} value={village.id.toString()}>{village.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {/* Phase */}
+            <FormControl sx={{ minWidth: 120 }} size="small">
+              <InputLabel>Phase</InputLabel>
+              <Select
+                value={phaseFilter}
+                label="Phase"
+                onChange={e => {
+                  setPhaseFilter(e.target.value);
+                  setApartmentFilter('');
+                }}
+                disabled={!projectFilter}
+              >
+                <MenuItem value="">
+                  <em>All Phases</em>
+                </MenuItem>
+                {availablePhases.map(phase => (
+                  <MenuItem key={phase} value={phase.toString()}>
+                    Phase {phase}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {/* Apartment */}
             <FormControl sx={{ minWidth: 150 }} size="small">
               <InputLabel>Apartment</InputLabel>
               <Select
@@ -383,7 +446,7 @@ export default function Payments() {
                 <MenuItem value="">
                   <em>All Apartments</em>
                 </MenuItem>
-                {(apartments || []).map(apt => (
+                {(filteredApartments || []).map(apt => (
                   <MenuItem key={apt.id} value={apt.id.toString()}>{apt.name}</MenuItem>
                 ))}
               </Select>

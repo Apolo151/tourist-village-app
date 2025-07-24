@@ -584,12 +584,55 @@ const BookingDetails: React.FC = () => {
     }
   };
 
+  // Helper to reload invoices with a specific booking
+  const loadInvoicesWithBooking = async (bookingObj: Booking) => {
+    setInvoicesLoading(true);
+    try {
+      const fetchedInvoices = await invoiceService.getInvoicesForBooking(bookingObj.id);
+      setInvoices(fetchedInvoices);
+      // Calculate totals by type and currency
+      const totals = {
+        payments: { EGP: 0, GBP: 0 },
+        services: { EGP: 0, GBP: 0 },
+        utilities: { EGP: 0, GBP: 0 }
+      };
+      fetchedInvoices.forEach(invoice => {
+        const amount = parseFloat(invoice.amount.toString());
+        if (invoice.type === 'Payment') {
+          totals.payments[invoice.currency as 'EGP' | 'GBP'] -= amount;
+        } else if (invoice.type === 'Service Request') {
+          totals.services[invoice.currency as 'EGP' | 'GBP'] += amount;
+        } else if (invoice.type === 'Utility Reading') {
+          totals.utilities.EGP += amount;
+        }
+      });
+      setInvoiceTotals(totals);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load invoices');
+    } finally {
+      setInvoicesLoading(false);
+    }
+  };
+
   // Helper to render dialog
   const renderDialog = (type: keyof typeof dialogState, Component: React.ElementType, extraProps = {}) => {
     const componentProps: { [key: string]: any } = {
-      onSuccess: () => {
+      onSuccess: async () => {
         closeDialog(type);
-        refreshRelatedData();
+        // Robust: Refetch booking and related data, then reload invoices
+        if (!isNew && id) {
+          try {
+            setLoading(true);
+            const bookingData = await bookingService.getBookingWithRelatedData(parseInt(id));
+            setBooking(bookingData.booking);
+            setRelatedData(bookingData);
+            await loadInvoicesWithBooking(bookingData.booking);
+          } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to refresh booking data');
+          } finally {
+            setLoading(false);
+          }
+        }
       },
       onCancel: () => closeDialog(type),
       ...extraProps
@@ -601,10 +644,15 @@ const BookingDetails: React.FC = () => {
       componentProps.bookingId = booking.id;
       componentProps.apartmentId = booking.apartment_id;
       componentProps.lockApartment = true;
+      componentProps.lockProject = true; // Lock project field
+      componentProps.lockPhase = true;   // Lock phase field
       // Set who pays based on user type
       componentProps.whoPays = booking.user_type;
+      // Prefill requester with booking user, but do not lock
+      componentProps.requesterId = booking.user_id;
       // Disable edit mode when used in dialog
       componentProps.disableEditMode = true;
+      componentProps.lockBooking = true; // Lock booking field
     }
 
     return (
@@ -981,8 +1029,6 @@ const BookingDetails: React.FC = () => {
                       onChange={(e) => handleSelectChange(e, 'status')}
                     >
                       <MenuItem value="Booked">Booked</MenuItem>
-                      <MenuItem value="Checked In">Checked In</MenuItem>
-                      <MenuItem value="Checked Out">Checked Out</MenuItem>
                       <MenuItem value="Cancelled">Cancelled</MenuItem>
                     </Select>
                   </FormControl>

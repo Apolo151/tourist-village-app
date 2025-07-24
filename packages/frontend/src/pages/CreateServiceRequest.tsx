@@ -49,6 +49,10 @@ export interface CreateServiceRequestProps {
     onCancel?: () => void;
     lockApartment?: boolean;
     disableEditMode?: boolean; // Add this prop to disable edit mode when used in dialogs
+    lockProject?: boolean;
+    lockPhase?: boolean;
+    requesterId?: number;
+    lockBooking?: boolean;
 }
 
 export default function CreateServiceRequest({
@@ -59,6 +63,10 @@ export default function CreateServiceRequest({
     onCancel,
     lockApartment,
     disableEditMode,
+    lockProject,
+    lockPhase,
+    requesterId,
+    lockBooking,
 }: CreateServiceRequestProps) {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -222,6 +230,13 @@ export default function CreateServiceRequest({
         };
         fetchAndPrefill();
     }, [editId]);
+
+    // Prefill requester_id if requesterId prop is provided
+    useEffect(() => {
+      if (requesterId && (!formData.requester_id || formData.requester_id !== requesterId)) {
+        setFormData(prev => ({ ...prev, requester_id: requesterId }));
+      }
+    }, [requesterId]);
 
     // Auto-set project and phase filters when apartment is selected
     useEffect(() => {
@@ -631,6 +646,7 @@ export default function CreateServiceRequest({
                                         value={projectFilter}
                                         label="Project"
                                         onChange={handleProjectFilterChange}
+                                        disabled={!!lockProject}
                                     >
                                         <MenuItem value="">
                                             <em>Select a project</em>
@@ -651,7 +667,8 @@ export default function CreateServiceRequest({
                                         value={phaseFilter}
                                         label="Phase"
                                         onChange={handlePhaseFilterChange}
-                                        disabled={!projectFilter}
+                                        disabled={!projectFilter
+                                         || !!lockPhase}
                                     >
                                         <MenuItem value="">
                                             <em>All Phases</em>
@@ -720,6 +737,7 @@ export default function CreateServiceRequest({
                                                     "booking_id"
                                                 )
                                             }
+                                            disabled={!!lockBooking}
                                         >
                                             <MenuItem value="">
                                                 <em>No related booking</em>

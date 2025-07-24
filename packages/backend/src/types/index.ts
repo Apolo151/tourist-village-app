@@ -131,7 +131,7 @@ export interface Booking {
   number_of_people: number;
   arrival_date: Date;
   leaving_date: Date;
-  status: 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
+  status: string; // Allow computed status values
   notes?: string;
   person_name?: string;
   created_by: number;

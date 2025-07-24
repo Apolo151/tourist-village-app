@@ -488,8 +488,8 @@ export class UtilityReadingService {
         paying_status_id: utilityReading.apartment_paying_status_id || 1,
         sales_status_id: utilityReading.apartment_sales_status_id || 1,
         sales_status: 'not for sale' as 'for sale' | 'not for sale',
-        created_by: utilityReading.apartment_created_by,
-        created_at: new Date(utilityReading.apartment_created_at),
+            created_by: utilityReading.apartment_created_by,
+            created_at: new Date(utilityReading.apartment_created_at),
         updated_at: new Date(utilityReading.apartment_updated_at),
         village: {
           id: utilityReading.apartment_village_id,
@@ -510,42 +510,42 @@ export class UtilityReadingService {
           created_at: new Date(utilityReading.owner_created_at),
           updated_at: new Date(utilityReading.owner_updated_at)
         } : undefined
-      },
-      booking: utilityReading.booking_arrival_date ? {
-        id: utilityReading.booking_id,
-        apartment_id: utilityReading.apartment_id,
-        user_id: utilityReading.booking_user_id,
-        user_type: utilityReading.booking_user_type,
-        number_of_people: utilityReading.booking_number_of_people || 0,
-        arrival_date: new Date(utilityReading.booking_arrival_date),
-        leaving_date: new Date(utilityReading.booking_leaving_date),
-        status: utilityReading.booking_status,
-        notes: utilityReading.booking_notes || undefined,
-        created_by: utilityReading.booking_created_by,
-        created_at: new Date(utilityReading.booking_created_at),
-        updated_at: new Date(utilityReading.booking_updated_at),
-        user: utilityReading.booking_user_name ? {
-          id: utilityReading.booking_user_id,
-          name: utilityReading.booking_user_name,
-          email: utilityReading.booking_user_email,
-          phone_number: utilityReading.booking_user_phone || undefined,
-          role: utilityReading.booking_user_role,
-          is_active: Boolean(utilityReading.booking_user_is_active),
-          created_at: new Date(),
-          updated_at: new Date()
-        } : undefined
-      } : undefined,
-      created_by_user: utilityReading.creator_name ? {
-        id: utilityReading.created_by,
-        name: utilityReading.creator_name,
-        email: utilityReading.creator_email,
-        phone_number: utilityReading.creator_phone || undefined,
-        role: utilityReading.creator_role,
-        is_active: Boolean(utilityReading.creator_is_active),
-        created_at: utilityReading.creator_created_at ? new Date(utilityReading.creator_created_at) : new Date(0),
-        updated_at: utilityReading.creator_updated_at ? new Date(utilityReading.creator_updated_at) : new Date(0)
-      } : undefined
-    };
+          },
+          booking: utilityReading.booking_arrival_date ? {
+            id: utilityReading.booking_id,
+            apartment_id: utilityReading.apartment_id,
+            user_id: utilityReading.booking_user_id,
+            user_type: utilityReading.booking_user_type,
+            number_of_people: utilityReading.booking_number_of_people || 0,
+            arrival_date: new Date(utilityReading.booking_arrival_date),
+            leaving_date: new Date(utilityReading.booking_leaving_date),
+            status: utilityReading.booking_status,
+            notes: utilityReading.booking_notes || undefined,
+            created_by: utilityReading.booking_created_by,
+            created_at: new Date(utilityReading.booking_created_at),
+            updated_at: new Date(utilityReading.booking_updated_at),
+            user: utilityReading.booking_user_name ? {
+              id: utilityReading.booking_user_id,
+              name: utilityReading.booking_user_name,
+              email: utilityReading.booking_user_email,
+              phone_number: utilityReading.booking_user_phone || undefined,
+              role: utilityReading.booking_user_role,
+              is_active: Boolean(utilityReading.booking_user_is_active),
+              created_at: new Date(),
+              updated_at: new Date()
+            } : undefined
+          } : undefined,
+          created_by_user: utilityReading.creator_name ? {
+            id: utilityReading.created_by,
+            name: utilityReading.creator_name,
+            email: utilityReading.creator_email,
+            phone_number: utilityReading.creator_phone || undefined,
+            role: utilityReading.creator_role,
+            is_active: Boolean(utilityReading.creator_is_active),
+            created_at: utilityReading.creator_created_at ? new Date(utilityReading.creator_created_at) : new Date(0),
+            updated_at: utilityReading.creator_updated_at ? new Date(utilityReading.creator_updated_at) : new Date(0)
+          } : undefined
+      };
   }
 
   /**

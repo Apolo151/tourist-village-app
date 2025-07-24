@@ -179,7 +179,7 @@ export default function Services() {
   useEffect(() => {
     setApartmentFilter('');
   }, [projectFilter, phaseFilter]);
-
+  
   // Load service requests
   useEffect(() => {
     const loadServiceRequests = async () => {
@@ -500,7 +500,7 @@ export default function Services() {
     
     return filteredApartments;
   };
-
+  
   const showMessage = useCallback((message: string) => {
     setSnackbarMessage(message);
     setOpenSnackbar(true);

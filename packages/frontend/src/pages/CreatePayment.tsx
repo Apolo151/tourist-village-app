@@ -35,6 +35,8 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
 import SearchableDropdown from '../components/SearchableDropdown';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
 
 interface PaymentFormData {
   apartment_id: string;
@@ -87,6 +89,9 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [projectFilter, setProjectFilter] = useState<string>('');
+  const [phaseFilter, setPhaseFilter] = useState<string>('');
   
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -101,14 +106,15 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         setLoading(true);
         setError(null);
 
-        // Load apartments and payment methods for all users
-        const [apartmentsData, paymentMethodsData] = await Promise.all([
+        // Load apartments, payment methods, and villages
+        const [apartmentsData, paymentMethodsData, villagesData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
-          paymentService.getPaymentMethods({ limit: 100 })
+          paymentService.getPaymentMethods({ limit: 100 }),
+          villageService.getVillages({ limit: 100 })
         ]);
-        
         setApartments(apartmentsData.data);
         setPaymentMethods(paymentMethodsData.data);
+        setVillages(villagesData.data);
         
         // Load bookings if admin or owner
         if (isAdmin || currentUser?.role === 'owner') {
@@ -298,6 +304,19 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
     !formData.apartment_id || booking.apartment_id === parseInt(formData.apartment_id)
   );
 
+  // Compute available phases for the selected project
+  const selectedVillage = villages.find(v => v.id === parseInt(projectFilter));
+  const availablePhases = selectedVillage
+    ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
+    : [];
+
+  // Filter apartments by project and phase
+  const filteredApartments = apartments.filter(apartment => {
+    if (projectFilter && parseInt(projectFilter) !== apartment.village_id) return false;
+    if (phaseFilter && parseInt(phaseFilter) !== apartment.phase) return false;
+    return true;
+  });
+
   if (loading) {
     return (
       <Container maxWidth="md">
@@ -423,10 +442,56 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                 </FormControl>
               </Grid>
 
+              {/* Project (Village) */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Project</InputLabel>
+                  <Select
+                    value={projectFilter}
+                    label="Project"
+                    onChange={e => {
+                      setProjectFilter(e.target.value);
+                      setPhaseFilter('');
+                      setFormData(prev => ({ ...prev, apartment_id: '' }));
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>All Projects</em>
+                    </MenuItem>
+                    {villages.map(village => (
+                      <MenuItem key={village.id} value={village.id.toString()}>{village.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              {/* Phase */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Phase</InputLabel>
+                  <Select
+                    value={phaseFilter}
+                    label="Phase"
+                    onChange={e => {
+                      setPhaseFilter(e.target.value);
+                      setFormData(prev => ({ ...prev, apartment_id: '' }));
+                    }}
+                    disabled={!projectFilter}
+                  >
+                    <MenuItem value="">
+                      <em>All Phases</em>
+                    </MenuItem>
+                    {availablePhases.map(phase => (
+                      <MenuItem key={phase} value={phase.toString()}>
+                        Phase {phase}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
               {/* Apartment */}
               <Grid size={{ xs: 12 }}>
                 <SearchableDropdown
-                  options={apartments.map(apartment => ({
+                  options={filteredApartments.map(apartment => ({
                     id: apartment.id,
                     label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
                     name: apartment.name,

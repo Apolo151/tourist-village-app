@@ -40,6 +40,16 @@ export interface BookingStats {
   };
 }
 
+// Helper to compute booking status
+function computeStatus(booking: { status: string; arrival_date: Date; leaving_date: Date }): string {
+  if (booking.status === 'Cancelled') return 'Cancelled';
+  const now = new Date();
+  if (now < booking.arrival_date) return 'Booked';
+  if (now >= booking.arrival_date && now < booking.leaving_date) return 'Checked In';
+  if (now >= booking.leaving_date) return 'Checked Out';
+  return booking.status;
+}
+
 export class BookingService {
   
   private userService: UserService;
@@ -178,7 +188,7 @@ export class BookingService {
       number_of_people: row.number_of_people,
       arrival_date: new Date(row.arrival_date),
       leaving_date: new Date(row.leaving_date),
-      status: row.status,
+      status: computeStatus({ status: row.status, arrival_date: new Date(row.arrival_date), leaving_date: new Date(row.leaving_date) }),
       notes: row.notes || undefined,
       created_by: row.created_by,
       created_at: new Date(row.created_at),
@@ -284,7 +294,7 @@ export class BookingService {
       number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
-      status: result.status,
+      status: computeStatus({ status: result.status, arrival_date: new Date(result.arrival_date), leaving_date: new Date(result.leaving_date) }),
       notes: result.notes || undefined,
       created_by: result.created_by,
       created_at: new Date(result.created_at),
@@ -679,7 +689,7 @@ export class BookingService {
       number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
-      status: result.status,
+      status: computeStatus({ status: result.status, arrival_date: new Date(result.arrival_date), leaving_date: new Date(result.leaving_date) }),
       notes: result.notes || undefined,
       created_by: result.created_by,
       created_at: new Date(result.created_at),
