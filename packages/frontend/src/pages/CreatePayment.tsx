@@ -286,7 +286,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         user_type: formData.user_type,
         date: formData.date,
         description: formData.description || undefined,
-        ...(formData.user_type === 'renter' && formData.booking_id ? { booking_id: parseInt(formData.booking_id) } : {})
+        ...(formData.booking_id ? { booking_id: parseInt(formData.booking_id) } : {})
       };
       
       if (isEdit && id && !isQuickAction) {
