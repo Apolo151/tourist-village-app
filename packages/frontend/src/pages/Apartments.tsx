@@ -325,7 +325,7 @@ export default function Apartments() {
     switch (status) {
       case 'Available': return 'success';
       case 'Occupied by Owner': return 'primary';
-      case 'Occupied By Renter': return 'warning';
+      case 'Occupied by Tenant': return 'warning';
       default: return 'default';
     }
   };
@@ -486,7 +486,7 @@ export default function Apartments() {
                 </MenuItem>
                 <MenuItem value="Available">Available</MenuItem>
                 <MenuItem value="Occupied by Owner">Occupied by Owner</MenuItem>
-                <MenuItem value="Occupied By Renter">Occupied By Tenant</MenuItem>
+                <MenuItem value="Occupied by Tenant">Occupied by Tenant</MenuItem>
               </Select>
             </FormControl>
             

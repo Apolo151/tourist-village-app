@@ -278,8 +278,15 @@ export default function ApartmentDetails() {
   // Automated Apartment Status logic
   const getAutomatedApartmentStatus = () => {
     if (!relatedBookings.length) return 'Available';
-    if (relatedBookings.some(b => b.status === 'Checked In')) return 'Not Available';
-    return 'Available';
+    const now = new Date();
+    // Find a booking that overlaps with today and is not Checked Out or Cancelled
+    const current = relatedBookings.find(b => {
+      const arrival = new Date(b.arrival_date);
+      const leaving = new Date(b.leaving_date);
+      return arrival <= now && leaving >= now && ['Booked', 'Checked In'].includes(b.status);
+    });
+    if (!current) return 'Available';
+    return current.user_type === 'owner' ? 'Occupied by Owner' : 'Occupied by Tenant';
   };
 
   // Quick actions

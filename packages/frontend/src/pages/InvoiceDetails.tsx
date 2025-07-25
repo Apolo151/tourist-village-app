@@ -227,7 +227,7 @@ const InvoiceDetails: React.FC = () => {
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
             <CircularProgress />
-          </Box>
+      </Box>
         ) : error ? (
           <Alert severity="error">{error}</Alert>
         ) : details ? (
@@ -263,66 +263,66 @@ const InvoiceDetails: React.FC = () => {
               );
             })()}
             {/* Apartment Info */}
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
                 <Typography variant="h6" gutterBottom>Apartment Information</Typography>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
-                  <Box>
+            <Box>
                     <Typography variant="body2" color="text.secondary">Apartment</Typography>
                     <Typography variant="body1">{details.apartment.name}</Typography>
-                  </Box>
-                  <Box>
+            </Box>
+            <Box>
                     <Typography variant="body2" color="text.secondary">Apartment ID</Typography>
                     <Typography variant="body1">{details.apartment.id}</Typography>
-                  </Box>
+            </Box>
                 </Stack>
-              </CardContent>
-            </Card>
+        </CardContent>
+      </Card>
             {/* Financial Summary */}
-            <Card sx={{ mb: 3 }}>
-              <CardContent>
+      <Card sx={{ mb: 3 }}>
+        <CardContent>
                 <Typography variant="h6" gutterBottom>Financial Summary (Owner Transactions Only)</Typography>
                 {details && (
                   (() => {
                     const totals = getOwnerSummaryTotals(details.invoices);
                     return (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                        <Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
+            <Box>
                           <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
                           <Typography>
                             {totals.total_spent_egp > 0 && `${totals.total_spent_egp.toLocaleString()} EGP`}
                             {totals.total_spent_egp > 0 && totals.total_spent_gbp > 0 && ' / '}
                             {totals.total_spent_gbp > 0 && `${totals.total_spent_gbp.toLocaleString()} GBP`}
                             {totals.total_spent_egp === 0 && totals.total_spent_gbp === 0 && '-'}
-                          </Typography>
-                        </Box>
-                        <Box>
+              </Typography>
+            </Box>
+            <Box>
                           <Typography variant="subtitle2" color="error.main">Total Outstanding</Typography>
                           <Typography>
                             {totals.total_requested_egp > 0 && `${totals.total_requested_egp.toLocaleString()} EGP`}
                             {totals.total_requested_egp > 0 && totals.total_requested_gbp > 0 && ' / '}
                             {totals.total_requested_gbp > 0 && `${totals.total_requested_gbp.toLocaleString()} GBP`}
                             {totals.total_requested_egp === 0 && totals.total_requested_gbp === 0 && '-'}
-                          </Typography>
-                        </Box>
-                        <Box>
+              </Typography>
+            </Box>
+            <Box>
                           <Typography variant="subtitle2" color={totals.total_requested_egp - totals.total_spent_egp >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
                           <Typography>
                             {(totals.total_requested_egp - totals.total_spent_egp !== 0) && `${(totals.total_requested_egp - totals.total_spent_egp).toLocaleString()} EGP`}
                             {(totals.total_requested_egp - totals.total_spent_egp !== 0) && (totals.total_requested_gbp - totals.total_spent_gbp !== 0) && ' / '}
                             {(totals.total_requested_gbp - totals.total_spent_gbp !== 0) && `${(totals.total_requested_gbp - totals.total_spent_gbp).toLocaleString()} GBP`}
                             {(totals.total_requested_egp - totals.total_spent_egp === 0) && (totals.total_requested_gbp - totals.total_spent_gbp === 0) && '-'}
-                          </Typography>
-                        </Box>
-                      </Box>
+                </Typography>
+              </Box>
+            </Box>
                     );
                   })()
                 )}
-              </CardContent>
-            </Card>
+        </CardContent>
+      </Card>
             {/* Transactions Table */}
-            <Card>
-              <CardContent>
+      <Card>
+        <CardContent>
                 <Typography variant="h6" gutterBottom>Owner Transactions</Typography>
                 {/* Export Buttons */}
                 {getOwnerTransactions(details.invoices).length > 0 && (
@@ -488,14 +488,14 @@ const InvoiceDetails: React.FC = () => {
                       {details.invoices.length > 0
                         ? 'No owner transactions found for this apartment. Showing all transactions.'
                         : 'No transactions found for this apartment.'}
-                    </Typography>
+              </Typography>
                   </Paper>
                 )}
-              </CardContent>
-            </Card>
+        </CardContent>
+      </Card>
           </>
         ) : null}
-      </Box>
+    </Box>
     </LocalizationProvider>
   );
 };

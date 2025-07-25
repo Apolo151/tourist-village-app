@@ -354,6 +354,62 @@ export default function Dashboard() {
         )}
         
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {/* Occupancy Rate Section - move above widgets */}
+          {['admin', 'super_admin'].includes(currentUser?.role || '') && (
+            <Paper sx={{ p: 4, boxShadow: 2 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
+                  Occupancy Rate Analysis
+                </Typography>
+              </Box>
+              {/* Filter Section */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                <FilterListIcon sx={{ color: 'primary.main' }} />
+                <FormControl sx={{ minWidth: 200 }}>
+                  <InputLabel>Project Filter</InputLabel>
+                  <Select
+                    value={village}
+                    label="Project Filter"
+                    onChange={handleVillageChange}
+                  >
+                    <MenuItem value="">
+                      <em>All Projects</em>
+                    </MenuItem>
+                    {villages.map(villageItem => (
+                      <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+                <TextField
+                  label="From Date"
+                  type="date"
+                  value={occupancyDateFrom}
+                  onChange={(e) => setOccupancyDateFrom(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 150 }}
+                />
+                <TextField
+                  label="To Date"
+                  type="date"
+                  value={occupancyDateTo}
+                  onChange={(e) => setOccupancyDateTo(e.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  sx={{ minWidth: 150 }}
+                />
+              </Box>
+              {/* Loading and Error States */}
+              {occupancyLoading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              )}
+              {occupancyError && (
+                <Alert severity="error" sx={{ mb: 3 }}>
+                  {occupancyError}
+                </Alert>
+              )}
+            </Paper>
+          )}
           {/* Summary Cards */}
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
@@ -374,7 +430,6 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             </Grid>
-            
             <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
@@ -393,7 +448,6 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </Grid>
-            
             <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
@@ -403,7 +457,8 @@ export default function Dashboard() {
                       Total Payment
                 </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
+                  {/* Stack EGP and GBP vertically */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mb: 1, gap: 0.5 }}>
                     <Typography variant="h4" color="success.main" sx={{ fontWeight: 'bold' }}>
                       {invoiceTypeStats.payments.totalEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
                     </Typography>
@@ -417,7 +472,6 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </Grid>
-            
             <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
@@ -427,7 +481,8 @@ export default function Dashboard() {
                       Total Outstanding
                     </Typography>
                   </Box>
-                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'baseline', mb: 1 }}>
+                  {/* Stack EGP and GBP vertically */}
+                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', mb: 1, gap: 0.5 }}>
                     <Typography variant="h4" color="error.main" sx={{ fontWeight: 'bold' }}>
                       {invoiceTypeStats.serviceRequests.totalEGP.toLocaleString()} <span style={{fontSize: '1.1rem', fontWeight: 400}}>EGP</span>
                     </Typography>
@@ -441,7 +496,6 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             </Grid>
-            
             <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
               <Card sx={{ height: '100%', boxShadow: 3, '&:hover': { boxShadow: 6, transform: 'translateY(-2px)' }, transition: 'all 0.3s ease' }}>
                 <CardContent sx={{ p: 3 }}>
@@ -461,68 +515,6 @@ export default function Dashboard() {
               </Card>
             </Grid>
           </Grid>
-          
-          {/* Occupancy Rate Section */}
-          {['admin', 'super_admin'].includes(currentUser?.role || '') && (
-          <Paper sx={{ p: 4, boxShadow: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-              <Typography variant="h5" component="div" sx={{ fontWeight: 'bold' }}>
-                  Occupancy Rate Analysis
-              </Typography>
-            </Box>
-            
-            {/* Filter Section */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
-                <FilterListIcon sx={{ color: 'primary.main' }} />
-                <FormControl sx={{ minWidth: 200 }}>
-                <InputLabel>Project Filter</InputLabel>
-                <Select
-                  value={village}
-                  label="Project Filter"
-                  onChange={handleVillageChange}
-                >
-                  <MenuItem value="">
-                    <em>All Projects</em>
-                  </MenuItem>
-                  {villages.map(villageItem => (
-                    <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-                
-                <TextField
-                  label="From Date"
-                  type="date"
-                  value={occupancyDateFrom}
-                  onChange={(e) => setOccupancyDateFrom(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 150 }}
-                />
-                
-                <TextField
-                  label="To Date"
-                  type="date"
-                  value={occupancyDateTo}
-                  onChange={(e) => setOccupancyDateTo(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 150 }}
-                />
-            </Box>
-            
-              {/* Loading and Error States */}
-              {occupancyLoading && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                  <CircularProgress />
-                </Box>
-              )}
-              
-              {occupancyError && (
-                <Alert severity="error" sx={{ mb: 3 }}>
-                  {occupancyError}
-                </Alert>
-                  )}
-          </Paper>
-          )}
         </Box>
       </Box>
     </Container>

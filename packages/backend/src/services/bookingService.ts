@@ -1,6 +1,7 @@
 import { db } from '../database/connection';
 import { Booking, CreateBookingRequest, UpdateBookingRequest, User, Apartment } from '../types';
 import { UserService } from './userService';
+import { ApartmentService } from './apartmentService';
 
 export interface BookingFilters {
   apartment_id?: number;
@@ -53,9 +54,11 @@ function computeStatus(booking: { status: string; arrival_date: Date; leaving_da
 export class BookingService {
   
   private userService: UserService;
+  private apartmentService: ApartmentService;
 
   constructor() {
     this.userService = new UserService();
+    this.apartmentService = new ApartmentService();
   }
 
   /**
@@ -449,6 +452,9 @@ export class BookingService {
       created_by: createdBy
     }).returning('*');
 
+    // Refresh the materialized view
+    await this.apartmentService.refreshApartmentStatusView();
+
     return this.getBookingById(booking.id) as Promise<Booking>;
   }
 
@@ -539,6 +545,9 @@ export class BookingService {
 
     await db('bookings').where('id', id).update(updateData);
 
+    // Refresh the materialized view
+    await this.apartmentService.refreshApartmentStatusView();
+
     return this.getBookingById(id) as Promise<Booking>;
   }
 
@@ -573,6 +582,9 @@ export class BookingService {
     }
 
     await db('bookings').where('id', id).del();
+
+    // Refresh the materialized view
+    await this.apartmentService.refreshApartmentStatusView();
   }
 
   /**

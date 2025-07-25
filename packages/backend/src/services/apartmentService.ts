@@ -48,6 +48,7 @@ export class ApartmentService {
       .leftJoin('users as u', 'a.owner_id', 'u.id')
       .leftJoin('paying_status_types as pst', 'a.paying_status_id', 'pst.id')
       .leftJoin('sales_status_types as sst', 'a.sales_status_id', 'sst.id')
+      .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
       .select(
         'a.*',
         'v.name as village_name',
@@ -66,7 +67,8 @@ export class ApartmentService {
         'sst.name as sales_status_name',
         'sst.display_name as sales_status_display_name',
         'sst.description as sales_status_description',
-        'sst.color as sales_status_color'
+        'sst.color as sales_status_color',
+        'asv.status as computed_status'
       );
 
     // Build a separate count query without joins for better performance
@@ -112,8 +114,10 @@ export class ApartmentService {
       countQuery = countQuery.where('a.paying_status_id', paying_status_id);
     }
     if (status) {
-      query = query.where('a.status', status);
-      countQuery = countQuery.where('a.status', status);
+      query = query.where('asv.status', status);
+      countQuery = countQuery
+        .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
+        .where('asv.status', status);
     }
     if (sales_status) {
       // Handle both old string format and new format
@@ -180,34 +184,13 @@ export class ApartmentService {
     const results = await query;
 
     // Transform data
-    const apartments = results.map((data: any) => this.transformApartmentData(data));
+    const apartments = results.map((data: any) => {
+      const apt = this.transformApartmentData(data);
+      apt.status = data.computed_status || 'Unknown';
+      return apt;
+    });
 
-    // Batch fetch current bookings for all apartments to determine status
-    const apartmentIds = apartments.map(a => a.id);
-    if (apartmentIds.length > 0) {
-      const now = new Date();
-      const currentBookings = await db('bookings')
-        .whereIn('apartment_id', apartmentIds)
-        .where('arrival_date', '<=', now)
-        .where('leaving_date', '>=', now)
-        .where('status', '!=', 'Checked Out');
-      const bookingMap = new Map<number, any>();
-      currentBookings.forEach(b => {
-        bookingMap.set(b.apartment_id, b);
-      });
-      apartments.forEach(apartment => {
-        const booking = bookingMap.get(apartment.id);
-        if (!booking) {
-          apartment.status = 'Available';
-        } else if (booking.status === 'Checked In') {
-          apartment.status = booking.user_type === 'owner'
-            ? 'Occupied by Owner'
-            : 'Occupied by Tenant';
-        } else {
-          apartment.status = 'Available';
-        }
-      });
-    }
+    // Remove old in-memory status computation
 
     const totalPages = Math.ceil(total / validatedLimit);
 
@@ -220,6 +203,13 @@ export class ApartmentService {
         total_pages: totalPages
       }
     };
+  }
+
+  /**
+   * Refresh the apartment_status_view materialized view
+   */
+  async refreshApartmentStatusView(): Promise<void> {
+    await db.raw('REFRESH MATERIALIZED VIEW apartment_status_view');
   }
 
   /**
@@ -801,21 +791,21 @@ export class ApartmentService {
     };
   }
 
-  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Not Available' | 'Occupied by Owner' | 'Occupied By Renter'> {
+  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Occupied by Owner' | 'Occupied by Tenant'> {
     const now = new Date();
     
     const currentBooking = await db('bookings')
       .where('apartment_id', apartmentId)
       .where('arrival_date', '<=', now)
       .where('leaving_date', '>=', now)
-      .where('status', '!=', 'Checked Out')
+      .whereIn('status', ['Booked', 'Checked In'])
       .first();
 
     if (!currentBooking) {
       return 'Available';
     }
 
-    return currentBooking.user_type === 'owner' ? 'Occupied by Owner' : 'Occupied By Renter';
+    return currentBooking.user_type === 'owner' ? 'Occupied by Owner' : 'Occupied by Tenant';
   }
 
   private async getCurrentBooking(apartmentId: number): Promise<Booking | null> {

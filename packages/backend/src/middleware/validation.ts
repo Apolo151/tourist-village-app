@@ -189,8 +189,8 @@ export class ValidationMiddleware {
     }
 
     // Validate status
-    if (query.status && !['Available', 'Occupied by Owner', 'Occupied By Renter'].includes(query.status as string)) {
-      errors.push({ field: 'status', message: 'Status must be one of: Available, Occupied by Owner, Occupied By Renter' });
+    if (query.status && !['Available', 'Occupied by Owner', 'Occupied by Tenant'].includes(query.status as string)) {
+      errors.push({ field: 'status', message: 'Status must be one of: Available, Occupied by Owner, Occupied by Tenant' });
     }
 
     // Validate sort_order
