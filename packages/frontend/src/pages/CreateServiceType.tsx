@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -39,10 +39,12 @@ interface VillagePriceForm {
 }
 
 export default function CreateServiceType() {
+  const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   
   const [loading, setLoading] = useState(true);
+  const [isEditMode, setIsEditMode] = useState(!!id);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   
@@ -57,7 +59,7 @@ export default function CreateServiceType() {
   
   const [villagePrices, setVillagePrices] = useState<VillagePriceForm[]>([]);
   
-  // Load initial data
+  // Load initial data (villages and, if editing, service type)
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -66,24 +68,43 @@ export default function CreateServiceType() {
 
         const villagesData = await villageService.getVillages({ limit: 100 });
         setVillages(villagesData.data);
-        
-        // Initialize village prices with default values
-        const initialPrices = villagesData.data.map(village => ({
-          village_id: village.id,
-          cost: 0,
-          currency: 'EGP' as 'EGP' | 'GBP'
-        }));
-        setVillagePrices(initialPrices);
-        
+
+        if (id) {
+          // Edit mode: fetch service type and prefill
+          const serviceType = await serviceTypeService.getServiceTypeById(Number(id));
+          setFormData({
+            name: serviceType.name,
+            description: serviceType.description || ''
+          });
+          // Prefill village prices
+          const prices = villagesData.data.map(village => {
+            const existing = serviceType.village_prices?.find(vp => vp.village_id === village.id);
+            return {
+              village_id: village.id,
+              cost: existing?.cost || 0,
+              currency: existing?.currency || 'EGP'
+            };
+          });
+          setVillagePrices(prices);
+          setIsEditMode(true);
+        } else {
+          // Create mode: default values
+          const initialPrices = villagesData.data.map(village => ({
+            village_id: village.id,
+            cost: 0,
+            currency: 'EGP' as 'EGP' | 'GBP'
+          }));
+          setVillagePrices(initialPrices);
+          setIsEditMode(false);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
         setLoading(false);
       }
     };
-
     loadData();
-  }, []);
+  }, [id]);
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -129,16 +150,24 @@ export default function CreateServiceType() {
       // Filter out village prices with cost 0 or less
       const validVillagePrices = villagePrices.filter(vp => vp.cost > 0);
 
-      const requestData: CreateServiceTypeRequest = {
-        name: formData.name.trim(),
-        description: formData.description.trim() || undefined,
-        village_prices: validVillagePrices
-      };
-
-      await serviceTypeService.createServiceType(requestData);
+      if (isEditMode && id) {
+        // Edit mode: update
+        await serviceTypeService.updateServiceType(Number(id), {
+          name: formData.name.trim(),
+          description: formData.description.trim() || undefined,
+          village_prices: validVillagePrices
+        });
+      } else {
+        // Create mode: create
+        await serviceTypeService.createServiceType({
+          name: formData.name.trim(),
+          description: formData.description.trim() || undefined,
+          village_prices: validVillagePrices
+        });
+      }
       navigate('/services?tab=0'); // Navigate to service types tab
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create service type');
+      setError(err instanceof Error ? err.message : 'Failed to save service type');
     } finally {
       setSubmitting(false);
     }
@@ -181,10 +210,8 @@ export default function CreateServiceType() {
   }
 
   return (
-    <Container maxWidth="md">
-      <Box sx={{ mb: 4, mt: 3 }}>
-        {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+    <Box sx={{ maxWidth: 1000, mx: 'auto', mb: 4, mt: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Button
             variant="text"
             color="primary"
@@ -194,7 +221,7 @@ export default function CreateServiceType() {
             Back
           </Button>
           <Typography variant="h4" sx={{ ml: 2 }}>
-            Create Service Type
+            {isEditMode ? 'Edit Service Type' : 'Create Service Type'}
           </Typography>
         </Box>
 
@@ -274,7 +301,7 @@ export default function CreateServiceType() {
                       </Box>
                       
                       <Grid container spacing={2}>
-                        <Grid size={{ xs: 8 }}>
+                        <Grid size={{ xs: 8, sm: 7, md: 6 }}>
                           <TextField
                             fullWidth
                             label="Cost"
@@ -285,8 +312,8 @@ export default function CreateServiceType() {
                             size="small"
                           />
                         </Grid>
-                        <Grid size={{ xs: 4 }}>
-                          <FormControl fullWidth size="small">
+                        <Grid size={{ xs: 4, sm: 5, md: 6 }}>
+                          <FormControl fullWidth size="small" sx={{ minWidth: 120 }}>
                             <InputLabel>Currency</InputLabel>
                             <Select
                               value={villagePrice?.currency || 'EGP'}
@@ -347,7 +374,7 @@ export default function CreateServiceType() {
         </Card>
 
         {/* Action Buttons */}
-        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 2 }}>
           <Button
             variant="outlined"
             startIcon={<CancelIcon />}
@@ -361,10 +388,9 @@ export default function CreateServiceType() {
             onClick={handleSubmit}
             disabled={submitting || !formData.name.trim()}
           >
-            {submitting ? 'Creating...' : 'Create Service Type'}
+            {submitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Service Type')}
           </Button>
         </Box>
-      </Box>
-    </Container>
+    </Box>
   );
 } 

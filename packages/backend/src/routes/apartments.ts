@@ -180,6 +180,9 @@ apartmentsRouter.post(
 
       const apartment = await apartmentService.createApartment(req.body, createdBy);
 
+      // Refresh the materialized view after the transaction is complete
+      await apartmentService.refreshApartmentStatusView();
+
       res.status(201).json({
         success: true,
         data: apartment,

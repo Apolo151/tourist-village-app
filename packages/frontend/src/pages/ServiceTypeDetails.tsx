@@ -187,7 +187,7 @@ export default function ServiceTypeDetails() {
       try {
         setSubmitting(true);
         await serviceTypeService.deleteServiceType(parseInt(id));
-        navigate('/services?tab=0'); // Navigate back to service types tab
+        navigate('/services?tab=1'); // Navigate back to service types tab
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete service type');
         setSubmitting(false);
@@ -196,7 +196,7 @@ export default function ServiceTypeDetails() {
   };
 
   const handleBack = () => {
-    navigate('/services?tab=0');
+    navigate('/services?tab=1');
   };
 
   const copyPriceToAll = (villageId: number) => {

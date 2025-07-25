@@ -22,8 +22,10 @@ import { useAuth } from '../context/AuthContext';
 import { bookingService } from '../services/bookingService';
 import { apartmentService } from '../services/apartmentService';
 import { userService } from '../services/userService';
+import { villageService } from '../services/villageService';
 import type { Apartment } from '../services/apartmentService';
 import type { User } from '../services/userService';
+import type { Village } from '../services/villageService';
 import SearchableDropdown, { type SearchableDropdownOption } from '../components/SearchableDropdown';
 
 export interface CreateBookingProps {
@@ -43,6 +45,12 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   // Data
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  
+  // Villages and phase filter state
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [selectedVillageId, setSelectedVillageId] = useState<string>('');
+  const [selectedPhase, setSelectedPhase] = useState<string>('');
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
   
   // Form fields
   const [formData, setFormData] = useState({
@@ -87,6 +95,53 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     loadInitialData();
   }, []);
 
+  // Fetch villages on mount
+  useEffect(() => {
+    const fetchVillages = async () => {
+      try {
+        const result = await villageService.getVillages({ limit: 100 });
+        setVillages(result.data);
+      } catch (err) {
+        // ignore for now
+      }
+    };
+    fetchVillages();
+  }, []);
+
+  // Update available phases when village changes
+  useEffect(() => {
+    if (selectedVillageId) {
+      const village = villages.find(v => v.id === Number(selectedVillageId));
+      if (village) {
+        setAvailablePhases(Array.from({ length: village.phases }, (_, i) => i + 1));
+      } else {
+        setAvailablePhases([]);
+      }
+      setSelectedPhase('');
+      setFormData(prev => ({ ...prev, apartment_id: 0 }));
+    } else {
+      setAvailablePhases([]);
+      setSelectedPhase('');
+      setFormData(prev => ({ ...prev, apartment_id: 0 }));
+    }
+  }, [selectedVillageId, villages]);
+
+  // Reset apartment when phase changes
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, apartment_id: 0 }));
+  }, [selectedPhase]);
+
+  // Filter apartments based on selected village and phase
+  const filteredApartments = apartments.filter(apartment => {
+    if (selectedVillageId && selectedPhase) {
+      return apartment.village_id === Number(selectedVillageId) && apartment.phase === Number(selectedPhase);
+    } else if (selectedVillageId) {
+      return apartment.village_id === Number(selectedVillageId);
+    } else {
+      return true;
+    }
+  });
+
   // Auto-select apartment owner when apartment is selected and user type is owner
   useEffect(() => {
     if (formData.user_type === 'owner' && formData.apartment_id) {
@@ -101,6 +156,45 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       }
     }
   }, [formData.apartment_id, formData.user_type, apartments, users]);
+
+  // When lockApartment and apartmentId are set, ensure owner autofill logic is triggered
+  useEffect(() => {
+    if (lockApartment && apartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === apartmentId);
+      if (apt) {
+        setSelectedVillageId(String(apt.village_id));
+        setSelectedPhase(String(apt.phase));
+        setFormData(prev => {
+          // If user_type is owner, set user_id and user_name to owner
+          let user_id = prev.user_id;
+          let user_name = prev.user_name;
+          if (prev.user_type === 'owner' && apt.owner_id) {
+            const apartmentOwner = users.find(user => user.id === apt.owner_id);
+            user_id = apt.owner_id;
+            user_name = apartmentOwner ? apartmentOwner.name : '';
+          }
+          return { ...prev, apartment_id: apt.id, user_id, user_name };
+        });
+      }
+    }
+  }, [lockApartment, apartmentId, apartments, users]);
+
+  // When User Type is set to 'owner' and lockApartment is true, unlock User and Apartment fields, set owner, then relock
+  useEffect(() => {
+    if (lockApartment && formData.user_type === 'owner' && apartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === apartmentId);
+      if (apt && apt.owner_id) {
+        const apartmentOwner = users.find(user => user.id === apt.owner_id);
+        // Temporarily unlock, set, then relock (effectively just set the values)
+        setFormData(prev => ({
+          ...prev,
+          apartment_id: apt.id,
+          user_id: apt.owner_id,
+          user_name: apartmentOwner ? apartmentOwner.name : ''
+        }));
+      }
+    }
+  }, [formData.user_type, lockApartment, apartmentId, apartments, users]);
 
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
@@ -211,39 +305,54 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Alert>
           )}
 
-        {formData.user_type === 'renter' && (
-          <Alert severity="info" sx={{ mb: 3 }}>
-            <Typography variant="body2">
-              <strong>Tenant Booking:</strong> You can search for existing users in the dropdown or type a new name directly. 
-              When you enter a name that doesn't exist in the system, a new user account will be automatically created with the following default values:
-              <br />• Email: [cleanname][timestamp][random]@domain.com
-              <br />• Password: renterpassword
-              <br />• Role: Renter
-              <br />• Active: Yes
-            </Typography>
-          </Alert>
-        )}
-
         <Paper sx={{ p: 4, borderRadius: 2, boxShadow: 3 }}>
           <Typography variant="h6" sx={{ mb: 3, color: 'primary.main', fontWeight: 'medium', borderBottom: '1px solid', borderColor: 'divider', pb: 1 }}>
             Booking Information
           </Typography>
           <Grid container spacing={3}>
-            {/* Property & Guest Section */}
-            <Grid size = {{xs:12}}>
-              <Box sx={{ mb: 2 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 'medium', mb: 1 }}>Property Details</Typography>
-              </Box>
+            {/* Project (Village) Selection */}
+            <Grid size = {{xs:12, md:6}}>
+              <FormControl fullWidth>
+                <InputLabel>Project</InputLabel>
+                <Select
+                  value={selectedVillageId}
+                  label="Project"
+                  onChange={e => setSelectedVillageId(String(e.target.value))}
+                  disabled={!!lockApartment}
+                >
+                  <MenuItem value=""><em>All Projects</em></MenuItem>
+                  {villages.map(village => (
+                    <MenuItem key={village.id} value={String(village.id)}>{village.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
-            
+            {/* Phase Selection */}
+            <Grid size = {{xs:12, md:6}}>
+              <FormControl fullWidth disabled={!selectedVillageId || !!lockApartment}>
+                <InputLabel>Phase</InputLabel>
+                <Select
+                  value={selectedPhase}
+                  label="Phase"
+                  onChange={e => setSelectedPhase(String(e.target.value))}
+                  disabled={!selectedVillageId || !!lockApartment}
+                >
+                  <MenuItem value=""><em>All Phases</em></MenuItem>
+                  {availablePhases.map(phase => (
+                    <MenuItem key={phase} value={String(phase)}>Phase {phase}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
             {/* Apartment Selection */}
             <Grid size = {{xs:12, md:6}}>
               <SearchableDropdown
-                options={apartments.map(apartment => ({
+                options={filteredApartments.map(apartment => ({
                   id: apartment.id,
-                  label: `${apartment.name} (${apartment.village?.name})`,
+                  label: `${apartment.name} (${apartment.village?.name}, Phase ${apartment.phase})`,
                   name: apartment.name,
-                  village: apartment.village
+                  village: apartment.village,
+                  phase: apartment.phase
                 }))}
                 value={formData.apartment_id || null}
                 onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || 0 }))}
@@ -257,7 +366,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                     <Box>
                       <Typography variant="body1">{option.name}</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {option.village?.name}
+                        {option.village?.name} • Phase {option.phase}
                       </Typography>
                     </Box>
                   </li>
@@ -356,7 +465,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               <TextField
                 fullWidth
                 required
-                label="Person Name"
+                label="Person Name (Optional)"
                 value={formData.person_name}
                 onChange={(e) => setFormData(prev => ({ ...prev, person_name: e.target.value }))}
                 placeholder="Enter the name(s) of the person(s) for this booking"
@@ -488,6 +597,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
           </Grid>
         </Paper>
+
+        {/* Tenant Booking Note at the bottom */}
+        {formData.user_type === 'renter' && (
+          <Alert severity="info" sx={{ mt: 3, mb: 3 }}>
+            <Typography variant="body2">
+              <strong>Tenant Booking:</strong> You can search for existing users in the dropdown or type a new name directly. 
+              When you enter a name that doesn't exist in the system, a new user account will be automatically created with the following default values:
+              <br />• Email: [cleanname][timestamp][random]@domain.com
+              <br />• Password: renterpassword
+              <br />• Role: Renter
+              <br />• Active: Yes
+            </Typography>
+          </Alert>
+        )}
 
         <Alert severity="info" sx={{ mt: 3, mb: 3 }}>
           <Typography variant="body2">

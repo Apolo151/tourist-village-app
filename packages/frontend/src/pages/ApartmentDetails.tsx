@@ -339,12 +339,13 @@ export default function ApartmentDetails() {
   // Handler to refresh all related data
   const refreshRelatedData = async () => {
     if (!id) return;
-    const [bookingsResult, paymentsData, serviceRequestsData, utilityReadingsData, emailsData] = await Promise.all([
+    const [bookingsResult, paymentsData, serviceRequestsData, utilityReadingsData, emailsData, summary] = await Promise.all([
       bookingService.getBookings({ apartment_id: parseInt(id), limit: 50, page: 1 }).then(r => r.bookings).catch(() => []),
       paymentService.getPaymentsByApartment(parseInt(id)).catch(() => []),
       serviceRequestService.getServiceRequests({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
       utilityReadingService.getUtilityReadings({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
-      emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => [])
+      emailService.getEmails({ apartment_id: parseInt(id), limit: 100 }).then(r => r.data).catch(() => []),
+      apartmentService.getApartmentFinancialSummary(parseInt(id)).catch(() => null)
     ]);
     setRelatedBookings((bookingsResult || [])
       .map((booking: any) => ({
@@ -361,6 +362,13 @@ export default function ApartmentDetails() {
     setRelatedServiceRequests(serviceRequestsData);
     setRelatedUtilityReadings(utilityReadingsData);
     setRelatedEmails(emailsData);
+    if (summary) {
+      setFinancialSummary({
+        total_money_spent: summary.total_money_spent,
+        total_money_requested: summary.total_money_requested,
+        net_money: summary.net_money
+      });
+    }
   };
 
   // Show loading state
@@ -703,14 +711,17 @@ export default function ApartmentDetails() {
                         {owner.phone_number && <ListItem><ListItemText primary="Phone" secondary={owner.phone_number} /></ListItem>}
                         <ListItem><ListItemText primary="Role" secondary={owner.role} /></ListItem>
                         <ListItem><ListItemText primary="Active" secondary={owner.is_active ? 'Yes' : 'No'} /></ListItem>
-                        {owner.passport_number && <ListItem><ListItemText primary="Passport Number" secondary={owner.passport_number} /></ListItem>}
-                        {owner.passport_expiry_date && <ListItem><ListItemText primary="Passport Expiry Date" secondary={owner.passport_expiry_date} /></ListItem>}
-                        {owner.address && <ListItem><ListItemText primary="Address" secondary={owner.address} /></ListItem>}
-                        {owner.next_of_kin_name && <ListItem><ListItemText primary="Next of Kin Name" secondary={owner.next_of_kin_name} /></ListItem>}
-                        {owner.next_of_kin_address && <ListItem><ListItemText primary="Next of Kin Address" secondary={owner.next_of_kin_address} /></ListItem>}
-                        {owner.next_of_kin_email && <ListItem><ListItemText primary="Next of Kin Email" secondary={owner.next_of_kin_email} /></ListItem>}
-                        {owner.next_of_kin_phone && <ListItem><ListItemText primary="Next of Kin Phone" secondary={owner.next_of_kin_phone} /></ListItem>}
-                        {owner.next_of_kin_will && <ListItem><ListItemText primary="Next of Kin Will" secondary={owner.next_of_kin_will} /></ListItem>}
+                        {/* Passport Information */}
+                        <ListItem><ListItemText primary="Passport Number" secondary={owner.passport_number || '-'} /></ListItem>
+                        <ListItem><ListItemText primary="Passport Expiry Date" secondary={owner.passport_expiry_date ? new Date(owner.passport_expiry_date).toLocaleDateString() : '-'} /></ListItem>
+                        {/* Address */}
+                        <ListItem><ListItemText primary="Address" secondary={owner.address || '-'} /></ListItem>
+                        {/* Next of Kin Information */}
+                        <ListItem><ListItemText primary="Next of Kin Name" secondary={owner.next_of_kin_name || '-'} /></ListItem>
+                        <ListItem><ListItemText primary="Next of Kin Phone" secondary={owner.next_of_kin_phone || '-'} /></ListItem>
+                        <ListItem><ListItemText primary="Next of Kin Email" secondary={owner.next_of_kin_email || '-'} /></ListItem>
+                        <ListItem><ListItemText primary="Next of Kin Address" secondary={owner.next_of_kin_address || '-'} /></ListItem>
+                        <ListItem><ListItemText primary="Next of Kin Will" secondary={owner.next_of_kin_will || '-'} /></ListItem>
                       </List>
                     </DialogContent>
                     <DialogActions>

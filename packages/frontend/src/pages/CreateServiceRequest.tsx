@@ -506,6 +506,17 @@ export default function CreateServiceRequest({
         return filteredApartments;
     };
 
+    // When lockApartment and apartmentId are set, set project and phase filters and lock them
+    useEffect(() => {
+        if (lockApartment && apartmentId && apartments.length > 0) {
+            const apt = apartments.find(a => a.id === apartmentId);
+            if (apt) {
+                setProjectFilter(apt.village?.id?.toString() || '');
+                setPhaseFilter(apt.phase?.toString() || '');
+            }
+        }
+    }, [lockApartment, apartmentId, apartments]);
+
     if (loading) {
         return (
             <Container maxWidth="md">
@@ -646,7 +657,7 @@ export default function CreateServiceRequest({
                                         value={projectFilter}
                                         label="Project"
                                         onChange={handleProjectFilterChange}
-                                        disabled={!!lockProject}
+                                        disabled={!!lockApartment || !!lockProject}
                                     >
                                         <MenuItem value="">
                                             <em>Select a project</em>
@@ -667,8 +678,7 @@ export default function CreateServiceRequest({
                                         value={phaseFilter}
                                         label="Phase"
                                         onChange={handlePhaseFilterChange}
-                                        disabled={!projectFilter
-                                         || !!lockPhase}
+                                        disabled={!projectFilter || !!lockApartment || !!lockPhase}
                                     >
                                         <MenuItem value="">
                                             <em>All Phases</em>

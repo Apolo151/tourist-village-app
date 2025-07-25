@@ -34,6 +34,9 @@ import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SearchableDropdown from '../components/SearchableDropdown';
 import { villageService } from '../services/villageService';
 import type { Village } from '../services/villageService';
@@ -181,6 +184,32 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
       }
     }
   }, [bookingId, bookings]);
+  
+  // When apartmentId is provided and lockApartment is true, set apartment and trigger dependent logic
+  useEffect(() => {
+    if (lockApartment && apartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === apartmentId);
+      if (apt) {
+        setProjectFilter(apt.village_id.toString());
+        // Simulate the same logic as handleApartmentFilterChange
+        // setPagination(prev => ({ ...prev, page: 1 }));
+        // Optionally, reset user type and booking if needed
+        // If you want to auto-select owner as user_type, you can do so here
+        // setUserTypeFilter('owner');
+      }
+    }
+  }, [lockApartment, apartmentId, apartments]);
+  
+  // When lockApartment and apartmentId are set, set project and phase filters and lock them
+  useEffect(() => {
+    if (lockApartment && apartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === apartmentId);
+      if (apt) {
+        setProjectFilter(apt.village_id.toString());
+        setPhaseFilter(apt.phase.toString());
+      }
+    }
+  }, [lockApartment, apartmentId, apartments]);
   
   // Validate form
   const validateForm = (): boolean => {
@@ -454,6 +483,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                       setPhaseFilter('');
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
+                    disabled={!!lockApartment}
                   >
                     <MenuItem value="">
                       <em>All Projects</em>
@@ -475,7 +505,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                       setPhaseFilter(e.target.value);
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
-                    disabled={!projectFilter}
+                    disabled={!projectFilter || !!lockApartment}
                   >
                     <MenuItem value="">
                       <em>All Phases</em>
@@ -558,18 +588,33 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
 
               {/* Date */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <TextField
-                  name="date"
-                  label="Payment Date"
-                  type="date"
-                  fullWidth
-                  required
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  error={Boolean(errors.date)}
-                  helperText={errors.date}
-                  InputLabelProps={{ shrink: true }}
-                />
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Payment Date"
+                    value={formData.date ? new Date(formData.date) : null}
+                    onChange={(date) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        date: date ? format(date, 'yyyy-MM-dd') : ''
+                      }));
+                      if (errors.date) {
+                        setErrors(prev => {
+                          const newErrors = { ...prev };
+                          delete newErrors.date;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    slotProps={{
+                      textField: {
+                        fullWidth: true,
+                        required: true,
+                        error: Boolean(errors.date),
+                        helperText: errors.date
+                      }
+                    }}
+                  />
+                </LocalizationProvider>
               </Grid>
 
               {/* Description */}

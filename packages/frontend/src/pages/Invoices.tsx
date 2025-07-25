@@ -338,31 +338,6 @@ export default function Invoices() {
             <Typography variant="h4" sx={{ mt: 3 }}>
               Financial Reports
             </Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddPayment}
-                sx={{ mr: 1 }}
-              >
-                Add Payment
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddServiceRequest}
-                sx={{ mr: 1 }}
-              >
-                Add Service Request
-              </Button>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddUtilityReading}
-              >
-                Add Utility Reading
-              </Button>
-            </Box>
           </Box>
 
           {/* Error Display */}

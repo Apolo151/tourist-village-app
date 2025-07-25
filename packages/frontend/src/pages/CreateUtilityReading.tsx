@@ -30,6 +30,8 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
 import SearchableDropdown from '../components/SearchableDropdown';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
 
 const WHO_PAYS_OPTIONS = [
   { value: 'owner', label: 'Owner' },
@@ -85,6 +87,74 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [whoPays, setWhoPays] = useState<'owner' | 'renter' | 'company'>('renter');
   const [submitting, setSubmitting] = useState(false);
+
+  // Add state for project/phase filter and villages
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [projectFilter, setProjectFilter] = useState(''); // Village filter
+  const [phaseFilter, setPhaseFilter] = useState('');
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+
+  // Fetch villages on mount
+  useEffect(() => {
+    const fetchVillages = async () => {
+      try {
+        const result = await villageService.getVillages({ limit: 100 });
+        setVillages(result.data);
+      } catch (err) {
+        // ignore for now
+      }
+    };
+    fetchVillages();
+  }, []);
+
+  // Update available phases when project changes
+  useEffect(() => {
+    if (projectFilter) {
+      const village = villages.find(v => v.id === Number(projectFilter));
+      if (village) {
+        setAvailablePhases(Array.from({ length: village.phases }, (_, i) => i + 1));
+      } else {
+        setAvailablePhases([]);
+      }
+      setPhaseFilter('');
+      if (!lockApartment) setApartmentId(0);
+    } else {
+      setAvailablePhases([]);
+      setPhaseFilter('');
+      if (!lockApartment) setApartmentId(0);
+    }
+  }, [projectFilter, villages, lockApartment]);
+
+  // Reset apartment when phase changes
+  useEffect(() => {
+    if (!lockApartment) setApartmentId(0);
+  }, [phaseFilter, lockApartment]);
+
+  // When lockApartment and apartmentId are set, set project and phase filters and whoPays to 'owner'
+  useEffect(() => {
+    if (lockApartment && propApartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === propApartmentId);
+      if (apt) {
+        setProjectFilter(apt.village?.id?.toString() || '');
+        setPhaseFilter(apt.phase?.toString() || '');
+        setWhoPays('owner');
+      }
+    }
+  }, [lockApartment, propApartmentId, apartments]);
+
+  // Filter apartments based on selected project and phase
+  const getFilteredApartments = () => {
+    let filtered = apartments;
+    if (projectFilter) {
+      const selectedVillageId = Number(projectFilter);
+      filtered = filtered.filter(apt => apt.village?.id === selectedVillageId);
+    }
+    if (phaseFilter) {
+      const selectedPhase = Number(phaseFilter);
+      filtered = filtered.filter(apt => apt.phase === selectedPhase);
+    }
+    return filtered;
+  };
 
   // Check if user is admin
   useEffect(() => {
@@ -303,7 +373,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
 
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
-      <Box sx={{ width: '100%', mt: 3, ml: 3 }}>
+      <Box sx={{ width: '100%', mt: 3, px: 2, maxWidth: 1200, mx: 'auto' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
           <Button
             startIcon={<ArrowBackIcon />}
@@ -324,282 +394,316 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         )}
 
         <Grid container spacing={3}>
-          {/* Form */}
-          <Grid size={{ xs: 12, md: 8 }}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ mb: 3 }}>
-                Reading Details
-              </Typography>
-              <Grid container spacing={3}>
-                {/* Apartment Selection */}
-                <Grid size={{ xs: 12 }}>
-                  <SearchableDropdown
-                    options={apartments.map(apartment => ({
-                      id: apartment.id,
-                      label: `${apartment.name} (${apartment.village?.name} - Phase ${apartment.phase})`,
-                      name: apartment.name,
-                      village: apartment.village,
-                      phase: apartment.phase
-                    }))}
-                    value={apartmentId || null}
-                    onChange={(value) => setApartmentId(value as number || 0)}
-                    label="Related Apartment"
-                    placeholder="Search apartments by name..."
-                    required
-                    disabled={lockApartment && propApartmentId !== undefined}
-                    getOptionLabel={(option) => option.label}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body1">{option.name}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {option.village?.name} (Phase {option.phase})
-                          </Typography>
-                        </Box>
-                      </li>
-                    )}
-                  />
-                </Grid>
-                {/* Booking Selection */}
-                <Grid size={{ xs: 12 }}>
-                  <SearchableDropdown
-                    options={[
-                      { id: '', label: 'No Booking', name: 'No Booking' },
-                      ...filteredBookings.map(booking => ({
-                        id: booking.id,
-                        label: `${booking.user?.name} (${booking.user_type}) - ${utilityReadingService.formatDate(booking.arrival_date)} to ${utilityReadingService.formatDate(booking.leaving_date)}`,
-                        name: booking.user?.name || 'Unknown',
-                        user_type: booking.user_type,
-                        arrival_date: booking.arrival_date,
-                        leaving_date: booking.leaving_date
-                      }))
-                    ]}
-                    value={bookingId || null}
-                    onChange={(value) => setBookingId(value ? value as number : undefined)}
-                    label="Related Booking (Optional)"
-                    placeholder="Search bookings by user name..."
-                    disabled={!apartmentId}
-                    getOptionLabel={(option) => option.label}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body1">{option.name}</Typography>
-                          {option.user_type && (
-                            <Typography variant="body2" color="text.secondary">
-                              {option.user_type} - {utilityReadingService.formatDate(option.arrival_date)} to {utilityReadingService.formatDate(option.leaving_date)}
-                            </Typography>
-                          )}
-                        </Box>
-                      </li>
-                    )}
-                  />
-                </Grid>
-                {/* Who Pays */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <FormControl fullWidth required>
-                    <InputLabel>Who Will Pay</InputLabel>
-                    <Select
-                      value={whoPays}
-                      label="Who Will Pay"
-                      onChange={(e) => setWhoPays(e.target.value as 'owner' | 'renter' | 'company')}
-                    >
-                      {WHO_PAYS_OPTIONS.map(option => (
-                        <MenuItem key={option.value} value={option.value}>
-                          {option.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-                {/* Period Dates */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <DatePicker
-                    label="Start Date"
-                    value={startDate}
-                    onChange={(date) => setStartDate(date)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        required: true
-                      }
-                    }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <DatePicker
-                    label="End Date"
-                    value={endDate}
-                    onChange={(date) => setEndDate(date)}
-                    slotProps={{
-                      textField: {
-                        fullWidth: true,
-                        required: true
-                      }
-                    }}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Divider sx={{ my: 2 }} />
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    Water Readings
-                  </Typography>
-                </Grid>
-                {/* Water Readings */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Water Start Reading"
-                    type="number"
-                    value={waterStartReading === undefined ? '' : waterStartReading}
-                    onChange={(e) => setWaterStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText="Starting meter reading for water"
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Water End Reading"
-                    type="number"
-                    value={waterEndReading === undefined ? '' : waterEndReading}
-                    onChange={(e) => setWaterEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText="Ending meter reading for water"
-                  />
-                </Grid>
-                <Grid size={{ xs: 12 }}>
-                  <Divider sx={{ my: 2 }} />
-                  <Typography variant="h6" sx={{ mb: 2 }}>
-                    Electricity Readings
-                  </Typography>
-                </Grid>
-                {/* Electricity Readings */}
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Electricity Start Reading"
-                    type="number"
-                    value={electricityStartReading === undefined ? '' : electricityStartReading}
-                    onChange={(e) => setElectricityStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText="Starting meter reading for electricity"
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    fullWidth
-                    label="Electricity End Reading"
-                    type="number"
-                    value={electricityEndReading === undefined ? '' : electricityEndReading}
-                    onChange={(e) => setElectricityEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-                    inputProps={{ min: 0, step: 0.01 }}
-                    helperText="Ending meter reading for electricity"
-                  />
-                </Grid>
-                {/* Submit Buttons */}
-                <Grid size={{ xs: 12 }}>
-                  <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
-                    <Button
-                      variant="outlined"
-                      onClick={() => onCancel ? onCancel() : navigate('/utilities')}
-                      disabled={submitting}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="contained"
-                      onClick={handleSubmit}
-                      disabled={submitting}
-                    >
-                      {submitting ? <CircularProgress size={24} /> : (isCreationDialog ? 'Create Reading' : 'Update Reading')}
-                    </Button>
+          {/* Project Filter */}
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Project</InputLabel>
+              <Select
+                value={projectFilter}
+                label="Project"
+                onChange={e => setProjectFilter(e.target.value)}
+                disabled={!!lockApartment}
+              >
+                <MenuItem value="">
+                  <em>Select a project</em>
+                </MenuItem>
+                {villages.map(village => (
+                  <MenuItem key={village.id} value={village.id.toString()}>
+                    {village.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          {/* Phase Filter */}
+          <Grid size={{ xs: 12, sm: 6 }}>
+            <FormControl fullWidth>
+              <InputLabel>Phase</InputLabel>
+              <Select
+                value={phaseFilter}
+                label="Phase"
+                onChange={e => setPhaseFilter(e.target.value)}
+                disabled={!projectFilter || !!lockApartment}
+              >
+                <MenuItem value="">
+                  <em>All Phases</em>
+                </MenuItem>
+                {availablePhases.map(phase => (
+                  <MenuItem key={phase} value={phase.toString()}>
+                    Phase {phase}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          {/* Apartment Selection (filtered) */}
+          <Grid size={{ xs: 12 }}>
+            <SearchableDropdown
+              options={getFilteredApartments().map(apartment => ({
+                id: apartment.id,
+                label: `${apartment.name} (${apartment.village?.name} - Phase ${apartment.phase})`,
+                name: apartment.name,
+                village: apartment.village,
+                phase: apartment.phase
+              }))}
+              value={apartmentId || null}
+              onChange={(value) => setApartmentId(value as number || 0)}
+              label="Related Apartment"
+              placeholder="Search apartments by name..."
+              required
+              disabled={lockApartment && propApartmentId !== undefined}
+              getOptionLabel={(option) => option.label}
+              renderOption={(props, option) => (
+                <li {...props}>
+                  <Box>
+                    <Typography variant="body1">{option.name}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {option.village?.name} (Phase {option.phase})
+                    </Typography>
                   </Box>
-                </Grid>
-              </Grid>
-            </Paper>
+                </li>
+              )}
+            />
           </Grid>
-          {/* Preview/Summary */}
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Preview
-              </Typography>
-              {selectedApartment && (
-                <Card sx={{ mb: 2 }}>
-                  <CardContent>
-                    <Typography variant="subtitle2" color="primary">
-                      Apartment
-                    </Typography>
-                    <Typography variant="body2">
-                      {selectedApartment.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {selectedApartment.village?.name} - Phase {selectedApartment.phase}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              {selectedBooking && (
-                <Card sx={{ mb: 2 }}>
-                  <CardContent>
-                    <Typography variant="subtitle2" color="primary">
-                      Booking
-                    </Typography>
-                    <Typography variant="body2">
-                      {selectedBooking.user?.name} ({selectedBooking.user_type})
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {utilityReadingService.formatDate(selectedBooking.arrival_date)} - {utilityReadingService.formatDate(selectedBooking.leaving_date)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              {startDate && endDate && (
-                <Card sx={{ mb: 2 }}>
-                  <CardContent>
-                    <Typography variant="subtitle2" color="primary">
-                      Reading Period
-                    </Typography>
-                    <Typography variant="body2">
-                      {utilityReadingService.formatDate(startDate.toISOString())} - {utilityReadingService.formatDate(endDate.toISOString())}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              )}
-              {(waterBill || electricityBill) && (
-                <Card>
-                  <CardContent>
-                    <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
-                      Estimated Bill
-                    </Typography>
-                    {waterBill && (
-                      <Typography variant="body2" sx={{ mb: 1 }}>
-                        💧 Water: {waterBill.consumption} units = {waterBill.cost.toFixed(2)} EGP
+          {/* Add spacing between Apartment and Booking fields */}
+          <Grid size={{ xs: 12 }} sx={{ mt: 2 }} />
+          {/* Booking Selection */}
+          <Grid size={{ xs: 12 }}>
+            <SearchableDropdown
+              options={[
+                { id: '', label: 'No Booking', name: 'No Booking' },
+                ...filteredBookings.map(booking => ({
+                  id: booking.id,
+                  label: `${booking.user?.name} (${booking.user_type}) - ${utilityReadingService.formatDate(booking.arrival_date)} to ${utilityReadingService.formatDate(booking.leaving_date)}`,
+                  name: booking.user?.name || 'Unknown',
+                  user_type: booking.user_type,
+                  arrival_date: booking.arrival_date,
+                  leaving_date: booking.leaving_date
+                }))
+              ]}
+              value={bookingId || null}
+              onChange={(value) => setBookingId(value ? value as number : undefined)}
+              label="Related Booking (Optional)"
+              placeholder="Search bookings by user name..."
+              disabled={!apartmentId}
+              getOptionLabel={(option) => option.label}
+              renderOption={(props, option) => (
+                <li {...props}>
+                  <Box>
+                    <Typography variant="body1">{option.name}</Typography>
+                    {option.user_type && (
+                      <Typography variant="body2" color="text.secondary">
+                        {option.user_type} - {utilityReadingService.formatDate(option.arrival_date)} to {utilityReadingService.formatDate(option.leaving_date)}
                       </Typography>
                     )}
-                    {electricityBill && (
-                      <Typography variant="body2">
-                        ⚡ Electricity: {electricityBill.consumption} units = {electricityBill.cost.toFixed(2)} EGP
-                      </Typography>
-                    )}
-                    {waterBill && electricityBill && (
-                      <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
-                        Total: {(waterBill.cost + electricityBill.cost).toFixed(2)} EGP
-                      </Typography>
-                    )}
-                  </CardContent>
-                </Card>
+                  </Box>
+                </li>
               )}
-              {selectedApartment?.village && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <Typography variant="caption">
-                    Project Rates: Water {Number(selectedApartment.village.water_price)} EGP/unit, 
-                    Electricity {Number(selectedApartment.village.electricity_price)} EGP/unit
+            />
+          </Grid>
+          {/* Who Pays */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <FormControl fullWidth required>
+              <InputLabel>Who Will Pay</InputLabel>
+              <Select
+                value={whoPays}
+                label="Who Will Pay"
+                onChange={(e) => setWhoPays(e.target.value as 'owner' | 'renter' | 'company')}
+              >
+                {WHO_PAYS_OPTIONS.map(option => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Grid>
+          {/* Period Dates */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <DatePicker
+              label="Start Date"
+              value={startDate}
+              onChange={(date) => setStartDate(date)}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  required: true
+                }
+              }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <DatePicker
+              label="End Date"
+              value={endDate}
+              onChange={(date) => setEndDate(date)}
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  required: true
+                }
+              }}
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Water Readings
+            </Typography>
+          </Grid>
+          {/* Water Readings */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              label="Water Start Reading"
+              type="number"
+              value={waterStartReading === undefined ? '' : waterStartReading}
+              onChange={(e) => setWaterStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+              inputProps={{ min: 0, step: 0.01 }}
+              helperText="Starting meter reading for water"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              label="Water End Reading"
+              type="number"
+              value={waterEndReading === undefined ? '' : waterEndReading}
+              onChange={(e) => setWaterEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+              inputProps={{ min: 0, step: 0.01 }}
+              helperText="Ending meter reading for water"
+            />
+          </Grid>
+          <Grid size={{ xs: 12 }}>
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Electricity Readings
+            </Typography>
+          </Grid>
+          {/* Electricity Readings */}
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              label="Electricity Start Reading"
+              type="number"
+              value={electricityStartReading === undefined ? '' : electricityStartReading}
+              onChange={(e) => setElectricityStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+              inputProps={{ min: 0, step: 0.01 }}
+              helperText="Starting meter reading for electricity"
+            />
+          </Grid>
+          <Grid size={{ xs: 12, md: 6 }}>
+            <TextField
+              fullWidth
+              label="Electricity End Reading"
+              type="number"
+              value={electricityEndReading === undefined ? '' : electricityEndReading}
+              onChange={(e) => setElectricityEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
+              inputProps={{ min: 0, step: 0.01 }}
+              helperText="Ending meter reading for electricity"
+            />
+          </Grid>
+          {/* Submit Buttons */}
+          <Grid size={{ xs: 12 }}>
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
+              <Button
+                variant="outlined"
+                onClick={() => onCancel ? onCancel() : navigate('/utilities')}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? <CircularProgress size={24} /> : (isCreationDialog ? 'Create Reading' : 'Update Reading')}
+              </Button>
+            </Box>
+          </Grid>
+        </Grid>
+        {/* Preview/Summary */}
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Preview
+            </Typography>
+            {selectedApartment && (
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="primary">
+                    Apartment
                   </Typography>
-                </Alert>
-              )}
-            </Paper>
-          </Grid>
+                  <Typography variant="body2">
+                    {selectedApartment.name}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {selectedApartment.village?.name} - Phase {selectedApartment.phase}
+                  </Typography>
+                </CardContent>
+              </Card>
+            )}
+            {selectedBooking && (
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="primary">
+                    Booking
+                  </Typography>
+                  <Typography variant="body2">
+                    {selectedBooking.user?.name} ({selectedBooking.user_type})
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {utilityReadingService.formatDate(selectedBooking.arrival_date)} - {utilityReadingService.formatDate(selectedBooking.leaving_date)}
+                  </Typography>
+                </CardContent>
+              </Card>
+            )}
+            {startDate && endDate && (
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="subtitle2" color="primary">
+                    Reading Period
+                  </Typography>
+                  <Typography variant="body2">
+                    {utilityReadingService.formatDate(startDate.toISOString())} - {utilityReadingService.formatDate(endDate.toISOString())}
+                  </Typography>
+                </CardContent>
+              </Card>
+            )}
+            {(waterBill || electricityBill) && (
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle2" color="primary" sx={{ mb: 1 }}>
+                    Estimated Bill
+                  </Typography>
+                  {waterBill && (
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      💧 Water: {waterBill.consumption} units = {waterBill.cost.toFixed(2)} EGP
+                    </Typography>
+                  )}
+                  {electricityBill && (
+                    <Typography variant="body2">
+                      ⚡ Electricity: {electricityBill.consumption} units = {electricityBill.cost.toFixed(2)} EGP
+                    </Typography>
+                  )}
+                  {waterBill && electricityBill && (
+                    <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
+                      Total: {(waterBill.cost + electricityBill.cost).toFixed(2)} EGP
+                    </Typography>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {selectedApartment?.village && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                <Typography variant="caption">
+                  Project Rates: Water {Number(selectedApartment.village.water_price)} EGP/unit, 
+                  Electricity {Number(selectedApartment.village.electricity_price)} EGP/unit
+                </Typography>
+              </Alert>
+            )}
+          </Paper>
         </Grid>
         
 

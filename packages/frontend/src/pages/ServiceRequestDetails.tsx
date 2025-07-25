@@ -206,7 +206,7 @@ export default function ServiceRequestDetails() {
       try {
         setSubmitting(true);
         await serviceRequestService.deleteServiceRequest(parseInt(id));
-        navigate('/services?tab=1'); // Navigate back to service requests tab
+        navigate('/services?tab=0'); // Navigate back to service requests tab
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to delete service request');
         setSubmitting(false);
@@ -215,7 +215,7 @@ export default function ServiceRequestDetails() {
   };
 
   const handleBack = () => {
-    navigate('/services?tab=1');
+    navigate('/services?tab=0');
   };
 
   const getStatusIcon = (status: 'Created' | 'In Progress' | 'Done'): React.ReactElement | undefined => {

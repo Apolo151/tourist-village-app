@@ -778,6 +778,7 @@ export default function Services() {
                     <TableCell>Service Type</TableCell>
                     <TableCell>Apartment</TableCell>
                     <TableCell>Requester</TableCell>
+                    <TableCell>Cost</TableCell>
                     <TableCell>Action Date</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Who Pays</TableCell>
@@ -798,6 +799,7 @@ export default function Services() {
                       <TableCell>{request.type?.name || 'Unknown'}</TableCell>
                       <TableCell>{request.apartment?.name || 'Unknown'}</TableCell>
                       <TableCell>{request.requester?.name || 'Unknown'}</TableCell>
+                      <TableCell>{request.cost?.toFixed(2)} {request.currency}</TableCell>
                       <TableCell>
                         {request.date_action ? formatDate(request.date_action) : 'Not scheduled'}
                       </TableCell>

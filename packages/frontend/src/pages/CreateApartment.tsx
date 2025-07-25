@@ -16,6 +16,9 @@ import {
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { ArrowBack as ArrowBackIcon, Save as SaveIcon } from '@mui/icons-material';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
 import { villageService } from '../services/villageService';
@@ -421,19 +424,19 @@ export default function CreateApartment() {
 
               {/* Purchase Date */}
               <Grid size={{xs: 12, sm: 6}}>
-                <TextField
-                  fullWidth
-                  label="Purchase Date"
-                  name="purchase_date"
-                  type="date"
-                  value={formData.purchase_date || ''}
-                  onChange={handleInputChange}
-                  disabled={saving}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  helperText="When was this apartment purchased? (Optional)"
-                />
+                <LocalizationProvider dateAdapter={AdapterDateFns}>
+                  <DatePicker
+                    label="Purchase Date"
+                    value={formData.purchase_date ? new Date(formData.purchase_date) : null}
+                    onChange={(date) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        purchase_date: date ? date.toISOString().split('T')[0] : ''
+                      }));
+                    }}
+                    slotProps={{ textField: { fullWidth: true, size: 'small', margin: 'dense', helperText: 'When was this apartment purchased? (Optional)', disabled: saving } }}
+                  />
+                </LocalizationProvider>
               </Grid>
 
               {/* Paying Status */}
@@ -449,7 +452,7 @@ export default function CreateApartment() {
                   >
                     {payingStatusTypes.map(status => (
                       <MenuItem key={status.id} value={status.id}>
-                        {status.name}
+                        {status.display_name}
                       </MenuItem>
                     ))}
                   </Select>

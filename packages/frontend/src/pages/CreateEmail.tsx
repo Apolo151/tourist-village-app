@@ -28,6 +28,8 @@ import { emailService } from '../services/emailService';
 import type { CreateEmailRequest, UpdateEmailRequest, Email, UIEmailType, BackendEmailType } from '../services/emailService';
 import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
+import { villageService } from '../services/villageService';
+import type { Village } from '../services/villageService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { userService } from '../services/userService';
@@ -77,11 +79,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('');
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
 
-  // Form data
-  const [formData, setFormData] = useState<CreateEmailRequest>({
-    apartment_id: apartmentId || undefined as any,
-    booking_id: bookingId || undefined,
+  // Patch: extend CreateEmailRequest to allow apartment_id: number | undefined
+  type CreateEmailRequestWithOptionalApartment = Omit<CreateEmailRequest, 'apartment_id'> & { apartment_id?: number };
+  const [formData, setFormData] = useState<CreateEmailRequestWithOptionalApartment>({
+    apartment_id: apartmentId ?? undefined,
+    booking_id: bookingId ?? undefined,
     date: new Date().toISOString().split('T')[0],
     from: currentUser?.email || '',
     to: '',
@@ -107,15 +114,17 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     const loadInitialData = async () => {
       try {
         setLoading(true);
-        // Load apartments, bookings, users
-        const [apartmentsData, bookingsData, usersData] = await Promise.all([
+        // Load apartments, bookings, users, villages
+        const [apartmentsData, bookingsData, usersData, villagesData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
           bookingService.getBookings({ limit: 100 }),
-          userService.getUsers({ limit: 100 })
+          userService.getUsers({ limit: 100 }),
+          villageService.getVillages({ limit: 100 })
         ]);
         setApartments(apartmentsData.data);
         setBookings(bookingsData.bookings);
         setUsers(usersData.data);
+        setVillages(villagesData.data);
         // Only fetch email details if id is present AND in edit or view mode (not quick action/modal)
         if (id && !onSuccess && !onCancel) {
           setLoading(true);
@@ -135,6 +144,55 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     };
     loadInitialData();
   }, [id, apartmentId]);
+
+  // Update available phases when project changes
+  useEffect(() => {
+    if (projectFilter) {
+      const village = villages.find(v => v.id === Number(projectFilter));
+      if (village) {
+        setAvailablePhases(Array.from({ length: village.phases }, (_, i) => i + 1));
+      } else {
+        setAvailablePhases([]);
+      }
+      setPhaseFilter('');
+      setFormData(prev => ({ ...prev, apartment_id: undefined }));
+    } else {
+      setAvailablePhases([]);
+      setPhaseFilter('');
+      setFormData(prev => ({ ...prev, apartment_id: undefined }));
+    }
+  }, [projectFilter, villages]);
+
+  // Reset apartment when phase changes
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, apartment_id: undefined }));
+  }, [phaseFilter]);
+
+  // When lockApartment and apartmentId are set, set project and phase filters and lock them
+  useEffect(() => {
+    if (lockApartment && apartmentId && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === apartmentId);
+      if (apt) {
+        setProjectFilter(apt.village?.id?.toString() || '');
+        setPhaseFilter(apt.phase?.toString() || '');
+      }
+    }
+  }, [lockApartment, apartmentId, apartments]);
+
+  // Filter apartments based on selected project and phase
+  const getFilteredApartments = () => {
+    let filtered = apartments;
+    if (projectFilter) {
+      const selectedVillageId = Number(projectFilter);
+      filtered = filtered.filter(apt => apt.village?.id === selectedVillageId);
+    }
+    if (phaseFilter) {
+      const selectedPhase = Number(phaseFilter);
+      filtered = filtered.filter(apt => apt.phase === selectedPhase);
+    }
+    // Only return apartments with a valid id
+    return filtered.filter(apt => typeof apt.id === 'number');
+  };
 
   // Handle form changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -231,7 +289,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
 
   // Get bookings for selected apartment
   const getRelatedBookings = () => {
-    if (!formData.apartment_id || !bookings || !Array.isArray(bookings)) {
+    if (typeof formData.apartment_id !== 'number' || !bookings || !Array.isArray(bookings)) {
       return [];
     }
     return bookings.filter(booking => booking.apartment_id === formData.apartment_id);
@@ -240,15 +298,13 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   // Get all bookings for display (including the current email's booking)
   const getAllBookingsForDisplay = () => {
     const relatedBookings = getRelatedBookings();
-    
     // If we're viewing an existing email and it has a booking, make sure it's included
-    if (actuallyViewing && formData.booking_id && formData.booking_id !== undefined) {
+    if (actuallyViewing && typeof formData.booking_id === 'number') {
       const currentBooking = bookings.find(booking => booking.id === formData.booking_id);
       if (currentBooking && !relatedBookings.find(b => b.id === currentBooking.id)) {
         relatedBookings.push(currentBooking);
       }
     }
-    
     return relatedBookings;
   };
 
@@ -281,6 +337,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         await emailService.updateEmail(parseInt(id), updateData);
       } else {
         // Create new email (quick action)
+        if (typeof formData.apartment_id !== 'number') {
+          throw new Error('Apartment is required');
+        }
         const createData: CreateEmailRequest = {
           apartment_id: formData.apartment_id,
           date: formData.date,
@@ -451,17 +510,61 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   {formErrors.status && <FormHelperText>{formErrors.status}</FormHelperText>}
                 </FormControl>
               </Grid>
+              {/* Project (Village) */}
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Project</InputLabel>
+                  <Select
+                    value={projectFilter}
+                    label="Project"
+                    onChange={e => {
+                      setProjectFilter(e.target.value);
+                    }}
+                    disabled={!!lockApartment}
+                  >
+                    <MenuItem value="">
+                      <em>All Projects</em>
+                    </MenuItem>
+                    {villages.map(village => (
+                      <MenuItem key={village.id} value={village.id.toString()}>{village.name}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              {/* Phase */}
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Phase</InputLabel>
+                  <Select
+                    value={phaseFilter}
+                    label="Phase"
+                    onChange={e => {
+                      setPhaseFilter(e.target.value);
+                    }}
+                    disabled={!projectFilter || !!lockApartment}
+                  >
+                    <MenuItem value="">
+                      <em>All Phases</em>
+                    </MenuItem>
+                    {availablePhases.map(phase => (
+                      <MenuItem key={phase} value={phase.toString()}>
+                        Phase {phase}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
               {/* Apartment */}
-              <Grid size={{ xs: 12, sm: 6 }}>
+              <Grid size={{ xs: 12, sm: 4 }}>
                 <SearchableDropdown
-                  options={apartments.map(apartment => ({
+                  options={getFilteredApartments().map(apartment => ({
                     id: apartment.id,
                     label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
                     name: apartment.name,
                     village: apartment.village,
                     phase: apartment.phase
                   }))}
-                  value={formData.apartment_id || null}
+                  value={typeof formData.apartment_id === 'number' ? formData.apartment_id : null}
                   onChange={(value) => handleSelectChange({ target: { name: 'apartment_id', value: value?.toString() || '' } })}
                   label="Related Apartment"
                   placeholder="Search apartments by name..."
@@ -495,15 +598,15 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                       booking_id: booking.id
                     }))
                   ]}
-                  value={formData.booking_id || null} // Ensure null is used when booking_id is falsy
+                  value={typeof formData.booking_id === 'number' ? formData.booking_id : null}
                   onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
                   label="Related Booking (Optional)"
                   placeholder="Search bookings by user name..."
-                  disabled={fieldsLocked || !formData.apartment_id}
+                  disabled={fieldsLocked || !formData.apartment_id /* do not lock for lockApartment, only for fieldsLocked */}
                   error={!!formErrors.booking_id}
                   helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
                   getOptionLabel={(option) => option.label}
-                  key={`booking-dropdown-${formData.apartment_id}`} // Add key to force re-render when apartment changes
+                  key={`booking-dropdown-${formData.apartment_id}`}
                   renderOption={(props, option) => (
                     <li {...props}>
                       <Box>

@@ -723,7 +723,7 @@ export default function Apartments() {
           <DialogContent>
             <DialogContentText>
               Are you sure you want to delete the apartment "{apartmentToDelete?.name}"? 
-              This action cannot be undone and will also delete all related bookings, payments, and service requests.
+              This action cannot be undone.
             </DialogContentText>
           </DialogContent>
           <DialogActions>
