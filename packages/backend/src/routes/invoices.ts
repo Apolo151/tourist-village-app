@@ -27,7 +27,8 @@ router.get(
           'v.name as village_name',
           'owner.name as owner_name',
           'owner.id as owner_id',
-          'a.village_id'
+          'a.village_id',
+          'a.phase as apartment_phase' // ADD PHASE
         );
 
       // Role-based filtering
@@ -154,6 +155,7 @@ router.get(
           village_name: apt.village_name,
           owner_name: apt.owner_name,
           owner_id: apt.owner_id,
+          phase: apt.apartment_phase, // ADD PHASE
           total_money_spent: {
             EGP: paymentsEGP,
             GBP: paymentsGBP
@@ -242,7 +244,7 @@ router.get(
       // Check access permissions
       const apartment = await db('apartments as a')
         .leftJoin('users as owner', 'a.owner_id', 'owner.id')
-        .select('a.*', 'owner.name as owner_name')
+        .select('a.*', 'owner.name as owner_name', 'a.phase as apartment_phase') // ADD PHASE
         .where('a.id', apartmentId)
         .first();
 
@@ -377,7 +379,8 @@ router.get(
           person_name: p.person_name,
           created_at: p.created_at,
           user_type: p.user_type,
-          owner_name: apartment.owner_name
+          owner_name: apartment.owner_name,
+          apartment_phase: apartment.apartment_phase // ADD PHASE
         })),
         ...serviceRequests.map((sr: any) => ({
           id: `service_${sr.id}`,
@@ -393,7 +396,8 @@ router.get(
           person_name: sr.person_name,
           created_at: sr.created_at,
           who_pays: sr.who_pays,
-          owner_name: apartment.owner_name
+          owner_name: apartment.owner_name,
+          apartment_phase: apartment.apartment_phase // ADD PHASE
         })),
         ...utilityReadings.map((ur: any) => {
           // Calculate utility costs
@@ -422,7 +426,8 @@ router.get(
           person_name: ur.person_name,
             created_at: ur.created_at,
             who_pays: ur.who_pays,
-            owner_name: apartment.owner_name
+            owner_name: apartment.owner_name,
+            apartment_phase: apartment.apartment_phase // ADD PHASE
           };
         })
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -450,7 +455,8 @@ router.get(
           apartment: {
             id: apartment.id,
             name: apartment.name,
-            owner_name: apartment.owner_name
+            owner_name: apartment.owner_name,
+            phase: apartment.apartment_phase // ADD PHASE
           },
           invoices,
           totals: {

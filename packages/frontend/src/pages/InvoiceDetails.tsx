@@ -275,6 +275,10 @@ const InvoiceDetails: React.FC = () => {
                     <Typography variant="body2" color="text.secondary">Apartment ID</Typography>
                     <Typography variant="body1">{details.apartment.id}</Typography>
             </Box>
+            <Box>
+              <Typography variant="body2" color="text.secondary">Phase</Typography>
+              <Typography variant="body1">{details.apartment.phase ? `Phase ${details.apartment.phase}` : '-'}</Typography>
+            </Box>
                 </Stack>
         </CardContent>
       </Card>

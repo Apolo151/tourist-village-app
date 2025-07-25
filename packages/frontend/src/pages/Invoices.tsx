@@ -488,6 +488,7 @@ export default function Invoices() {
                 <TableRow>
                   <TableCell>Project</TableCell>
                   <TableCell>Apartment</TableCell>
+                  <TableCell>Phase</TableCell>
                   <TableCell>User Name</TableCell>
                   <TableCell align="right">Total Payment (EGP/GBP)</TableCell>
                   <TableCell align="right">Total Outstanding (EGP/GBP)</TableCell>
@@ -504,6 +505,7 @@ export default function Invoices() {
                     >
                       <TableCell>{invoice.village_name}</TableCell>
                       <TableCell>{invoice.apartment_name}</TableCell>
+                      <TableCell>{'phase' in invoice && (invoice as any).phase ? `Phase ${(invoice as any).phase}` : '-'}</TableCell>
                       <TableCell>
                         <Tooltip title="Click to view financial summary for this apartment" arrow>
                           <Box 
@@ -630,7 +632,7 @@ export default function Invoices() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">No invoices found matching your criteria.</TableCell>
+                    <TableCell colSpan={8} align="center">No invoices found matching your criteria.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
