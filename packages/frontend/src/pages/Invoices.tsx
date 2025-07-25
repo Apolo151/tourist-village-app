@@ -117,11 +117,6 @@ export default function Invoices() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
-  // New state for detailed invoice information
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
-  const [detailedInvoiceData, setDetailedInvoiceData] = useState<ApartmentInvoiceDetails | null>(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
-
   // Effect to apply search filter whenever search term changes
   useEffect(() => {
     if (allInvoiceData.length > 0 && !loading) {
@@ -302,56 +297,6 @@ export default function Invoices() {
 
   const handleAddUtilityReading = () => {
     navigate('/utility-readings/new');
-  };
-  
-  const handleViewDetails = async (apartmentId: number) => {
-    setDetailsLoading(true);
-    try {
-      // Build filters for the apartment details call
-      const filters: any = {};
-      if (startDate && endDate) {
-        filters.date_from = format(startDate, 'yyyy-MM-dd');
-        filters.date_to = format(endDate, 'yyyy-MM-dd');
-      } else {
-        filters.year = currentYear; // Default to current year
-      }
-      
-      const response = await invoiceService.getApartmentDetails(apartmentId, filters);
-      
-      if (!response || !response.apartment) {
-        throw new Error('Invalid response structure from API');
-      }
-      
-      // Transform the response data to match the expected ApartmentInvoiceDetails type
-      const transformedData: ApartmentInvoiceDetails = {
-        apartment: response.apartment,
-        invoices: response.invoices.map((invoice: any) => ({
-          ...invoice,
-          id: String(invoice.id),
-          type:
-            invoice.type === 'payment'
-              ? 'Payment'
-              : invoice.type === 'service_request'
-              ? 'Service Request'
-              : invoice.type === 'utility_reading'
-              ? 'Utility Reading'
-              : invoice.type,
-        })),
-        totals: response.totals
-      };
-      setDetailedInvoiceData(transformedData);
-      setDetailsDialogOpen(true);
-    } catch (error: any) {
-      console.error('Error fetching apartment details:', error);
-      setError('Failed to load apartment details');
-    } finally {
-      setDetailsLoading(false);
-    }
-  };
-
-  const handleCloseDetails = () => {
-    setDetailsDialogOpen(false);
-    setDetailedInvoiceData(null);
   };
   
   const formatDate = (dateString: string) => {
@@ -699,8 +644,7 @@ export default function Invoices() {
                         <Tooltip title="View detailed transactions">
                           <IconButton
                             size="small"
-                            onClick={() => handleViewDetails(invoice.apartment_id)}
-                            disabled={detailsLoading}
+                            onClick={() => navigate(`/invoices/${invoice.apartment_id}`)}
                             color="primary"
                           >
                             <VisibilityIcon />
@@ -717,131 +661,6 @@ export default function Invoices() {
               </TableBody>
             </Table>
           </TableContainer>
-
-          {/* Details Dialog */}
-          <Dialog 
-            open={detailsDialogOpen} 
-            onClose={handleCloseDetails}
-            maxWidth="lg"
-            fullWidth
-          >
-            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="h6">
-                {detailedInvoiceData ? `Invoice Details - ${detailedInvoiceData.apartment.name}` : 'Invoice Details'}
-              </Typography>
-              <IconButton onClick={handleCloseDetails} size="small">
-                <CloseIcon />
-              </IconButton>
-            </DialogTitle>
-            
-            <DialogContent dividers>
-              {detailsLoading ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                  <CircularProgress />
-                </Box>
-              ) : detailedInvoiceData ? (
-                <Box>
-                  {/* Totals Summary */}
-                  <Paper sx={{ p: 2, mb: 3, backgroundColor: 'background.default' }}>
-                    <Typography variant="h6" gutterBottom>Financial Summary</Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
-                      <Box>
-                        <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
-                        <Typography>
-                          {detailedInvoiceData.totals.total_money_spent.EGP > 0 && `${detailedInvoiceData.totals.total_money_spent.EGP.toLocaleString()} EGP`}
-                          {detailedInvoiceData.totals.total_money_spent.EGP > 0 && detailedInvoiceData.totals.total_money_spent.GBP > 0 && ' / '}
-                          {detailedInvoiceData.totals.total_money_spent.GBP > 0 && `${detailedInvoiceData.totals.total_money_spent.GBP.toLocaleString()} GBP`}
-                          {detailedInvoiceData.totals.total_money_spent.EGP === 0 && detailedInvoiceData.totals.total_money_spent.GBP === 0 && '-'}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="subtitle2" color="error.main">Total Outstanding</Typography>
-                        <Typography>
-                          {detailedInvoiceData.totals.total_money_requested.EGP > 0 && `${detailedInvoiceData.totals.total_money_requested.EGP.toLocaleString()} EGP`}
-                          {detailedInvoiceData.totals.total_money_requested.EGP > 0 && detailedInvoiceData.totals.total_money_requested.GBP > 0 && ' / '}
-                          {detailedInvoiceData.totals.total_money_requested.GBP > 0 && `${detailedInvoiceData.totals.total_money_requested.GBP.toLocaleString()} GBP`}
-                          {detailedInvoiceData.totals.total_money_requested.EGP === 0 && detailedInvoiceData.totals.total_money_requested.GBP === 0 && '-'}
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="subtitle2" color={detailedInvoiceData.totals.net_money.EGP >= 0 ? 'success.main' : 'error.main'}>Net Balance</Typography>
-                        <Typography>
-                          {detailedInvoiceData.totals.net_money.EGP !== 0 && `${detailedInvoiceData.totals.net_money.EGP.toLocaleString()} EGP`}
-                          {detailedInvoiceData.totals.net_money.EGP !== 0 && detailedInvoiceData.totals.net_money.GBP !== 0 && ' / '}
-                          {detailedInvoiceData.totals.net_money.GBP !== 0 && `${detailedInvoiceData.totals.net_money.GBP.toLocaleString()} GBP`}
-                          {detailedInvoiceData.totals.net_money.EGP === 0 && detailedInvoiceData.totals.net_money.GBP === 0 && '-'}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Paper>
-
-                  {/* Detailed Transactions */}
-                  <Typography variant="h6" gutterBottom>Transaction Details</Typography>
-                  {detailedInvoiceData.invoices.length > 0 ? (
-                    <TableContainer component={Paper}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Type</TableCell>
-                            <TableCell>Description</TableCell>
-                            <TableCell>Date</TableCell>
-                            <TableCell align="right">Amount</TableCell>
-                            <TableCell>Person</TableCell>
-                            <TableCell>Booking</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {detailedInvoiceData.invoices.map((invoice) => (
-                            <TableRow key={invoice.id}>
-                              <TableCell>
-                                <Chip 
-                                  label={invoice.type}
-                                  color={
-                                    invoice.type === 'Payment' ? 'success' :
-                                    invoice.type === 'Service Request' ? 'warning' : 'info'
-                                  }
-                                  size="small"
-                                />
-                              </TableCell>
-                              <TableCell>{invoice.description}</TableCell>
-                              <TableCell>{formatDate(invoice.date)}</TableCell>
-                              <TableCell align="right">
-                                <Typography 
-                                  color={invoice.type === 'Payment' ? 'success.main' : 'error.main'}
-                                  fontWeight="medium"
-                                >
-                                  {invoice.type === 'Payment' ? '+' : '-'}{invoice.amount.toLocaleString()} {invoice.currency}
-                                </Typography>
-                              </TableCell>
-                              <TableCell>{invoice.person_name || '-'}</TableCell>
-                              <TableCell>
-                                {invoice.booking_id ? `Booking #${invoice.booking_id}` : '-'}
-                                {invoice.booking_arrival_date && (
-                                  <Typography variant="caption" display="block">
-                                    {formatDate(invoice.booking_arrival_date)}
-                                  </Typography>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  ) : (
-                    <Paper sx={{ p: 3, textAlign: 'center' }}>
-                      <Typography color="text.secondary">No transactions found for this apartment.</Typography>
-                    </Paper>
-                  )}
-                </Box>
-              ) : (
-                <Typography>Failed to load details</Typography>
-              )}
-            </DialogContent>
-            
-            <DialogActions>
-              <Button onClick={handleCloseDetails}>Close</Button>
-            </DialogActions>
-          </Dialog>
         </Box>
       </Container>
     </LocalizationProvider>

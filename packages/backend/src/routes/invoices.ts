@@ -240,8 +240,10 @@ router.get(
       }
 
       // Check access permissions
-      const apartment = await db('apartments')
-        .where('id', apartmentId)
+      const apartment = await db('apartments as a')
+        .leftJoin('users as owner', 'a.owner_id', 'owner.id')
+        .select('a.*', 'owner.name as owner_name')
+        .where('a.id', apartmentId)
         .first();
 
       if (!apartment) {
@@ -295,7 +297,8 @@ router.get(
           'p.*',
           'b.arrival_date as booking_arrival_date',
           'u.name as person_name',
-          'pm.name as payment_method_name'
+          'pm.name as payment_method_name',
+          'p.user_type'
         )
         .where('p.apartment_id', apartmentId)
         .modify(function(qb: any) {
@@ -319,7 +322,8 @@ router.get(
           'sr.cost',
           'sr.currency',
           'b.arrival_date as booking_arrival_date',
-          'u.name as person_name'
+          'u.name as person_name',
+          'sr.who_pays'
         )
         .where('sr.apartment_id', apartmentId)
         .modify(function(qb: any) {
@@ -343,7 +347,8 @@ router.get(
           'b.arrival_date as booking_arrival_date',
           'u.name as person_name',
           'v.electricity_price',
-          'v.water_price'
+          'v.water_price',
+          'ur.who_pays'
         )
         .where('ur.apartment_id', apartmentId)
         .modify(function(qb: any) {
@@ -361,26 +366,34 @@ router.get(
         ...payments.map((p: any) => ({
           id: `payment_${p.id}`,
           type: 'Payment',
-          description: p.description || `Payment via ${p.payment_method_name}`,
+          description: p.description
+            ? p.description
+            : (p.payment_method_name ? `Payment via ${p.payment_method_name}` : `Payment of ${p.amount} ${p.currency}`),
           amount: parseFloat(p.amount),
           currency: p.currency,
           date: p.date,
           booking_id: p.booking_id,
           booking_arrival_date: p.booking_arrival_date,
           person_name: p.person_name,
-          created_at: p.created_at
+          created_at: p.created_at,
+          user_type: p.user_type,
+          owner_name: apartment.owner_name
         })),
         ...serviceRequests.map((sr: any) => ({
           id: `service_${sr.id}`,
           type: 'Service Request',
-          description: sr.notes || sr.service_name,
+          description: sr.notes
+            ? `${sr.service_name} - ${sr.notes}`
+            : sr.service_name || `Service Request of ${sr.cost} ${sr.currency}`,
           amount: parseFloat(sr.cost),
           currency: sr.currency,
           date: sr.date_created,
           booking_id: sr.booking_id,
           booking_arrival_date: sr.booking_arrival_date,
           person_name: sr.person_name,
-          created_at: sr.created_at
+          created_at: sr.created_at,
+          who_pays: sr.who_pays,
+          owner_name: apartment.owner_name
         })),
         ...utilityReadings.map((ur: any) => {
           // Calculate utility costs
@@ -388,31 +401,32 @@ router.get(
             parseFloat(ur.water_end_reading) - parseFloat(ur.water_start_reading) : 0;
           const electricityUsage = (ur.electricity_end_reading && ur.electricity_start_reading) ?
             parseFloat(ur.electricity_end_reading) - parseFloat(ur.electricity_start_reading) : 0;
-          
           const waterCost = waterUsage * (parseFloat(ur.water_price) || 0);
           const electricityCost = electricityUsage * (parseFloat(ur.electricity_price) || 0);
           const totalCost = waterCost + electricityCost;
-
           // Build description with usage details
-          let description = `Utility reading from ${ur.start_date} to ${ur.end_date} (${ur.who_pays} pays)`;
-          if (waterUsage > 0 || electricityUsage > 0) {
+          let description = ur.description;
+          if (!description) {
+            description = `Utility reading${ur.start_date && ur.end_date ? ` from ${ur.start_date} to ${ur.end_date}` : ''}`;
+            if (ur.who_pays) description += ` (${ur.who_pays} pays)`;
             const usageDetails = [];
             if (waterUsage > 0) usageDetails.push(`Water: ${waterUsage.toFixed(2)} units`);
             if (electricityUsage > 0) usageDetails.push(`Electricity: ${electricityUsage.toFixed(2)} units`);
-            description += ` - ${usageDetails.join(', ')}`;
+            if (usageDetails.length > 0) description += ` - ${usageDetails.join(', ')}`;
           }
-
           return {
-          id: `utility_${ur.id}`,
-          type: 'Utility Reading',
+            id: `utility_${ur.id}`,
+            type: 'Utility Reading',
             description,
             amount: totalCost,
             currency: 'EGP',
-          date: ur.created_at,
-          booking_id: ur.booking_id,
-          booking_arrival_date: ur.booking_arrival_date,
-          person_name: ur.person_name,
-          created_at: ur.created_at
+            date: ur.created_at,
+            booking_id: ur.booking_id,
+            booking_arrival_date: ur.booking_arrival_date,
+            person_name: ur.person_name,
+            created_at: ur.created_at,
+            who_pays: ur.who_pays,
+            owner_name: apartment.owner_name
           };
         })
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -439,7 +453,8 @@ router.get(
         data: {
           apartment: {
             id: apartment.id,
-            name: apartment.name
+            name: apartment.name,
+            owner_name: apartment.owner_name
           },
           invoices,
           totals: {
@@ -706,8 +721,8 @@ router.get(
         .leftJoin('service_types as st', 'sr.type_id', 'st.id')
         .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
         .select(
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'EGP' THEN st.cost ELSE 0 END), 0) as total_egp"),
-          db.raw("COALESCE(SUM(CASE WHEN st.currency = 'GBP' THEN st.cost ELSE 0 END), 0) as total_gbp")
+          db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END), 0) as total_egp"),
+          db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_gbp")
         )
         .whereRaw("EXTRACT(YEAR FROM sr.date_created) < ?", [year]);
 
