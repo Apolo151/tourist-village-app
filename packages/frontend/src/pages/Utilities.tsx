@@ -216,6 +216,22 @@ export default function Utilities() {
     }
   }, [filters.village_id, filters.phase, apartments]);
 
+  // Update filtered bookings when apartment filter changes
+  const filteredBookings = filters.apartment_id
+    ? bookings.filter(b => b.apartment_id === filters.apartment_id)
+    : bookings;
+
+  // Clear booking selection if not in filtered list
+  useEffect(() => {
+    if (filters.booking_id) {
+      const bookingExists = filteredBookings.some(b => b.id === filters.booking_id);
+      if (!bookingExists) {
+        handleFilterChange('booking_id', undefined);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.apartment_id, bookings]);
+
   const handleFilterChange = (key: keyof UtilityReadingFilters, value: any) => {
     setFilters(prev => ({
       ...prev,
@@ -393,7 +409,7 @@ export default function Utilities() {
 
             {/* Phase Filter (Second) */}
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <FormControl fullWidth size="small">
+              <FormControl fullWidth size="small" disabled={!filters.village_id}>
                 <InputLabel>Phase</InputLabel>
                 <Select
                   value={filters.phase || ''}
@@ -436,7 +452,7 @@ export default function Utilities() {
                   onChange={(e) => handleFilterChange('booking_id', e.target.value ? parseInt(e.target.value as unknown as string) : undefined)}
                 >
                   <MenuItem value="">All Bookings</MenuItem>
-                  {(bookings || []).map(booking => (
+                  {(filteredBookings || []).map(booking => (
                     <MenuItem key={booking.id} value={booking.id}>
                       {booking.apartment?.name} - {booking.user?.name} ({utilityReadingService.formatDate(booking.arrival_date)})
                     </MenuItem>
@@ -463,31 +479,8 @@ export default function Utilities() {
               </FormControl>
             </Grid>
 
-            <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <TextField
-                label="Search"
-                size="small"
-                fullWidth
-                value={filters.search || ''}
-                onChange={e => handleFilterChange('search', e.target.value || undefined)}
-              />
-            </Grid>
+            {/* Removed search bar filter here */}
           </Grid>
-        </Paper>
-
-        {/* Utility Types Info */}
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Utility Types</Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {UTILITY_TYPES.map(type => (
-              <Chip
-                key={type.value}
-                label={type.label}
-                color="primary"
-                variant="outlined"
-              />
-            ))}
-          </Box>
         </Paper>
 
         {/* Export Buttons */}
@@ -501,7 +494,6 @@ export default function Utilities() {
                 <TableRow>
                   <TableCell>Apartment</TableCell>
                   <TableCell>Booking</TableCell>
-                  <TableCell>Utility Types</TableCell>
                   <TableCell>Period</TableCell>
                   <TableCell>Who Pays</TableCell>
                   <TableCell>Bill Summary</TableCell>
@@ -510,7 +502,6 @@ export default function Utilities() {
               </TableHead>
               <TableBody>
                 {utilityReadings.map((reading) => {
-                  const utilityTypes = getUtilityTypesDisplay(reading);
                   const waterBill = calculateBill(reading, 'water');
                   const electricityBill = calculateBill(reading, 'electricity');
                   
@@ -540,14 +531,6 @@ export default function Utilities() {
                             No booking
                           </Typography>
                         )}
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                          {utilityTypes.map(type => (
-                            <Chip key={type} label={type} size="small" />
-                          ))}
-                        </Box>
                       </TableCell>
                       
                       <TableCell>

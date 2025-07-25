@@ -86,7 +86,7 @@ export class BookingService {
 
     let query = db('bookings as b')
       .leftJoin('users as u', 'b.user_id', 'u.id')
-      .leftJoin('apartments as a', 'b.apartment_id', 'a.id')
+      .join('apartments as a', 'b.apartment_id', 'a.id')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
       .select(
         'b.*',
@@ -102,7 +102,14 @@ export class BookingService {
         'a.village_id as apartment_village_id',
         'a.phase as apartment_phase',
         'a.paying_status_id as apartment_paying_status_id',
-        'v.name as village_name'
+        'v.name as village_name',
+        db.raw(`CASE
+          WHEN b.status = 'Cancelled' THEN 'Cancelled'
+          WHEN NOW() < b.arrival_date THEN 'Booked'
+          WHEN NOW() >= b.arrival_date AND NOW() < b.leaving_date THEN 'Checked In'
+          WHEN NOW() >= b.leaving_date THEN 'Checked Out'
+          ELSE b.status
+        END AS computed_status`)
       );
 
     // Apply filters
@@ -118,17 +125,24 @@ export class BookingService {
       query = query.where('b.user_type', filters.user_type);
     }
 
-    if (filters.village_id) {
-      query = query.where('a.village_id', filters.village_id);
+    // Always apply both filters strictly if both are set
+    if (filters.village_id !== undefined && filters.village_id !== null) {
+      query = query.where('a.village_id', Number(filters.village_id));
     }
-
-    // Only filter by phase if both village_id and phase are set
-    if (filters.phase !== undefined && filters.phase !== null && filters.village_id) {
-      query = query.where('a.phase', Number(filters.phase));
+    if (filters.phase !== undefined && filters.phase !== null) {
+      query = query.whereRaw('a.phase = ?', [Number(filters.phase)]);
     }
 
     if (filters.status) {
-      query = query.where('b.status', filters.status);
+      query = query.whereRaw(`
+        CASE
+          WHEN b.status = 'Cancelled' THEN 'Cancelled'
+          WHEN NOW() < b.arrival_date THEN 'Booked'
+          WHEN NOW() >= b.arrival_date AND NOW() < b.leaving_date THEN 'Checked In'
+          WHEN NOW() >= b.leaving_date THEN 'Checked Out'
+          ELSE b.status
+        END = ?
+      `, [filters.status]);
     }
 
     if (filters.arrival_date_start) {
@@ -191,7 +205,7 @@ export class BookingService {
       number_of_people: row.number_of_people,
       arrival_date: new Date(row.arrival_date),
       leaving_date: new Date(row.leaving_date),
-      status: computeStatus({ status: row.status, arrival_date: new Date(row.arrival_date), leaving_date: new Date(row.leaving_date) }),
+      status: row.computed_status,
       notes: row.notes || undefined,
       created_by: row.created_by,
       created_at: new Date(row.created_at),

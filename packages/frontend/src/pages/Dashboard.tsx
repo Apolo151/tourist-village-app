@@ -52,6 +52,9 @@ import ExportButtons from '../components/ExportButtons';
 import { useAuth } from '../context/AuthContext';
 import { bookingService } from '../services/bookingService';
 import type { Booking, OccupancyRateData } from '../services/bookingService';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 // Register Chart.js components
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend, ArcElement);
@@ -363,40 +366,38 @@ export default function Dashboard() {
                 </Typography>
               </Box>
               {/* Filter Section */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
-                <FilterListIcon sx={{ color: 'primary.main' }} />
-                <FormControl sx={{ minWidth: 200 }}>
-                  <InputLabel>Project Filter</InputLabel>
-                  <Select
-                    value={village}
-                    label="Project Filter"
-                    onChange={handleVillageChange}
-                  >
-                    <MenuItem value="">
-                      <em>All Projects</em>
-                    </MenuItem>
-                    {villages.map(villageItem => (
-                      <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-                <TextField
-                  label="From Date"
-                  type="date"
-                  value={occupancyDateFrom}
-                  onChange={(e) => setOccupancyDateFrom(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 150 }}
-                />
-                <TextField
-                  label="To Date"
-                  type="date"
-                  value={occupancyDateTo}
-                  onChange={(e) => setOccupancyDateTo(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                  sx={{ minWidth: 150 }}
-                />
-              </Box>
+              <LocalizationProvider dateAdapter={AdapterDateFns}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4, p: 2, bgcolor: 'background.default', borderRadius: 2 }}>
+                  <FilterListIcon sx={{ color: 'primary.main' }} />
+                  <FormControl sx={{ minWidth: 200 }}>
+                    <InputLabel>Project Filter</InputLabel>
+                    <Select
+                      value={village}
+                      label="Project Filter"
+                      onChange={handleVillageChange}
+                    >
+                      <MenuItem value="">
+                        <em>All Projects</em>
+                      </MenuItem>
+                      {villages.map(villageItem => (
+                        <MenuItem key={villageItem.id} value={villageItem.name}>{villageItem.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <DatePicker
+                    label="From Date"
+                    value={occupancyDateFrom ? new Date(occupancyDateFrom) : null}
+                    onChange={(date) => setOccupancyDateFrom(date ? date.toISOString().split('T')[0] : '')}
+                    slotProps={{ textField: { size: 'small', fullWidth: false, sx: { minWidth: 150 } } }}
+                  />
+                  <DatePicker
+                    label="To Date"
+                    value={occupancyDateTo ? new Date(occupancyDateTo) : null}
+                    onChange={(date) => setOccupancyDateTo(date ? date.toISOString().split('T')[0] : '')}
+                    slotProps={{ textField: { size: 'small', fullWidth: false, sx: { minWidth: 150 } } }}
+                  />
+                </Box>
+              </LocalizationProvider>
               {/* Loading and Error States */}
               {occupancyLoading && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>

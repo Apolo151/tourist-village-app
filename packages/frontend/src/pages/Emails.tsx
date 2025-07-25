@@ -47,6 +47,9 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { format, parseISO } from 'date-fns';
 import ExportButtons from '../components/ExportButtons';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 export default function Emails() {
   const navigate = useNavigate();
@@ -148,7 +151,8 @@ export default function Emails() {
           from: fromFilter || undefined,
           to: toFilter || undefined,
           sort_by: 'date',
-          sort_order: 'desc' as const
+          sort_order: 'desc' as const,
+          village_id: projectFilter ? parseInt(projectFilter) : undefined
         };
         
         const response = await emailService.getEmails(filters);
@@ -162,7 +166,7 @@ export default function Emails() {
     };
 
     loadEmails();
-  }, [pagination.page, debouncedSearchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter]);
+  }, [pagination.page, debouncedSearchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter, projectFilter]);
 
   // Set up debounce for search term
   useEffect(() => {
@@ -195,10 +199,12 @@ export default function Emails() {
     if (dateToFilter) params.set('dateTo', dateToFilter);
     if (fromFilter) params.set('from', fromFilter);
     if (toFilter) params.set('to', toFilter);
+    if (projectFilter) params.set('project', projectFilter);
+    if (phaseFilter) params.set('phase', phaseFilter);
     if (pagination.page > 1) params.set('page', pagination.page.toString());
     
     setSearchParams(params);
-  }, [searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter, pagination.page, setSearchParams]);
+  }, [searchTerm, apartmentFilter, typeFilter, statusFilter, bookingFilter, dateFromFilter, dateToFilter, fromFilter, toFilter, projectFilter, phaseFilter, pagination.page, setSearchParams]);
 
   // Update available phases when project changes
   useEffect(() => {
@@ -327,7 +333,6 @@ export default function Emails() {
     try {
       setDeleting(true);
       await emailService.deleteEmail(deleteDialog.email.id);
-      
       // Refresh the emails list
       const filters = {
         page: pagination.page,
@@ -342,13 +347,12 @@ export default function Emails() {
         from: fromFilter || undefined,
         to: toFilter || undefined,
         sort_by: 'date',
-        sort_order: 'desc' as const
+        sort_order: 'desc' as const,
+        village_id: projectFilter ? parseInt(projectFilter) : undefined
       };
-      
       const response = await emailService.getEmails(filters);
       setEmails(response.data);
       setPagination(response.pagination);
-      
       setDeleteDialog({ open: false, email: null });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete email');
@@ -435,145 +439,137 @@ export default function Emails() {
         )}
 
         {/* Filters */}
-        <Paper sx={{ p: 3, mb: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>
-            Filters
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <TextField
-              label="Search emails"
-              value={searchTerm}
-              onChange={handleSearchChange}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{ minWidth: 300 }}
-            />
-            
-            <FormControl sx={{ minWidth: 180 }}>
-              <InputLabel>Project</InputLabel>
-              <Select
-                value={projectFilter}
-                onChange={e => {
-                  setProjectFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                label="Project"
-              >
-                <MenuItem value="">All Projects</MenuItem>
-                {villages.map((v: any) => (
-                  <MenuItem key={v.id} value={v.id}>{v.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl sx={{ minWidth: 140 }}>
-              <InputLabel>Phase</InputLabel>
-              <Select
-                value={phaseFilter}
-                onChange={e => {
-                  setPhaseFilter(e.target.value);
-                  setPagination(prev => ({ ...prev, page: 1 }));
-                }}
-                label="Phase"
-              >
-                <MenuItem value="">All Phases</MenuItem>
-                {availablePhases.map(phaseNum => (
-                  <MenuItem key={phaseNum} value={phaseNum}>Phase {phaseNum}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Apartment</InputLabel>
-              <Select
-                value={apartmentFilter}
-                onChange={handleApartmentFilterChange}
-                label="Apartment"
-              >
-                <MenuItem value="">All Apartments</MenuItem>
-                {filteredApartments.map(apartment => (
-                  <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                    {apartment.name} - {apartment.village?.name}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl sx={{ minWidth: 180 }}>
-              <InputLabel>Email Type</InputLabel>
-              <Select
-                value={typeFilter}
-                onChange={handleTypeFilterChange}
-                label="Email Type"
-              >
-                <MenuItem value="">All Types</MenuItem>
-                {emailService.getEmailTypeOptions().map(option => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <FormControl sx={{ minWidth: 150 }}>
-              <InputLabel>Status</InputLabel>
-              <Select
-                value={statusFilter}
-                onChange={handleStatusFilterChange}
-                label="Status"
-              >
-                <MenuItem value="">All Statuses</MenuItem>
-                <MenuItem value="pending">Pending</MenuItem>
-                <MenuItem value="completed">Completed</MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="From Email"
-              value={fromFilter}
-              onChange={handleFromFilterChange}
-              sx={{ minWidth: 200 }}
-            />
-
-            <TextField
-              label="To Email"
-              value={toFilter}
-              onChange={handleToFilterChange}
-              sx={{ minWidth: 200 }}
-            />
-
-            <TextField
-              label="Date From"
-              type="date"
-              value={dateFromFilter}
-              onChange={handleDateFromFilterChange}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 150 }}
-            />
-
-            <TextField
-              label="Date To"
-              type="date"
-              value={dateToFilter}
-              onChange={handleDateToFilterChange}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 150 }}
-            />
-
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', ml: 'auto' }}>
-              <Button
-                variant="outlined"
-                startIcon={<FilterListIcon />}
-                onClick={clearFilters}
-              >
-                Clear Filters
-              </Button>
-            </Box>
+        <Paper sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterListIcon />}
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </Button>
           </Box>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center', minHeight: 0 }}>
+              <TextField
+                label="Search emails"
+                value={searchTerm}
+                onChange={handleSearchChange}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon />
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ minWidth: 100 }}
+                size="small"
+                margin="dense"
+              />
+              <FormControl sx={{ minWidth: 120 }} size="small" margin="dense">
+                <InputLabel>Project</InputLabel>
+                <Select
+                  value={projectFilter}
+                  onChange={e => {
+                    setProjectFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  label="Project"
+                >
+                  <MenuItem value="">All Projects</MenuItem>
+                  {villages.map((v: any) => (
+                    <MenuItem key={v.id} value={v.id}>{v.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl sx={{ minWidth: 100 }} size="small" margin="dense">
+                <InputLabel>Phase</InputLabel>
+                <Select
+                  value={phaseFilter}
+                  onChange={e => {
+                    setPhaseFilter(e.target.value);
+                    setPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  label="Phase"
+                >
+                  <MenuItem value="">All Phases</MenuItem>
+                  {availablePhases.map(phaseNum => (
+                    <MenuItem key={phaseNum} value={phaseNum}>Phase {phaseNum}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl sx={{ minWidth: 140 }} size="small" margin="dense">
+                <InputLabel>Apartment</InputLabel>
+                <Select
+                  value={apartmentFilter}
+                  onChange={handleApartmentFilterChange}
+                  label="Apartment"
+                >
+                  <MenuItem value="">All Apartments</MenuItem>
+                  {filteredApartments.map(apartment => (
+                    <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                      {apartment.name} - {apartment.village?.name}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl sx={{ minWidth: 120 }} size="small" margin="dense">
+                <InputLabel>Email Type</InputLabel>
+                <Select
+                  value={typeFilter}
+                  onChange={handleTypeFilterChange}
+                  label="Email Type"
+                >
+                  <MenuItem value="">All Types</MenuItem>
+                  {emailService.getEmailTypeOptions().map(option => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl sx={{ minWidth: 100 }} size="small" margin="dense">
+                <InputLabel>Status</InputLabel>
+                <Select
+                  value={statusFilter}
+                  onChange={handleStatusFilterChange}
+                  label="Status"
+                >
+                  <MenuItem value="">All Statuses</MenuItem>
+                  <MenuItem value="pending">Pending</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="From Email"
+                value={fromFilter}
+                onChange={handleFromFilterChange}
+                sx={{ minWidth: 100 }}
+                size="small"
+                margin="dense"
+              />
+              <TextField
+                label="To Email"
+                value={toFilter}
+                onChange={handleToFilterChange}
+                sx={{ minWidth: 100 }}
+                size="small"
+                margin="dense"
+              />
+              <DatePicker
+                label="Date From"
+                value={dateFromFilter ? new Date(dateFromFilter) : null}
+                onChange={date => setDateFromFilter(date ? date.toISOString().split('T')[0] : '')}
+                slotProps={{ textField: { size: 'small', sx: { minWidth: 110 }, margin: 'dense' } }}
+              />
+              <DatePicker
+                label="Date To"
+                value={dateToFilter ? new Date(dateToFilter) : null}
+                onChange={date => setDateToFilter(date ? date.toISOString().split('T')[0] : '')}
+                slotProps={{ textField: { size: 'small', sx: { minWidth: 110 }, margin: 'dense' } }}
+              />
+            </Box>
+          </LocalizationProvider>
         </Paper>
 
         {/* Export Buttons */}

@@ -35,7 +35,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogContentText,
-  DialogActions
+  DialogActions,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -61,6 +62,9 @@ import { userService } from '../services/userService';
 import type { User } from '../services/userService';
 import { format, parseISO } from 'date-fns';
 import ExportButtons from '../components/ExportButtons';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -571,7 +575,7 @@ export default function Services() {
   }
 
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
         {/* Header */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -589,26 +593,38 @@ export default function Services() {
               )}
             </Box>
             
-        {/* Tabs */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
+        {/* Tabs and Filter Actions */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: 1, borderColor: 'divider', mb: 2 }}>
           <Tabs value={tabValue} onChange={handleTabChange} aria-label="service tabs">
             <Tab label="Service Requests" icon={<EventAvailableIcon />} iconPosition="start" />
             <Tab label="Service Types" icon={<BuildIcon />} iconPosition="start" />
           </Tabs>
-            </Box>
-            
+          {tabValue === 0 && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<FilterListIcon />}
+              onClick={clearFilters}
+              sx={{ ml: 2 }}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </Box>
+
         {/* Search and Filters */}
+        {tabValue === 0 && (
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Paper sx={{ p: 2, mb: 3 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Search Row */}
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <Grid container spacing={2} alignItems="center" sx={{ mb: 0 }}>
+              <Grid size={{ xs: 12, sm: 6, md: 4 }} >
                 <TextField
-              label="Search"
+                  label="Search"
                   variant="outlined"
                   size="small"
-                  sx={{ flexGrow: 1, minWidth: '200px' }}
                   value={searchTerm}
                   onChange={handleSearchChange}
+                  fullWidth
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -616,23 +632,10 @@ export default function Services() {
                       </InputAdornment>
                     ),
                   }}
-            />
-            
-            {tabValue === 0 && (
-              <Button
-                variant="outlined"
-                startIcon={<FilterListIcon />}
-                onClick={clearFilters}
-              >
-                Clear Filters
-              </Button>
-            )}
-            </Box>
-            
-            {/* Filters Row */}
-            {tabValue === 0 && (
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                <FormControl sx={{ minWidth: 150 }} size="small">
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
                   <InputLabel>Project</InputLabel>
                   <Select
                     value={projectFilter}
@@ -647,14 +650,14 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-
-                <FormControl sx={{ minWidth: 120 }} size="small">
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 110, maxWidth: 150 }} disabled={!projectFilter}>
                   <InputLabel>Phase</InputLabel>
                   <Select
                     value={phaseFilter}
                     label="Phase"
                     onChange={handlePhaseFilterChange}
-                    disabled={!projectFilter}
                   >
                     <MenuItem value="">
                       <em>All Phases</em>
@@ -664,8 +667,9 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-                
-                <FormControl sx={{ minWidth: 150 }} size="small">
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
                   <InputLabel>Apartment</InputLabel>
                   <Select
                     value={apartmentFilter}
@@ -680,8 +684,9 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-
-                <FormControl sx={{ minWidth: 150 }} size="small">
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
                   <InputLabel>Service Type</InputLabel>
                   <Select
                     value={serviceTypeFilter}
@@ -696,32 +701,9 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-
-                <TextField
-                  label="From Date"
-                  type="date"
-                  size="small"
-                  value={dateFromFilter}
-                  onChange={handleDateFromFilterChange}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  sx={{ minWidth: 150 }}
-                />
-
-                <TextField
-                  label="To Date"
-                  type="date"
-                  size="small"
-                  value={dateToFilter}
-                  onChange={handleDateToFilterChange}
-                  InputLabelProps={{
-                    shrink: true,
-                  }}
-                  sx={{ minWidth: 150 }}
-                />
-                
-                <FormControl sx={{ minWidth: 150 }} size="small">
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 110, maxWidth: 150 }}>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={statusFilter}
@@ -736,8 +718,9 @@ export default function Services() {
                     <MenuItem value="Done">Done</MenuItem>
                   </Select>
                 </FormControl>
-                
-                <FormControl sx={{ minWidth: 150 }} size="small">
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
                   <InputLabel>Who Pays</InputLabel>
                   <Select
                     value={whoPayFilter}
@@ -752,10 +735,35 @@ export default function Services() {
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
-              </Box>
-            )}
-              </Box>
-            </Paper>
+              </Grid>
+            </Grid>
+            <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
+              <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                <DatePicker
+                  label="From Date"
+                  value={dateFromFilter ? new Date(dateFromFilter) : null}
+                  onChange={(date) => {
+                    setDateFromFilter(date ? date.toISOString().split('T')[0] : '');
+                    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                <DatePicker
+                  label="To Date"
+                  value={dateToFilter ? new Date(dateToFilter) : null}
+                  onChange={(date) => {
+                    setDateToFilter(date ? date.toISOString().split('T')[0] : '');
+                    setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
+                  }}
+                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                />
+              </Grid>
+            </Grid>
+          </Paper>
+        </LocalizationProvider>
+        )}
         
         {/* Export Buttons */}
         {isAdmin && (

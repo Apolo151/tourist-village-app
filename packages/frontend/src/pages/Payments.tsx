@@ -143,7 +143,8 @@ export default function Payments() {
           method_id: methodFilter ? parseInt(methodFilter) : undefined,
           created_by: userFilter ? parseInt(userFilter) : undefined,
           sort_by: 'date',
-          sort_order: 'desc'
+          sort_order: 'desc',
+          village_id: projectFilter ? parseInt(projectFilter) : undefined
         };
         
         const response = await paymentService.getPayments(filters);
@@ -167,7 +168,7 @@ export default function Payments() {
     if (!loading) {
       loadPayments();
     }
-  }, [loading, searchTerm, apartmentFilter, userFilter, userTypeFilter, bookingFilter, currencyFilter, methodFilter, pagination.page]);
+  }, [loading, searchTerm, apartmentFilter, userFilter, userTypeFilter, bookingFilter, currencyFilter, methodFilter, pagination.page, projectFilter]);
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -244,7 +245,8 @@ export default function Payments() {
         method_id: methodFilter ? parseInt(methodFilter) : undefined,
         created_by: userFilter ? parseInt(userFilter) : undefined,
         sort_by: 'date',
-        sort_order: 'desc'
+        sort_order: 'desc',
+        village_id: projectFilter ? parseInt(projectFilter) : undefined
       };
       
       const response = await paymentService.getPayments(filters);
@@ -346,7 +348,7 @@ export default function Payments() {
   });
 
   return (
-    <Container maxWidth="lg">
+    <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
@@ -551,8 +553,6 @@ export default function Payments() {
                 <TableCell>Method</TableCell>
                 <TableCell>User Type</TableCell>
                 <TableCell>Apartment</TableCell>
-                <TableCell>Booking</TableCell>
-                <TableCell>Created By</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
@@ -584,12 +584,6 @@ export default function Payments() {
                       />
                     </TableCell>
                     <TableCell>{payment.apartment?.name || 'Unknown'}</TableCell>
-                    <TableCell>
-                      {payment.booking ? 
-                        `${formatDate(payment.booking.arrival_date)} - ${formatDate(payment.booking.leaving_date)}` 
-                        : '-'}
-                    </TableCell>
-                    <TableCell>{payment.created_by_user?.name || 'Unknown'}</TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1}>
                         <Tooltip title="View Details">
@@ -636,7 +630,7 @@ export default function Payments() {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={9} align="center">
+                  <TableCell colSpan={7} align="center">
                     No payments found matching your criteria.
                   </TableCell>
                 </TableRow>

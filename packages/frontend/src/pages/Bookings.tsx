@@ -25,7 +25,8 @@ import {
   CircularProgress,
   Alert,
   Pagination,
-  Container
+  Container,
+  Grid
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -127,6 +128,11 @@ export default function Bookings() {
     }
   }, [tabValue, pagination.page, filters, apartments.length, searchInput]);
 
+  // Reset apartment filter when project or phase changes
+  useEffect(() => {
+    setFilters(prev => ({ ...prev, apartmentId: '' }));
+  }, [filters.village, filters.phase]);
+
   const loadInitialData = async () => {
     try {
       setLoading(true);
@@ -200,9 +206,9 @@ export default function Bookings() {
           apiFilters.village_id = village.id;
         }
       }
-      // Only send phase if both project and phase are selected
-      if (filters.phase && filters.village) {
-        apiFilters.phase = parseInt(filters.phase);
+      // Only send phase if set
+      if (filters.phase) {
+        apiFilters.phase = Number(filters.phase);
       }
       if (filters.userType) {
         // Convert UI values to backend format
@@ -372,19 +378,26 @@ export default function Bookings() {
   const selectedVillage = villages.find(v => v.name === filters.village);
   const availablePhases = selectedVillage
     ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
-    : Array.from({ length: 10 }, (_, i) => i + 1);
+    : [];
 
-  // Reset phase filter if not available in selected project or if project is cleared
-  useEffect(() => {
-    if (!filters.village && filters.phase) {
-      setFilters(prev => ({ ...prev, phase: '' }));
-    } else if (filters.phase && selectedVillage) {
-      const phaseNum = parseInt(filters.phase);
-      if (isNaN(phaseNum) || phaseNum < 1 || phaseNum > selectedVillage.phases) {
-        setFilters(prev => ({ ...prev, phase: '' }));
-      }
+  // Filter apartments based on selected project and phase
+  const filteredApartments = apartments.filter(apartment => {
+    if (filters.village && filters.phase) {
+      // Filter by both project and phase
+      const village = villages.find(v => v.name === filters.village);
+      return (
+        apartment.village_id === (village ? village.id : -1) &&
+        apartment.phase === Number(filters.phase)
+      );
+    } else if (filters.village) {
+      // Filter by project only
+      const village = villages.find(v => v.name === filters.village);
+      return apartment.village_id === (village ? village.id : -1);
+    } else {
+      // No filter
+      return true;
     }
-  }, [filters.village, selectedVillage, filters.phase]);
+  });
 
   if (loading && !apartments.length) {
     return (
@@ -417,172 +430,167 @@ export default function Bookings() {
             </Alert>
           )}
 
-          {/* Header with Filter Controls */}
-          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 3 }}>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          {/* Tabs and Filter Actions */}
+          <Paper sx={{ mb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5 }}>
+            <Tabs value={tabValue} onChange={handleTabChange} sx={{ minHeight: 0 }}>
+              <Tab label="Current & Upcoming" sx={{ minHeight: 0 }} />
+              <Tab label="Past" sx={{ minHeight: 0 }} />
+              <Tab label="All" sx={{ minHeight: 0 }} />
+            </Tabs>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Tooltip title="Toggle Filters">
-                <IconButton onClick={toggleFilters}>
-                  <FilterIcon />
+                <IconButton size="small" onClick={toggleFilters}>
+                  <FilterIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Button
                 variant="outlined"
-                startIcon={<FilterListIcon />}
+                size="small"
+                startIcon={<FilterListIcon fontSize="small" />}
                 onClick={clearFilters}
+                sx={{ minWidth: 0, px: 1 }}
               >
-                Clear Filters
+                Clear
               </Button>
             </Box>
-          </Box>
-
-          {/* Tabs */}
-          <Paper sx={{ mb: 2 }}>
-            <Tabs value={tabValue} onChange={handleTabChange}>
-              <Tab label="Current & Upcoming" />
-              <Tab label="Past" />
-              <Tab label="All" />
-            </Tabs>
           </Paper>
 
           {/* Filters */}
           {showFilters && (
             <Paper sx={{ p: 2, mb: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Filters
-              </Typography>
-              
-              {/* Search and basic filters */}
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                <TextField
-                  label="Search"
-                  value={searchInput}
-                  onChange={handleSearchChange}
-                  placeholder="Search by user name, apartment name, notes..."
-                  sx={{ flex: '1 1 300px' }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                
-                <FormControl sx={{ flex: '1 1 200px' }}>
-                  <InputLabel>Apartment</InputLabel>
-                  <Select
-                    value={filters.apartmentId}
-                    label="Apartment"
-                    onChange={(e) => handleSelectChange(e, 'apartmentId')}
-                  >
-                    <MenuItem value="">All Apartments</MenuItem>
-                    {apartments.map(apartment => (
-                      <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                        {apartment.name} ({apartment.village?.name})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl sx={{ flex: '1 1 150px' }}>
-                  <InputLabel>Project</InputLabel>
-                  <Select
-                    value={filters.village}
-                    label="Project"
-                    onChange={(e) => handleSelectChange(e, 'village')}
-                  >
-                    <MenuItem value="">All Projects</MenuItem>
-                    {villages.map(village => (
-                      <MenuItem key={village.id} value={village.name}>
-                        {village.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl sx={{ flex: '1 1 150px' }}>
-                  <InputLabel>Phase</InputLabel>
-                  <Select
-                    value={filters.phase}
-                    label="Phase"
-                    onChange={(e) => handleSelectChange(e, 'phase')}
-                  >
-                    <MenuItem value="">All Phases</MenuItem>
-                    {availablePhases.map(phase => (
-                      <MenuItem key={phase} value={phase.toString()}>
-                        Phase {phase}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Box>
-
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                <FormControl sx={{ flex: '1 1 150px' }}>
-                  <InputLabel>Status</InputLabel>
-                  <Select
-                    value={filters.state}
-                    label="Status"
-                    onChange={(e) => handleSelectChange(e, 'state')}
-                  >
-                    <MenuItem value="">All Statuses</MenuItem>
-                    <MenuItem value="Booked">Booked</MenuItem>
-                    <MenuItem value="Checked In">Checked In</MenuItem>
-                    <MenuItem value="Checked Out">Checked Out</MenuItem>
-                    <MenuItem value="Cancelled">Cancelled</MenuItem>
-                  </Select>
-                </FormControl>
-
-                <FormControl sx={{ flex: '1 1 150px' }}>
-                  <InputLabel>User Type</InputLabel>
-                  <Select
-                    value={filters.userType}
-                    label="User Type"
-                    onChange={(e) => handleSelectChange(e, 'userType')}
-                  >
-                    <MenuItem value="">All Types</MenuItem>
-                    <MenuItem value="owner">Owner</MenuItem>
-                    <MenuItem value="renter">Tenant</MenuItem>
-                  </Select>
-                </FormControl>
-              </Box>
-
-              {/* Date filters */}
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Arrival Date Range
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}>
-                <DatePicker
-                  label="Arrival Date From"
-                  value={filters.arrivalDateStart}
-                  onChange={(date) => handleDateChange(date, 'arrivalDateStart')}
-                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-                />
-                <DatePicker
-                  label="Arrival Date To"
-                  value={filters.arrivalDateEnd}
-                  onChange={(date) => handleDateChange(date, 'arrivalDateEnd')}
-                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-                />
-              </Box>
-
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Departure Date Range
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <DatePicker
-                  label="Departure Date From"
-                  value={filters.leavingDateStart}
-                  onChange={(date) => handleDateChange(date, 'leavingDateStart')}
-                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-                />
-                <DatePicker
-                  label="Departure Date To"
-                  value={filters.leavingDateEnd}
-                  onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
-                  slotProps={{ textField: { sx: { flex: '1 1 200px' } } }}
-                />
-              </Box>
+              <Grid container spacing={2} alignItems="center" sx={{ mb: 0 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <TextField
+                    label="Search"
+                    value={searchInput}
+                    onChange={handleSearchChange}
+                    placeholder="Search by user, apartment, notes..."
+                    size="small"
+                    fullWidth
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+                  <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240, width: '100%' }}>
+                    <InputLabel>Project</InputLabel>
+                    <Select
+                      value={filters.village}
+                      label="Project"
+                      onChange={(e) => handleSelectChange(e, 'village')}
+                    >
+                      <MenuItem value="">All Projects</MenuItem>
+                      {villages.map(village => (
+                        <MenuItem key={village.id} value={village.name}>{village.name}</MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                  <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240, width: '100%' }} disabled={!filters.village}>
+                    <InputLabel>Phase</InputLabel>
+                    <Select
+                      value={filters.phase}
+                      label="Phase"
+                      onChange={(e) => handleSelectChange(e, 'phase')}
+                    >
+                      <MenuItem value="">All Phases</MenuItem>
+                      {availablePhases.map(phase => (
+                        <MenuItem key={phase} value={phase.toString()}>
+                          Phase {phase}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                  <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240, width: '100%' }}>
+                    <InputLabel>Apartment</InputLabel>
+                    <Select
+                      value={filters.apartmentId}
+                      label="Apartment"
+                      onChange={(e) => handleSelectChange(e, 'apartmentId')}
+                    >
+                      <MenuItem value="">All Apartments</MenuItem>
+                      {filteredApartments.map(apartment => (
+                        <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                          {apartment.name} {apartment.village_id && villages.find(v => v.id === apartment.village_id) ? `(${villages.find(v => v.id === apartment.village_id)?.name})` : ''}
+                          {apartment.phase ? ` - Phase ${apartment.phase}` : ''}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                  <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240, width: '100%' }}>
+                    <InputLabel>Status</InputLabel>
+                    <Select
+                      value={filters.state}
+                      label="Status"
+                      onChange={(e) => handleSelectChange(e, 'state')}
+                    >
+                      <MenuItem value="">All Statuses</MenuItem>
+                      <MenuItem value="Booked">Booked</MenuItem>
+                      <MenuItem value="Checked In">Checked In</MenuItem>
+                      <MenuItem value="Checked Out">Checked Out</MenuItem>
+                      <MenuItem value="Cancelled">Cancelled</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+                  <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240, width: '100%' }}>
+                    <InputLabel>User Type</InputLabel>
+                    <Select
+                      value={filters.userType}
+                      label="User Type"
+                      onChange={(e) => handleSelectChange(e, 'userType')}
+                    >
+                      <MenuItem value="">All Types</MenuItem>
+                      <MenuItem value="owner">Owner</MenuItem>
+                      <MenuItem value="renter">Tenant</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <DatePicker
+                      label="Arrival From"
+                      value={filters.arrivalDateStart}
+                      onChange={(date) => handleDateChange(date, 'arrivalDateStart')}
+                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                    />
+                    <DatePicker
+                      label="Arrival To"
+                      value={filters.arrivalDateEnd}
+                      onChange={(date) => handleDateChange(date, 'arrivalDateEnd')}
+                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                    />
+                  </Box>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <DatePicker
+                      label="Departure From"
+                      value={filters.leavingDateStart}
+                      onChange={(date) => handleDateChange(date, 'leavingDateStart')}
+                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                    />
+                    <DatePicker
+                      label="Departure To"
+                      value={filters.leavingDateEnd}
+                      onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
+                      slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                    />
+                  </Box>
+                </Grid>
+              </Grid>
             </Paper>
           )}
 
