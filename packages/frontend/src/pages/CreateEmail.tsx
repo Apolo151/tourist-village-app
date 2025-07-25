@@ -569,7 +569,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   label="Related Apartment"
                   placeholder="Search apartments by name..."
                   required
-                  disabled={apartmentFieldLocked}
+                  disabled={false}
                   error={!!formErrors.apartment_id}
                   helperText={formErrors.apartment_id}
                   getOptionLabel={(option) => option.label}

@@ -45,13 +45,15 @@ export interface CreateUtilityReadingProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
+  lockProject?: boolean; // NEW: lock project field
+  lockPhase?: boolean;   // NEW: lock phase field
 }
 
 export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
-  const { apartmentId: propApartmentId, onCancel, lockApartment } = props;
+  const { apartmentId: propApartmentId, bookingId: propBookingId, onCancel, lockApartment, lockProject, lockPhase } = props;
   const onSuccess: (() => void) | undefined = props.onSuccess;
   const isEditMode = !!id;
   const isQuickAction = !!onSuccess || !!onCancel;
@@ -250,6 +252,27 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     }
   }, [bookingId, bookings]);
 
+  // Prefill and lock logic for quick action
+  useEffect(() => {
+    if (isQuickAction) {
+      // Prefill and lock apartment and booking
+      if (typeof propApartmentId === 'number' && propApartmentId > 0) {
+        setApartmentId(propApartmentId);
+      }
+      if (typeof propBookingId === 'number' && propBookingId > 0) {
+        setBookingId(propBookingId);
+      }
+      // Lock project and phase based on apartment
+      if (apartments.length > 0 && typeof propApartmentId === 'number') {
+        const apt = apartments.find(a => a.id === propApartmentId);
+        if (apt) {
+          setProjectFilter(apt.village?.id?.toString() || '');
+          setPhaseFilter(apt.phase?.toString() || '');
+        }
+      }
+    }
+  }, [isQuickAction, propApartmentId, propBookingId, apartments]);
+
   const validateForm = (): string | null => {
     if (!apartmentId || apartmentId === 0) return 'Please select an apartment';
     if (!startDate) return 'Please select start date';
@@ -402,7 +425,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                 value={projectFilter}
                 label="Project"
                 onChange={e => setProjectFilter(e.target.value)}
-                disabled={!!lockApartment}
+                disabled={!!lockApartment || !!lockProject || (isQuickAction && typeof propApartmentId === 'number')}
               >
                 <MenuItem value="">
                   <em>Select a project</em>
@@ -423,7 +446,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                 value={phaseFilter}
                 label="Phase"
                 onChange={e => setPhaseFilter(e.target.value)}
-                disabled={!projectFilter || !!lockApartment}
+                disabled={!projectFilter || !!lockApartment || !!lockPhase || (isQuickAction && typeof propApartmentId === 'number')}
               >
                 <MenuItem value="">
                   <em>All Phases</em>
@@ -451,7 +474,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               label="Related Apartment"
               placeholder="Search apartments by name..."
               required
-              disabled={lockApartment && propApartmentId !== undefined}
+              disabled={lockApartment && propApartmentId !== undefined || (isQuickAction && typeof propApartmentId === 'number')}
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>
@@ -485,7 +508,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               onChange={(value) => setBookingId(value ? value as number : undefined)}
               label="Related Booking (Optional)"
               placeholder="Search bookings by user name..."
-              disabled={!apartmentId}
+              disabled={!apartmentId || (isQuickAction && typeof propBookingId === 'number')}
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>

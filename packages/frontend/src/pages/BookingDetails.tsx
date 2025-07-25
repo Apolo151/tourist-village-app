@@ -1480,27 +1480,53 @@ const BookingDetails: React.FC = () => {
                             <TableRow>
                               <TableCell>Water Start Reading</TableCell>
                               <TableCell>Water End Reading</TableCell>
+                              <TableCell>Water Cost</TableCell>
                               <TableCell>Electricity Start Reading</TableCell>
                               <TableCell>Electricity End Reading</TableCell>
+                              <TableCell>Electricity Cost</TableCell>
                               <TableCell>Start Date</TableCell>
                               <TableCell>End Date</TableCell>
-                              <TableCell>Water Cost</TableCell>
-                              <TableCell>Electricity Cost</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
-                            {relatedData.utility_readings.map((reading: any) => (
-                              <TableRow key={reading.id}>
-                                <TableCell>{reading.water_start_reading}</TableCell>
-                                <TableCell>{reading.water_end_reading}</TableCell>
-                                <TableCell>{reading.electricity_start_reading}</TableCell>
-                                <TableCell>{reading.electricity_end_reading}</TableCell>
-                                <TableCell>{formatDate(reading.start_date)}</TableCell>
-                                <TableCell>{formatDate(reading.end_date)}</TableCell>
-                                <TableCell>{reading.water_cost}</TableCell>
-                                <TableCell>{reading.electricity_cost}</TableCell>
-                              </TableRow>
-                            ))}
+                            {relatedData.utility_readings.map((reading: any) => {
+                              // Calculate water and electricity cost on the fly
+                              let waterCost = '-';
+                              let electricityCost = '-';
+                              const village = reading.apartment?.village || booking?.apartment?.village;
+                              if (
+                                typeof reading.water_start_reading === 'number' &&
+                                typeof reading.water_end_reading === 'number' &&
+                                village &&
+                                typeof village.water_price === 'number' &&
+                                reading.water_end_reading > reading.water_start_reading
+                              ) {
+                                const consumption = reading.water_end_reading - reading.water_start_reading;
+                                waterCost = `${(consumption * village.water_price).toFixed(2)} EGP`;
+                              }
+                              if (
+                                typeof reading.electricity_start_reading === 'number' &&
+                                typeof reading.electricity_end_reading === 'number' &&
+                                village &&
+                                typeof village.electricity_price === 'number' &&
+                                reading.electricity_end_reading > reading.electricity_start_reading
+                              ) {
+                                const consumption = reading.electricity_end_reading - reading.electricity_start_reading;
+                                electricityCost = `${(consumption * village.electricity_price).toFixed(2)} EGP`;
+                              }
+                              return (
+                                <TableRow key={reading.id}>
+                                  <TableCell>{reading.water_start_reading}</TableCell>
+                                  <TableCell>{reading.water_end_reading}</TableCell>
+                                  <TableCell>{waterCost}</TableCell>
+                                  <TableCell>{reading.electricity_start_reading}</TableCell>
+                                  <TableCell>{reading.electricity_end_reading}</TableCell>
+                                  <TableCell>{electricityCost}</TableCell>
+                                  <TableCell>{formatDate(reading.start_date)}</TableCell>
+                                  <TableCell>{formatDate(reading.end_date)}</TableCell>
+                                </TableRow>
+                              );
+                            })}
                           </TableBody>
                         </Table>
                       </TableContainer>
@@ -1585,7 +1611,9 @@ const BookingDetails: React.FC = () => {
       {renderDialog('utilityReading', CreateUtilityReading, {
         bookingId: booking?.id,
         apartmentId: booking?.apartment_id,
-        lockApartment: true
+        lockApartment: true,
+        lockProject: true, // lock project field in quick action
+        lockPhase: true    // lock phase field in quick action
       })}
       {renderDialog('payment', CreatePayment, {
         bookingId: booking?.id,

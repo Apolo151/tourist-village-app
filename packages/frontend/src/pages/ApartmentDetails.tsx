@@ -454,7 +454,7 @@ export default function ApartmentDetails() {
           </Box>
         </Box>
 
-        {/* Quick actions speed dial (admin only) */}
+        {/* Quick actions speed dial (admin only)
         {isAdmin && (
           <SpeedDial
             ariaLabel="Quick actions"
@@ -470,7 +470,7 @@ export default function ApartmentDetails() {
               />
             ))}
           </SpeedDial>
-        )}
+        )} */}
         
         {/* Summary Cards */}
         <Box sx={{ display: 'flex', gap: 3, mb: 3, flexDirection: { xs: 'column', md: 'row' } }}>
@@ -853,45 +853,53 @@ export default function ApartmentDetails() {
           {/* Invoices Tab (Admin Only) */}
           {isAdmin && (
             <TabPanel value={tabValue} index={7}>
-              <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2 }}>
-                <Typography variant="h6">Related Invoices</Typography>
-                <Button variant="outlined" startIcon={<InvoiceIcon />} onClick={() => navigate(`/invoices?apartmentId=${apartment.id}`)}>
-                  View All Invoices
-                </Button>
+              <Box sx={{ mb: 2, px: 2 }}>
+                <Typography variant="h6">Apartment Invoices</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  All financial transactions for this apartment (payments, service requests, utility readings)
+                </Typography>
               </Box>
               {relatedInvoices.length > 0 ? (
-                <TableContainer component={Paper}>
-                  <Table sx={{ minWidth: 650 }} aria-label="invoices table">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Type</TableCell>
-                        <TableCell>Amount</TableCell>
-                        <TableCell>Currency</TableCell>
-                        <TableCell>Description</TableCell>
-                        <TableCell align="right">Actions</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {relatedInvoices.map(invoice => (
-                        <TableRow key={invoice.id}>
-                          <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
-                          <TableCell>{invoice.type}</TableCell>
-                          <TableCell>{invoice.amount}</TableCell>
-                          <TableCell>{invoice.currency}</TableCell>
-                          <TableCell>{invoice.description || '-'}</TableCell>
-                          <TableCell align="right">
-                            <Button size="small" onClick={() => navigate(`/invoices/${invoice.id}`)}>
-                              View
-                            </Button>
-                          </TableCell>
+                <Box sx={{ px: 2 }}>
+                  <TableContainer component={Paper}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Type</TableCell>
+                          <TableCell>Description</TableCell>
+                          <TableCell>Amount</TableCell>
+                          <TableCell>Date</TableCell>
+                          <TableCell>Paid By</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
+                      </TableHead>
+                      <TableBody>
+                        {relatedInvoices.map(invoice => (
+                          <TableRow key={invoice.id}>
+                            <TableCell>
+                              <Chip 
+                                label={invoice.type}
+                                color={
+                                  invoice.type === 'Payment' 
+                                    ? 'success' 
+                                    : invoice.type === 'Service Request' 
+                                      ? 'warning'
+                                      : 'info'
+                                }
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{invoice.description || '-'}</TableCell>
+                            <TableCell>{invoice.type === 'Payment' ? (-invoice.amount).toLocaleString() : invoice.amount.toLocaleString()} {invoice.currency}</TableCell>
+                            <TableCell>{new Date(invoice.date).toLocaleDateString()}</TableCell>
+                            <TableCell>{invoice.user_type || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
               ) : (
-                <Alert severity="info">No invoices found for this apartment</Alert>
+                <Alert severity="info" sx={{ mx: 2 }}>No invoices found for this apartment</Alert>
               )}
             </TabPanel>
           )}
@@ -1016,29 +1024,59 @@ export default function ApartmentDetails() {
                           <TableCell>End Date</TableCell>
                           <TableCell>Water Start</TableCell>
                           <TableCell>Water End</TableCell>
+                          <TableCell>Water Cost</TableCell>
                           <TableCell>Electricity Start</TableCell>
                           <TableCell>Electricity End</TableCell>
+                          <TableCell>Electricity Cost</TableCell>
                           <TableCell>Who Pays</TableCell>
                           <TableCell align="right">Actions</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {relatedUtilityReadings.map(reading => (
-                          <TableRow key={reading.id}>
-                            <TableCell>{new Date(reading.start_date).toLocaleDateString()}</TableCell>
-                            <TableCell>{new Date(reading.end_date).toLocaleDateString()}</TableCell>
-                            <TableCell>{reading.water_start_reading ?? '-'}</TableCell>
-                            <TableCell>{reading.water_end_reading ?? '-'}</TableCell>
-                            <TableCell>{reading.electricity_start_reading ?? '-'}</TableCell>
-                            <TableCell>{reading.electricity_end_reading ?? '-'}</TableCell>
-                            <TableCell>{reading.who_pays}</TableCell>
-                            <TableCell align="right">
-                              <Button size="small" onClick={() => navigate(`/utilities/${reading.id}`)}>
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                        {relatedUtilityReadings.map(reading => {
+                          // Calculate water and electricity cost on the fly
+                          let waterCost = '-';
+                          let electricityCost = '-';
+                          const village = reading.apartment?.village || apartment?.village;
+                          if (
+                            typeof reading.water_start_reading === 'number' &&
+                            typeof reading.water_end_reading === 'number' &&
+                            village &&
+                            typeof village.water_price === 'number' &&
+                            reading.water_end_reading > reading.water_start_reading
+                          ) {
+                            const consumption = reading.water_end_reading - reading.water_start_reading;
+                            waterCost = `${(consumption * village.water_price).toFixed(2)} EGP`;
+                          }
+                          if (
+                            typeof reading.electricity_start_reading === 'number' &&
+                            typeof reading.electricity_end_reading === 'number' &&
+                            village &&
+                            typeof village.electricity_price === 'number' &&
+                            reading.electricity_end_reading > reading.electricity_start_reading
+                          ) {
+                            const consumption = reading.electricity_end_reading - reading.electricity_start_reading;
+                            electricityCost = `${(consumption * village.electricity_price).toFixed(2)} EGP`;
+                          }
+                          return (
+                            <TableRow key={reading.id}>
+                              <TableCell>{new Date(reading.start_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{new Date(reading.end_date).toLocaleDateString()}</TableCell>
+                              <TableCell>{reading.water_start_reading ?? '-'}</TableCell>
+                              <TableCell>{reading.water_end_reading ?? '-'}</TableCell>
+                              <TableCell>{waterCost}</TableCell>
+                              <TableCell>{reading.electricity_start_reading ?? '-'}</TableCell>
+                              <TableCell>{reading.electricity_end_reading ?? '-'}</TableCell>
+                              <TableCell>{electricityCost}</TableCell>
+                              <TableCell>{reading.who_pays}</TableCell>
+                              <TableCell align="right">
+                                <Button size="small" onClick={() => navigate(`/utilities/${reading.id}`)}>
+                                  View
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
                       </TableBody>
                     </Table>
                   </TableContainer>

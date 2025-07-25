@@ -404,16 +404,12 @@ router.get(
           const waterCost = waterUsage * (parseFloat(ur.water_price) || 0);
           const electricityCost = electricityUsage * (parseFloat(ur.electricity_price) || 0);
           const totalCost = waterCost + electricityCost;
-          // Build description with usage details
-          let description = ur.description;
-          if (!description) {
-            description = `Utility reading${ur.start_date && ur.end_date ? ` from ${ur.start_date} to ${ur.end_date}` : ''}`;
-            if (ur.who_pays) description += ` (${ur.who_pays} pays)`;
-            const usageDetails = [];
-            if (waterUsage > 0) usageDetails.push(`Water: ${waterUsage.toFixed(2)} units`);
-            if (electricityUsage > 0) usageDetails.push(`Electricity: ${electricityUsage.toFixed(2)} units`);
-            if (usageDetails.length > 0) description += ` - ${usageDetails.join(', ')}`;
-          }
+          // Build concise description
+          let descParts = [];
+          if (waterUsage > 0) descParts.push(`Water ${waterUsage.toFixed(2)} units`);
+          if (electricityUsage > 0) descParts.push(`Electricity ${electricityUsage.toFixed(2)} units`);
+          if (ur.who_pays) descParts.push(ur.who_pays);
+          let description = descParts.length > 0 ? `Utility: ${descParts.join(', ')}` : 'Utility';
           return {
           id: `utility_${ur.id}`,
           type: 'Utility Reading',
