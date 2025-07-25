@@ -60,9 +60,11 @@ export interface CreatePaymentProps {
   onCancel?: () => void;
   lockApartment?: boolean;
   lockUser?: boolean;
+  lockProject?: boolean;
+  lockPhase?: boolean;
 }
 
-export default function CreatePayment({ apartmentId, bookingId, userId, onSuccess, onCancel, lockApartment, lockUser }: CreatePaymentProps) {
+export default function CreatePayment({ apartmentId, bookingId, userId, onSuccess, onCancel, lockApartment, lockUser, lockProject, lockPhase }: CreatePaymentProps) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -483,7 +485,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                       setPhaseFilter('');
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
-                    disabled={!!lockApartment}
+                    disabled={!!lockApartment || !!lockProject}
                   >
                     <MenuItem value="">
                       <em>All Projects</em>
@@ -505,7 +507,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
                       setPhaseFilter(e.target.value);
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
-                    disabled={!projectFilter || !!lockApartment}
+                    disabled={!projectFilter || !!lockApartment || !!lockPhase}
                   >
                     <MenuItem value="">
                       <em>All Phases</em>

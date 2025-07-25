@@ -1592,12 +1592,17 @@ const BookingDetails: React.FC = () => {
         apartmentId: booking?.apartment_id,
         userId: booking?.user_id,
         lockApartment: true,
-        lockUser: true
+        lockUser: true,
+        lockProject: true,
+        lockPhase: true
       })}
       {renderDialog('email', CreateEmail, {
         bookingId: booking?.id,
         apartmentId: booking?.apartment_id,
-        lockApartment: true
+        lockApartment: true,
+        lockProject: true,
+        lockPhase: true,
+        lockBooking: true
       })}
       {/* Don't set props here as they're set in the renderDialog function */}
       {renderDialog('serviceRequest', CreateServiceRequest)}
