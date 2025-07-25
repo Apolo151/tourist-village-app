@@ -616,15 +616,15 @@ export default function Services() {
         {tabValue === 0 && (
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Paper sx={{ p: 2, mb: 3 }}>
-              <Grid container spacing={2} alignItems="center" sx={{ mb: 0 }}>
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} >
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 1 }}>
                 <TextField
                   label="Search"
                   variant="outlined"
                   size="small"
+                  margin="dense"
                   value={searchTerm}
                   onChange={handleSearchChange}
-                  fullWidth
+                  sx={{ minWidth: 140, flexGrow: 1 }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
@@ -633,9 +633,7 @@ export default function Services() {
                     ),
                   }}
                 />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 140, flexGrow: 1 }}>
                   <InputLabel>Project</InputLabel>
                   <Select
                     value={projectFilter}
@@ -650,9 +648,7 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 110, maxWidth: 150 }} disabled={!projectFilter}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 100 }} disabled={!projectFilter}>
                   <InputLabel>Phase</InputLabel>
                   <Select
                     value={phaseFilter}
@@ -667,9 +663,7 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 140, flexGrow: 1 }}>
                   <InputLabel>Apartment</InputLabel>
                   <Select
                     value={apartmentFilter}
@@ -684,9 +678,7 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 120 }}>
                   <InputLabel>Service Type</InputLabel>
                   <Select
                     value={serviceTypeFilter}
@@ -701,9 +693,7 @@ export default function Services() {
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 110, maxWidth: 150 }}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 100 }}>
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={statusFilter}
@@ -718,9 +708,7 @@ export default function Services() {
                     <MenuItem value="Done">Done</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 2 }}>
-                <FormControl size="small" sx={{ minWidth: 160, maxWidth: 240 }}>
+                <FormControl size="small" margin="dense" sx={{ minWidth: 120 }}>
                   <InputLabel>Who Pays</InputLabel>
                   <Select
                     value={whoPayFilter}
@@ -735,10 +723,8 @@ export default function Services() {
                     <MenuItem value="company">Company</MenuItem>
                   </Select>
                 </FormControl>
-              </Grid>
-            </Grid>
-            <Grid container spacing={2} alignItems="center" sx={{ mt: 1 }}>
-              <Grid size={{ xs: 12, sm: 6, md: 6 }}>
+              </Box>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mt: 1 }}>
                 <DatePicker
                   label="From Date"
                   value={dateFromFilter ? new Date(dateFromFilter) : null}
@@ -746,10 +732,8 @@ export default function Services() {
                     setDateFromFilter(date ? date.toISOString().split('T')[0] : '');
                     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
                   }}
-                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                  slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
                 />
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6, md: 6 }}>
                 <DatePicker
                   label="To Date"
                   value={dateToFilter ? new Date(dateToFilter) : null}
@@ -757,12 +741,11 @@ export default function Services() {
                     setDateToFilter(date ? date.toISOString().split('T')[0] : '');
                     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
                   }}
-                  slotProps={{ textField: { size: 'small', fullWidth: true } }}
+                  slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
                 />
-              </Grid>
-            </Grid>
-          </Paper>
-        </LocalizationProvider>
+              </Box>
+            </Paper>
+          </LocalizationProvider>
         )}
         
         {/* Export Buttons */}
