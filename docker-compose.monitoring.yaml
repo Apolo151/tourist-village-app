@@ -1,0 +1,102 @@
+# Docker Compose Health Checks and Monitoring
+
+version: '3.8'
+
+services:
+  # Add monitoring and health check services
+  
+  # Nginx Proxy for SSL termination and load balancing (production)
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: tourist-village-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-proxy.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    networks:
+      - tourist-village-network
+    depends_on:
+      - frontend
+      - backend
+    profiles:
+      - proxy
+
+  # Database backup service
+  db-backup:
+    image: postgres:15-alpine
+    container_name: tourist-village-backup
+    restart: "no"
+    environment:
+      PGPASSWORD: password
+    volumes:
+      - ./backups:/backups
+      - postgres_data:/var/lib/postgresql/data:ro
+    networks:
+      - tourist-village-network
+    depends_on:
+      - db
+    command: >
+      sh -c "
+        pg_dump -h db -U postgres -d tourist_village_db > /backups/backup_$$(date +%Y%m%d_%H%M%S).sql &&
+        find /backups -name '*.sql' -mtime +7 -delete
+      "
+    profiles:
+      - backup
+
+  # Log aggregation (optional)
+  logging:
+    image: fluent/fluent-bit:latest
+    container_name: tourist-village-logging
+    restart: unless-stopped
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - tourist-village-network
+    profiles:
+      - logging
+
+  # Monitoring with Prometheus (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tourist-village-monitoring
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - tourist-village-network
+    profiles:
+      - monitoring
+
+  # Grafana for visualization (optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tourist-village-grafana
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - tourist-village-network
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+volumes:
+  prometheus_data:
+    driver: local
+    name: tourist-village-prometheus-data
+  
+  grafana_data:
+    driver: local
+    name: tourist-village-grafana-data
