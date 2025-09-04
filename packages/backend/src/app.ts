@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import path from 'path';
 import { healthRouter } from './routes/health';
 import { apartmentsRouter } from './routes/apartments';
 import { villagesRouter } from './routes/villages';
@@ -41,79 +42,92 @@ app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Define API route prefix
+const API_PREFIX = '/api';
+
 // Health check routes (no auth required)
-app.use('/health', healthRouter);
+app.use(`${API_PREFIX}/health`, healthRouter);
 
 // Authentication routes
-app.use('/auth', authRouter);
+app.use(`${API_PREFIX}/auth`, authRouter);
 
 // Protected API routes
-app.use('/apartments', apartmentsRouter);
-app.use('/villages', villagesRouter);
-app.use('/users', usersRouter);
-app.use('/bookings', bookingsRouter);
-app.use('/service-types', serviceTypesRouter);
-app.use('/service-requests', serviceRequestsRouter);
-app.use('/utility-readings', utilityReadingsRouter);
-app.use('/emails', emailsRouter);
-app.use('/payment-methods', paymentMethodsRouter);
-app.use('/payments', paymentsRouter);
-app.use('/invoices', invoicesRouter);
-app.use('/paying-status-types', payingStatusTypesRouter);
-app.use('/sales-status-types', salesStatusTypesRouter);
+app.use(`${API_PREFIX}/apartments`, apartmentsRouter);
+app.use(`${API_PREFIX}/villages`, villagesRouter);
+app.use(`${API_PREFIX}/users`, usersRouter);
+app.use(`${API_PREFIX}/bookings`, bookingsRouter);
+app.use(`${API_PREFIX}/service-types`, serviceTypesRouter);
+app.use(`${API_PREFIX}/service-requests`, serviceRequestsRouter);
+app.use(`${API_PREFIX}/utility-readings`, utilityReadingsRouter);
+app.use(`${API_PREFIX}/emails`, emailsRouter);
+app.use(`${API_PREFIX}/payment-methods`, paymentMethodsRouter);
+app.use(`${API_PREFIX}/payments`, paymentsRouter);
+app.use(`${API_PREFIX}/invoices`, invoicesRouter);
+app.use(`${API_PREFIX}/paying-status-types`, payingStatusTypesRouter);
+app.use(`${API_PREFIX}/sales-status-types`, salesStatusTypesRouter);
 
-// Root endpoint - API documentation
-app.get('/', (req, res) => {
+// API documentation endpoint
+app.get(`${API_PREFIX}`, (req, res) => {
   res.json({
     name: 'Tourist Village Management System API',
     version: '1.0.0',
     status: 'running',
     environment: process.env.NODE_ENV || 'development',
     documentation: {
-      authentication: '/auth',
-      health: '/health'
+      authentication: `${API_PREFIX}/auth`,
+      health: `${API_PREFIX}/health`
     },
     endpoints: {
       auth: {
-        base: '/auth',
+        base: `${API_PREFIX}/auth`,
         endpoints: [
-          'POST /auth/register',
-          'POST /auth/login', 
-          'POST /auth/refresh',
-          'POST /auth/logout',
-          'GET  /auth/me',
-          'POST /auth/change-password',
-          'POST /auth/verify-token',
-          'GET  /auth/health'
+          `POST ${API_PREFIX}/auth/register`,
+          `POST ${API_PREFIX}/auth/login`, 
+          `POST ${API_PREFIX}/auth/refresh`,
+          `POST ${API_PREFIX}/auth/logout`,
+          `GET  ${API_PREFIX}/auth/me`,
+          `POST ${API_PREFIX}/auth/change-password`,
+          `POST ${API_PREFIX}/auth/verify-token`,
+          `GET  ${API_PREFIX}/auth/health`
         ]
       },
       management: {
-        apartments: '/apartments',
-        villages: '/villages',
-        users: '/users',
-        bookings: '/bookings'
+        apartments: `${API_PREFIX}/apartments`,
+        villages: `${API_PREFIX}/villages`,
+        users: `${API_PREFIX}/users`,
+        bookings: `${API_PREFIX}/bookings`
       },
       services: {
-        serviceTypes: '/service-types',
-        serviceRequests: '/service-requests',
-        utilityReadings: '/utility-readings'
+        serviceTypes: `${API_PREFIX}/service-types`,
+        serviceRequests: `${API_PREFIX}/service-requests`,
+        utilityReadings: `${API_PREFIX}/utility-readings`
       },
       financial: {
-        payments: '/payments',
-        paymentMethods: '/payment-methods',
-        bills: '/bills'
+        payments: `${API_PREFIX}/payments`,
+        paymentMethods: `${API_PREFIX}/payment-methods`,
+        bills: `${API_PREFIX}/bills`
       },
       communication: {
-        emails: '/emails'
+        emails: `${API_PREFIX}/emails`
       },
       monitoring: {
-        health: '/health'
+        health: `${API_PREFIX}/health`
       }
     }
   });
 });
 
-// Global error handling middleware
+// Serve static files from frontend/dist
+// if parent directory is "dist"
+let frontendPath = '';
+if (path.basename(path.resolve(__dirname, '..')) === 'dist') {
+  frontendPath = path.resolve(__dirname, '../../../frontend/dist');
+} else {
+  frontendPath = path.resolve(__dirname, '../../frontend/dist');
+}
+app.use(express.static(frontendPath));
+
+// Global error handling middleware for API routes
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Global error handler:', err);
   
@@ -143,18 +157,34 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   });
 });
 
-// 404 handler - catch all unmatched routes
-app.use(/(.*)/, (req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Route not found',
-    message: `The route ${req.method} ${req.originalUrl} does not exist`,
-    availableRoutes: {
-      auth: '/auth',
-      health: '/health',
-      documentation: '/'
-    }
-  });
+
+// // SPA catch-all (serve React frontend for non-API routes)
+// app.get(/(.*)/, (req, res) => {
+//   res.sendFile(path.join(frontendPath, 'index.html'));
+//   console.log("herehere")
+// });
+
+// // API 404 handler for API routes
+// app.use(`${API_PREFIX}/*`, (req, res) => { 
+//   res.status(404).json({
+//     success: false,
+//     error: 'API route not found',
+//     message: `The route ${req.method} ${req.originalUrl} does not exist`,
+//     availableRoutes: {
+//       auth: `${API_PREFIX}/auth`,
+//       health: `${API_PREFIX}/health`,
+//       documentation: `${API_PREFIX}`
+//     }
+//   });
+// });
+
+
+app.use((req, res, next) => {
+  if (req.path.startsWith(API_PREFIX)) {
+    return next();
+  }
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
+
 
 export default app; 

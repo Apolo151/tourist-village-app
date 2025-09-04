@@ -5,9 +5,11 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/src/server.js",
+    "start:local": "node dist/src/server.js",
+    "start": "NODE_ENV=production node src/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "migrate": "knex migrate:latest",
+    "migrate:latest": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
     "seed:run": "knex seed:run",

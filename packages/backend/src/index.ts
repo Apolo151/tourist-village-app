@@ -1,10 +1,10 @@
 import dotenv from 'dotenv';
-import app from './app';
 
 // Load environment variables
 dotenv.config();
 
-// Export app for testing
+// Import and export app for testing
+import app from './app';
 export { app };
 
 // If this file is run directly, start the server
