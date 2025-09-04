@@ -53,6 +53,7 @@ interface PaymentFormData {
 }
 
 export interface CreatePaymentProps {
+  id?: number; // <-- add this
   apartmentId?: number;
   bookingId?: number;
   userId?: number;
@@ -64,15 +65,18 @@ export interface CreatePaymentProps {
   lockPhase?: boolean;
 }
 
-export default function CreatePayment({ apartmentId, bookingId, userId, onSuccess, onCancel, lockApartment, lockUser, lockProject, lockPhase }: CreatePaymentProps) {
-  const { id } = useParams<{ id: string }>();
+export default function CreatePayment({ id: propId, apartmentId, bookingId, userId, onSuccess, onCancel, lockApartment, lockUser, lockProject, lockPhase }: CreatePaymentProps) {
+  const { id: urlId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [searchParams] = useSearchParams();
-  
+
+  // Use propId if provided, otherwise use urlId
+  const effectiveId = propId !== undefined ? propId : (urlId ? parseInt(urlId) : undefined);
+
   // Determine if this is edit mode - not edit mode if used as quick action
   const isQuickAction = !!onSuccess || !!onCancel;
-  const isEdit = Boolean(id && id !== 'new' && !isQuickAction);
+  const isEdit = Boolean(typeof effectiveId === 'number' && !isQuickAction);
   
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,8 +132,8 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         }
         
         // Load payment data if editing (and not quick action)
-        if (isEdit && id && !isQuickAction) {
-          const paymentData = await paymentService.getPaymentById(parseInt(id));
+        if (isEdit && effectiveId && !isQuickAction) {
+          const paymentData = await paymentService.getPaymentById(effectiveId);
           
           // Check if user can edit this payment
           if (!isAdmin && paymentData.created_by !== currentUser?.id) {
@@ -171,7 +175,7 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
     };
 
     loadData();
-  }, [id, isEdit, searchParams, isAdmin, currentUser]);
+  }, [effectiveId, isEdit, searchParams, isAdmin, currentUser]);
   
   // Set user type based on booking when bookingId is provided and bookings are loaded
   useEffect(() => {
@@ -187,31 +191,16 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
     }
   }, [bookingId, bookings]);
   
-  // When apartmentId is provided and lockApartment is true, set apartment and trigger dependent logic
-  useEffect(() => {
-    if (lockApartment && apartmentId && apartments.length > 0) {
-      const apt = apartments.find(a => a.id === apartmentId);
-      if (apt) {
-        setProjectFilter(apt.village_id.toString());
-        // Simulate the same logic as handleApartmentFilterChange
-        // setPagination(prev => ({ ...prev, page: 1 }));
-        // Optionally, reset user type and booking if needed
-        // If you want to auto-select owner as user_type, you can do so here
-        // setUserTypeFilter('owner');
-      }
-    }
-  }, [lockApartment, apartmentId, apartments]);
-  
   // When lockApartment and apartmentId are set, set project and phase filters and lock them
   useEffect(() => {
-    if (lockApartment && apartmentId && apartments.length > 0) {
+    if (lockApartment && apartmentId && apartments.length > 0 && !isEdit) {
       const apt = apartments.find(a => a.id === apartmentId);
       if (apt) {
         setProjectFilter(apt.village_id.toString());
         setPhaseFilter(apt.phase.toString());
       }
     }
-  }, [lockApartment, apartmentId, apartments]);
+  }, [lockApartment, apartmentId, apartments, isEdit]);
   
   // Validate form
   const validateForm = (): boolean => {
@@ -289,8 +278,8 @@ export default function CreatePayment({ apartmentId, bookingId, userId, onSucces
         ...(formData.booking_id ? { booking_id: parseInt(formData.booking_id) } : {})
       };
       
-      if (isEdit && id && !isQuickAction) {
-        await paymentService.updatePayment(parseInt(id), paymentData as UpdatePaymentRequest);
+      if (isEdit && effectiveId && !isQuickAction) {
+        await paymentService.updatePayment(effectiveId, paymentData as UpdatePaymentRequest);
         if (typeof onSuccess === 'function') {
           (onSuccess as () => void)();
         } else {

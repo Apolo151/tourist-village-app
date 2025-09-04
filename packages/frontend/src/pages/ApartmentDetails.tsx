@@ -72,6 +72,9 @@ import CreatePayment from './CreatePayment';
 import CreateServiceRequest from './CreateServiceRequest';
 import CreateUtilityReading from './CreateUtilityReading';
 import { invoiceService } from '../services/invoiceService';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import Snackbar from '@mui/material/Snackbar';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -133,6 +136,13 @@ export default function ApartmentDetails() {
 
   // Owner details dialog state
   const [showOwnerDetails, setShowOwnerDetails] = useState(false);
+
+  // --- Payment edit/delete dialog state (move here to fix hooks order) ---
+  const [editPaymentId, setEditPaymentId] = useState<number | null>(null);
+  const [deletePaymentId, setDeletePaymentId] = useState<number | null>(null);
+  const [deletePaymentDialogOpen, setDeletePaymentDialogOpen] = useState(false);
+  const [deletePaymentLoading, setDeletePaymentLoading] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
 
   // Dialog open/close handlers
   const openDialog = (type: keyof typeof dialogState) => setDialogState(prev => ({ ...prev, [type]: true }));
@@ -407,6 +417,37 @@ export default function ApartmentDetails() {
 
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isOwnerOrRenter = currentUser?.role === 'owner' || currentUser?.role === 'renter';
+
+  const handleEditPayment = (paymentId: number) => {
+    setEditPaymentId(paymentId);
+  };
+  const handleCloseEditPayment = () => {
+    setEditPaymentId(null);
+  };
+  const handleDeletePayment = (paymentId: number) => {
+    setDeletePaymentId(paymentId);
+    setDeletePaymentDialogOpen(true);
+  };
+  const handleConfirmDeletePayment = async () => {
+    if (!deletePaymentId) return;
+    setDeletePaymentLoading(true);
+    try {
+      await paymentService.deletePayment(deletePaymentId);
+      setSnackbarMessage('Payment deleted successfully');
+      setDeletePaymentDialogOpen(false);
+      setDeletePaymentId(null);
+      await refreshRelatedData();
+    } catch (err: any) {
+      setSnackbarMessage(err.message || 'Failed to delete payment');
+    } finally {
+      setDeletePaymentLoading(false);
+    }
+  };
+  const handleCloseDeletePaymentDialog = () => {
+    setDeletePaymentDialogOpen(false);
+    setDeletePaymentId(null);
+  };
+  const handleSnackbarClose = () => setSnackbarMessage(null);
 
   return (
     <>
@@ -838,6 +879,20 @@ export default function ApartmentDetails() {
                             <Button size="small" onClick={() => navigate(`/payments/${payment.id}`)}>
                               View
                             </Button>
+                            {(isAdmin || payment.created_by === currentUser?.id) && (
+                              <>
+                                <Tooltip title="Edit Payment">
+                                  <IconButton size="small" onClick={() => handleEditPayment(payment.id)}>
+                                    <EditIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="Delete Payment">
+                                  <IconButton size="small" color="error" onClick={() => handleDeletePayment(payment.id)}>
+                                    <DeleteIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1120,6 +1175,46 @@ export default function ApartmentDetails() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Edit Payment Dialog */}
+      {editPaymentId !== null && (
+        <Dialog open={true} onClose={handleCloseEditPayment} maxWidth="md" fullWidth>
+          <CreatePayment
+            onSuccess={() => {
+              handleCloseEditPayment();
+              refreshRelatedData();
+              setSnackbarMessage('Payment updated successfully');
+            }}
+            onCancel={handleCloseEditPayment}
+            lockApartment={true}
+            apartmentId={apartment?.id}
+            id={editPaymentId}
+          />
+        </Dialog>
+      )}
+      {/* Delete Payment Confirmation Dialog */}
+      <Dialog open={deletePaymentDialogOpen} onClose={handleCloseDeletePaymentDialog}>
+        <DialogTitle>Delete Payment</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete this payment? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeletePaymentDialog} disabled={deletePaymentLoading}>
+            Cancel
+          </Button>
+          <Button onClick={handleConfirmDeletePayment} color="error" variant="contained" disabled={deletePaymentLoading}>
+            {deletePaymentLoading ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Snackbar
+        open={!!snackbarMessage}
+        autoHideDuration={4000}
+        onClose={handleSnackbarClose}
+        message={snackbarMessage}
+      />
     </>
   );
 }
