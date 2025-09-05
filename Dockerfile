@@ -1,6 +1,10 @@
 # Stage 1: Build the React frontend
 FROM node:18-alpine AS frontend-builder
 WORKDIR /usr/src/frontend
+# Add build arguments with defaults
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=${VITE_API_URL}
+
 COPY packages/frontend/package*.json ./
 RUN npm ci
 COPY packages/frontend/ ./
