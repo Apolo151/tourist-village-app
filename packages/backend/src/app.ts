@@ -158,32 +158,25 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 });
 
 
-// // SPA catch-all (serve React frontend for non-API routes)
-// app.get(/(.*)/, (req, res) => {
-//   res.sendFile(path.join(frontendPath, 'index.html'));
-//   console.log("herehere")
-// });
-
-// // API 404 handler for API routes
-// app.use(`${API_PREFIX}/*`, (req, res) => { 
-//   res.status(404).json({
-//     success: false,
-//     error: 'API route not found',
-//     message: `The route ${req.method} ${req.originalUrl} does not exist`,
-//     availableRoutes: {
-//       auth: `${API_PREFIX}/auth`,
-//       health: `${API_PREFIX}/health`,
-//       documentation: `${API_PREFIX}`
-//     }
-//   });
-// });
-
-
 app.use((req, res, next) => {
   if (req.path.startsWith(API_PREFIX)) {
     return next();
   }
   res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
+// API 404 handler for API routes
+app.use(`${API_PREFIX}/*`, (req, res) => { 
+  res.status(404).json({
+    success: false,
+    error: 'API route not found',
+    message: `The route ${req.method} ${req.originalUrl} does not exist`,
+    availableRoutes: {
+      auth: `${API_PREFIX}/auth`,
+      health: `${API_PREFIX}/health`,
+      documentation: `${API_PREFIX}`
+    }
+  });
 });
 
 

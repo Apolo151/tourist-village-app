@@ -10,5 +10,8 @@ done
 echo "Database is ready, running migrations..."
 npm run migrate:latest
 
+echo "Seeding database..."
+npm run seed:run
+
 echo "Starting application..."
 npm start

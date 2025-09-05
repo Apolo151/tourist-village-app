@@ -25,16 +25,19 @@ RUN mkdir -p ./packages/frontend/dist ./packages/backend/dist
 COPY --from=frontend-builder /usr/src/frontend/dist ./packages/frontend/dist/
 
 # Copy backend built files
-COPY --from=backend-builder /usr/src/backend/dist ./packages/backend/dist/
+COPY --from=backend-builder /usr/src/backend/dist ./packages/backend/
 COPY --from=backend-builder /usr/src/backend/package*.json ./packages/backend/
 
-# Copy migrations and seeds for Knex
-COPY --from=backend-builder /usr/src/backend/src/database/migrations ./packages/backend/src/database/migrations
-COPY --from=backend-builder /usr/src/backend/src/database/seeds ./packages/backend/src/database/seeds
+# # Copy migrations and seeds for Knex
+# COPY --from=backend-builder /usr/src/backend/src/database/migrations ./packages/backend/src/database/migrations
+# COPY --from=backend-builder /usr/src/backend/src/database/seeds ./packages/backend/src/database/seeds
 
 # Install production dependencies for backend
 WORKDIR /app/packages/backend
 RUN npm ci --only=production
+
+# Remove stagnant migration
+RUN rm -f ./src/database/migrations/20240716_add_next_of_kin_will_to_users.js
 
 # Copy the entrypoint script
 COPY packages/backend/entrypoint.sh ./
