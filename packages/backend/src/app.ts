@@ -25,7 +25,21 @@ import { salesStatusTypesRouter } from './routes/salesStatusTypes';
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", process.env.FRONTEND_URL || "*"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        baseUri: ["'self'"],
+      },
+    },
+  })
+);
 
 // CORS configuration
 app.use(cors({
