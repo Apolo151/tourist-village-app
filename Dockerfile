@@ -1,5 +1,5 @@
 # Stage 1: Build the React frontend
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /usr/src/frontend
 # Add build arguments with defaults
 ARG VITE_API_URL=/api
@@ -11,7 +11,7 @@ COPY packages/frontend/ ./
 RUN npm run build
 
 # Stage 2: Build the Backend
-FROM node:18-alpine AS backend-builder
+FROM node:20-alpine AS backend-builder
 WORKDIR /usr/src/backend
 COPY packages/backend/package*.json ./
 RUN npm ci
@@ -19,7 +19,7 @@ COPY packages/backend/ ./
 RUN npm run build
 
 # Stage 3: Production image
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 WORKDIR /app
 
 # Create directory structure
