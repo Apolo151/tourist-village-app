@@ -165,19 +165,19 @@ app.use((req, res, next) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// API 404 handler for API routes
-app.use(`${API_PREFIX}/*`, (req, res) => { 
-  res.status(404).json({
-    success: false,
-    error: 'API route not found',
-    message: `The route ${req.method} ${req.originalUrl} does not exist`,
-    availableRoutes: {
-      auth: `${API_PREFIX}/auth`,
-      health: `${API_PREFIX}/health`,
-      documentation: `${API_PREFIX}`
-    }
-  });
-});
+// // API 404 handler for API routes
+// app.use(`${API_PREFIX}/*`, (req, res) => { 
+//   res.status(404).json({
+//     success: false,
+//     error: 'API route not found',
+//     message: `The route ${req.method} ${req.originalUrl} does not exist`,
+//     availableRoutes: {
+//       auth: `${API_PREFIX}/auth`,
+//       health: `${API_PREFIX}/health`,
+//       documentation: `${API_PREFIX}`
+//     }
+//   });
+// });
 
 
 export default app; 
