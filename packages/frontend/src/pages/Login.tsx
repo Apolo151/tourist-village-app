@@ -217,7 +217,7 @@ export default function Login() {
           </Box>
           
           <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 2 }}>
-            Demo Login: admin@touristvillage.com / superadmin
+            Login using your registered email and password.
           </Typography>    
         </Paper>
       </Box>
