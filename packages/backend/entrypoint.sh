@@ -7,6 +7,8 @@
 #   sleep 2
 # done
 
+rm -f ./src/database/migrations/20240716_add_next_of_kin_will_to_users.js
+
 echo "Database is ready, running migrations..."
 npm run migrate:latest
 
