@@ -125,12 +125,10 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
-      
       // Handle 401 Unauthorized - token might be expired
       if (response.status === 401 && token && this.getRefreshToken()) {
         try {
           await this.refreshTokens();
-          
           // Retry the original request with new token
           const newToken = this.getAuthToken();
           const retryConfig: RequestInit = {
@@ -140,10 +138,17 @@ class ApiClient {
               Authorization: `Bearer ${newToken}`,
             },
           };
-          
           const retryResponse = await fetch(url, retryConfig);
+          // --- Content-Type check for retry ---
+          const retryContentType = retryResponse.headers.get('content-type') || '';
+          if (!retryContentType.includes('application/json')) {
+            throw new ApiError(
+              'Server returned an unexpected response. Please try again later.',
+              retryResponse.status,
+              { raw: await retryResponse.text() }
+            );
+          }
           const retryData = await retryResponse.json();
-
           if (!retryResponse.ok) {
             throw new ApiError(
               retryData.message || `HTTP error! status: ${retryResponse.status}`,
@@ -151,10 +156,18 @@ class ApiClient {
               retryData
             );
           }
-
           return retryData;
         } catch (refreshError) {
           // If refresh fails, return original 401 error
+          // --- Content-Type check for original response ---
+          const origContentType = response.headers.get('content-type') || '';
+          if (!origContentType.includes('application/json')) {
+            throw new ApiError(
+              'Server returned an unexpected response. Please try again later.',
+              response.status,
+              { raw: await response.text() }
+            );
+          }
           const data = await response.json();
           throw new ApiError(
             data.message || 'Authentication failed',
@@ -163,9 +176,16 @@ class ApiClient {
           );
         }
       }
-
+      // --- Content-Type check for main response ---
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new ApiError(
+          'Server returned an unexpected response. Please try again later.',
+          response.status,
+          { raw: await response.text() }
+        );
+      }
       const data = await response.json();
-
       if (!response.ok) {
         throw new ApiError(
           data.message || `HTTP error! status: ${response.status}`,
@@ -173,7 +193,6 @@ class ApiClient {
           data
         );
       }
-
       return data;
     } catch (error) {
       if (error instanceof ApiError) {

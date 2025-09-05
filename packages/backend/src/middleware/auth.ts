@@ -16,6 +16,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
       : null;
 
     if (!token) {
+      console.log('No token provided in request');
       return res.status(401).json({
         success: false,
         error: 'Unauthorized',
@@ -29,7 +30,7 @@ export const authenticateToken = async (req: Request, res: Response, next: NextF
     
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    console.error('Authentication error details:', error);
     
     if (error instanceof Error) {
       if (error.message.includes('expired')) {

@@ -24,6 +24,26 @@ import { salesStatusTypesRouter } from './routes/salesStatusTypes';
  */
 const app = express();
 
+// Add this at the beginning of app.ts before other middlewares
+app.use((req, res, next) => {
+  console.log(`[DEBUG] Request started: ${req.method} ${req.path}`);
+  
+  // Save the original end method
+  const originalEnd = res.end;
+  const startTime = Date.now();
+  
+  // Override the end method with correct signature
+  res.end = function(chunk?: any, encoding?: BufferEncoding | (() => void), cb?: (() => void)) {
+    const duration = Date.now() - startTime;
+    console.log(`[DEBUG] Request completed: ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+    // @ts-ignore
+    return originalEnd.apply(this, arguments);
+  };
+  
+  next();
+});
+
+
 // Security middleware
 app.use(
   helmet({
@@ -32,9 +52,9 @@ app.use(
         defaultSrc: ["'self'"],
         connectSrc: ["'self'", process.env.FRONTEND_URL || "*"],
         scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-        imgSrc: ["'self'", 'data:', 'blob:'],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "blob:"],
         baseUri: ["'self'"],
       },
     },
@@ -43,10 +63,10 @@ app.use(
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  origin: '*',
+  credentials: false,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: ['*'],
 }));
 
 // Logging middleware
@@ -141,6 +161,29 @@ if (path.basename(path.resolve(__dirname, '..')) === 'dist') {
 }
 app.use(express.static(frontendPath));
 
+// API 404 handler - use a function to check path pattern instead
+app.use((req, res, next) => {
+  // Only handle API routes
+  if (req.path.startsWith(API_PREFIX) && 
+      // But not already handled routes
+      !req.path.match(/^\/api\/(health|auth|apartments|villages|users|bookings|service-types|service-requests|utility-readings|emails|payment-methods|payments|invoices|paying-status-types|sales-status-types)(\/.+)?$/)) {
+    return res.status(404).json({ 
+      success: false, 
+      error: 'API route not found',
+      message: `The route ${req.method} ${req.originalUrl} does not exist` 
+    });
+  }
+  next();
+});
+
+
+app.use((req, res, next) => {
+  // only intercept GET or HEAD
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  if (req.path.startsWith(API_PREFIX)) return next();
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 // Global error handling middleware for API routes
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Global error handler:', err);
@@ -170,28 +213,6 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 });
-
-
-app.use((req, res, next) => {
-  if (req.path.startsWith(API_PREFIX)) {
-    return next();
-  }
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
-// // API 404 handler for API routes
-// app.use(`${API_PREFIX}/*`, (req, res) => { 
-//   res.status(404).json({
-//     success: false,
-//     error: 'API route not found',
-//     message: `The route ${req.method} ${req.originalUrl} does not exist`,
-//     availableRoutes: {
-//       auth: `${API_PREFIX}/auth`,
-//       health: `${API_PREFIX}/health`,
-//       documentation: `${API_PREFIX}`
-//     }
-//   });
-// });
 
 
 export default app; 

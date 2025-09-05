@@ -431,6 +431,18 @@ export class UserService {
     }
 
     try {
+      // Handle password hashing outside of transaction to avoid potential issues
+      let passwordHash: string | undefined;
+      if (data.password && data.password.trim()) {
+        try {
+          // Pre-hash the password before the transaction
+          passwordHash = await this.hashPassword(data.password.trim());
+        } catch (hashError: any) {
+          console.error('Password hashing error:', hashError);
+          throw new Error('Failed to process password update');
+        }
+      }
+
       await db.transaction(async (trx) => {
         const updateData: any = {
           updated_at: new Date()
@@ -490,21 +502,20 @@ export class UserService {
           updateData.next_of_kin_will = data.next_of_kin_will || null;
         }
 
+        // Add password_hash directly to the update if we have it
+        if (passwordHash) {
+          updateData.password_hash = passwordHash;
+        }
+
         // Update user data
         await trx('users')
           .where('id', id)
           .update(updateData);
 
-        // Handle password update if provided
-        if (data.password && data.password.trim()) {
-          const password_hash = await this.hashPassword(data.password.trim());
-          await this.updateUserAuth(id, { password_hash });
-        }
-
         // Update village associations if provided and user is an admin
-        const existingUser = await trx('users').select('role').where('id', id).first();
+        const existingUserRole = await trx('users').select('role').where('id', id).first();
         
-        if (existingUser.role === 'admin' && data.village_ids !== undefined) {
+        if (existingUserRole && existingUserRole.role === 'admin' && data.village_ids !== undefined) {
           // Remove existing associations
           await trx('user_villages')
             .where('user_id', id)
@@ -535,6 +546,7 @@ export class UserService {
       if (error.code === '23505' || error.message?.includes('unique')) {
         throw new Error('User with this email already exists');
       }
+      console.error('User update error:', error);
       throw new Error(`Failed to update user: ${error.message}`);
     }
   }
