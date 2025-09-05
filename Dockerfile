@@ -36,9 +36,6 @@ COPY --from=backend-builder /usr/src/backend/package*.json ./packages/backend/
 WORKDIR /app/packages/backend
 RUN npm ci --only=production
 
-# Remove stagnant migration
-RUN rm -f ./src/database/migrations/20240716_add_next_of_kin_will_to_users.js
-
 # Copy the entrypoint script
 COPY packages/backend/entrypoint.sh ./
 RUN chmod +x entrypoint.sh
