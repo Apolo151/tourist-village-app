@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ee-bookings-app-37f53723d601.herokuapp.com/api";
 
 // Generic API response interface
 export interface ApiResponse<T> {
