@@ -1,0 +1,8 @@
+build:
+  docker:
+    web: Dockerfile
+  config:
+    VITE_API_URL: https://ee-bookings-app-37f53723d601.herokuapp.com/api
+
+run:
+  web: sh entrypoint.sh
