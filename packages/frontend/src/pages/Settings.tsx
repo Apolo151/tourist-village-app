@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -150,12 +150,42 @@ export default function Settings() {
     }
   }, [currentUser, navigate]);
 
-  // Load data when tab changes
-  useEffect(() => {
-    loadTabData();
-  }, [tabValue]);
+  // Define helper functions with useCallback
+  const loadPaymentMethods = useCallback(async () => {
+    const result = await paymentMethodService.getPaymentMethods({ limit: 100 });
+    setPaymentMethods(result.data);
+  }, []);
 
-  const loadTabData = async () => {
+  const loadVillages = useCallback(async () => {
+    try {
+      // Only load villages if user is admin or super_admin
+      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+        return;
+      }
+      
+      const result = await villageService.getVillages({ limit: 100 });
+      setVillages(result.data);
+    } catch (error) {
+      console.error('Failed to load villages:', error);
+      // Don't show error to user if they don't have permission
+      if (error instanceof Error && error.message.includes('401')) {
+        console.warn('User does not have permission to view villages');
+      }
+    }
+  }, [currentUser]);
+
+  const loadPayingStatusTypes = useCallback(async () => {
+    const result = await payingStatusTypeService.getPayingStatusTypes({ limit: 100 });
+    setPayingStatusTypes(result.data);
+  }, []);
+
+  const loadSalesStatusTypes = useCallback(async () => {
+    const result = await salesStatusTypeService.getSalesStatusTypes({ limit: 100 });
+    setSalesStatusTypes(result.data);
+  }, []);
+
+  // Main function to load tab data
+  const loadTabData = useCallback(async () => {
     setLoading(true);
     setError('');
 
@@ -181,40 +211,12 @@ export default function Settings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [tabValue, loadPaymentMethods, loadVillages, loadPayingStatusTypes, loadSalesStatusTypes]);
 
-  const loadPaymentMethods = async () => {
-    const result = await paymentMethodService.getPaymentMethods({ limit: 100 });
-    setPaymentMethods(result.data);
-  };
-
-  const loadVillages = async () => {
-    try {
-      // Only load villages if user is admin or super_admin
-      if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
-        return;
-      }
-      
-      const result = await villageService.getVillages({ limit: 100 });
-      setVillages(result.data);
-    } catch (error) {
-      console.error('Failed to load villages:', error);
-      // Don't show error to user if they don't have permission
-      if (error instanceof Error && error.message.includes('401')) {
-        console.warn('User does not have permission to view villages');
-      }
-    }
-  };
-
-  const loadPayingStatusTypes = async () => {
-    const result = await payingStatusTypeService.getPayingStatusTypes({ limit: 100 });
-    setPayingStatusTypes(result.data);
-  };
-
-  const loadSalesStatusTypes = async () => {
-    const result = await salesStatusTypeService.getSalesStatusTypes({ limit: 100 });
-    setSalesStatusTypes(result.data);
-  };
+  // Load data when tab changes
+  useEffect(() => {
+    loadTabData();
+  }, [loadTabData]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);

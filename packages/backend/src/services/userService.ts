@@ -687,6 +687,57 @@ export class UserService {
   }
 
   /**
+   * Get global user counts by role
+   */
+  async getGlobalUserCounts(): Promise<{
+    total: number;
+    active: number;
+    admins: number;
+    owners: number;
+    renters: number;
+  }> {
+    // Get total users count
+    const [{ count: totalCount }] = await db('users').count('id as count');
+    
+    // Get active users count
+    const [{ count: activeCount }] = await db('users')
+      .where('is_active', true)
+      .count('id as count');
+    
+    // Get count by role
+    const roleCounts = await db('users')
+      .select('role')
+      .count('id as count')
+      .groupBy('role');
+    
+    // Initialize counts
+    let admins = 0;
+    let owners = 0;
+    let renters = 0;
+    
+    // Process role counts
+    roleCounts.forEach(item => {
+      const count = parseInt(item.count as string);
+      
+      if (item.role === 'admin' || item.role === 'super_admin') {
+        admins += count;
+      } else if (item.role === 'owner') {
+        owners = count;
+      } else if (item.role === 'renter') {
+        renters = count;
+      }
+    });
+    
+    return {
+      total: parseInt(totalCount as string),
+      active: parseInt(activeCount as string),
+      admins,
+      owners,
+      renters
+    };
+  }
+
+  /**
    * Get users by role
    */
   async getUsersByRole(role: 'super_admin' | 'admin' | 'owner' | 'renter'): Promise<PublicUser[]> {

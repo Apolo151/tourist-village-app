@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -74,6 +74,15 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const [error, setError] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   
+  // Global stats
+  const [userStats, setUserStats] = useState({
+    total: 0,
+    active: 0,
+    admins: 0,
+    owners: 0,
+    renters: 0
+  });
+  
   // Pagination
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
@@ -117,7 +126,12 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   }, [currentUser, navigate]);
 
-  // Load data on component mount
+  // Initial load of user stats on component mount
+  useEffect(() => {
+    fetchUserStats();
+  }, []);
+
+  // Load data on component mount and when page changes
   useEffect(() => {
     loadData();
   }, [page]);
@@ -125,7 +139,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   // Apply filters whenever filter values change
   useEffect(() => {
     applyFilters();
-  }, [users, searchTerm, roleFilter, villageFilter, statusFilter, startDate, endDate]);
+  }, [users, startDate, endDate]);
 
   // Filter out super_admin users for admin
   useEffect(() => {
@@ -136,18 +150,58 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     setFilteredUsers(filtered);
   }, [users, hideSuperAdmin]);
 
+  // Function to fetch global user stats
+  const fetchUserStats = useCallback(async () => {
+    try {
+      // Use the dedicated endpoint for user counts
+      const response = await userService.getUserCounts();
+      
+      if (response) {
+        setUserStats(response);
+      }
+    } catch (err) {
+      console.error('Error fetching user stats:', err);
+      // Fallback to using the paginated API with maximum allowed limit
+      try {
+        const statsResponse = await userService.getUsers({ limit: 100 });
+        if (statsResponse && statsResponse.pagination) {
+          // Use pagination.total for total count
+          const total = statsResponse.pagination.total;
+          setUserStats(prev => ({
+            ...prev,
+            total
+          }));
+        }
+      } catch (fallbackErr) {
+        console.error('Error in fallback stats fetch:', fallbackErr);
+      }
+    }
+  }, []);
+  
   // Update the loadData function to ensure we get complete user data with villages
   const loadData = async () => {
     setLoading(true);
     setError(null);
     
     try {
+      // Prepare filters for API call
+      const filters: any = {
+        page,
+        limit: pageSize
+      };
+      
+      // Add optional filters if they exist
+      if (searchTerm) filters.search = searchTerm;
+      if (roleFilter) filters.role = roleFilter;
+      if (statusFilter === 'active') filters.is_active = true;
+      if (statusFilter === 'inactive') filters.is_active = false;
+      
+      // Village filter needs special handling since it's not directly supported by the API
+      // We'll handle it client-side after getting the results
+      
       // Load users and villages in parallel
       const [usersResult, villagesResult] = await Promise.all([
-        userService.getUsers({ 
-          page, 
-          limit: Math.min(pageSize * 5, 100) // Ensure limit doesn't exceed 100
-        }),
+        userService.getUsers(filters),
         villageService.getVillages()
       ]);
       
@@ -166,9 +220,28 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         return user;
       });
       
-      setUsers(processedUsers);
-      setTotalUsers(usersResult.pagination?.total || processedUsers.length);
+      // Apply village filter client-side if needed
+      let filteredUsers = processedUsers;
+      if (villageFilter) {
+        const villageId = parseInt(villageFilter);
+        if (!isNaN(villageId)) {
+          filteredUsers = filteredUsers.filter(user => {
+            // Check in villages array first
+            if (user.villages && user.villages.length > 0) {
+              return user.villages.some(v => v.id === villageId);
+            }
+            // Fallback to responsible_village for backward compatibility
+            return user.responsible_village === villageId;
+          });
+        }
+      }
+      
+      setUsers(filteredUsers);
+      setTotalUsers(usersResult.pagination?.total || 0);
       setVillages(villagesResult.data);
+      
+      // Fetch global stats in the background if needed
+      fetchUserStats();
     } catch (err: any) {
       console.error('Error loading users data:', err);
       setError(err.message || 'Failed to load users data');
@@ -177,50 +250,14 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   };
 
-  // Update the applyFilters function to filter by villages array
+  // Update the applyFilters function to apply client-side filters
   const applyFilters = () => {
+    // Apply client-side filters only
+    // This is needed because we're doing server-side pagination, but we still want to apply some filters client-side
+    // like date filtering and hiding super_admin users
     let filtered = [...users];
 
-    // Search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(user => 
-        user.name.toLowerCase().includes(searchLower) ||
-        user.email.toLowerCase().includes(searchLower) ||
-        (user.phone_number && user.phone_number.toLowerCase().includes(searchLower))
-      );
-    }
-
-    // Role filter
-    if (roleFilter) {
-      filtered = filtered.filter(user => user.role === roleFilter);
-    }
-
-    // Village filter
-    if (villageFilter) {
-      const villageId = parseInt(villageFilter);
-      if (!isNaN(villageId)) {
-        filtered = filtered.filter(user => {
-          // Check in villages array first
-          if (user.villages && user.villages.length > 0) {
-            return user.villages.some(v => v.id === villageId);
-          }
-          // Fallback to responsible_village for backward compatibility
-          return user.responsible_village === villageId;
-        });
-      }
-    }
-
-    // Status filter
-    if (statusFilter) {
-      if (statusFilter === 'active') {
-        filtered = filtered.filter(user => user.is_active);
-      } else if (statusFilter === 'inactive') {
-        filtered = filtered.filter(user => !user.is_active);
-      }
-    }
-
-    // Date filter
+    // Date filter (this is applied client-side since it's not part of the backend API)
     if (startDate || endDate) {
       filtered = filtered.filter(user => {
         const userDate = new Date(user.created_at);
@@ -235,22 +272,35 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
+    setPage(1); // Reset to first page when filter changes
+    // We'll load data in the next render cycle after state updates
+    setTimeout(() => loadData(), 0);
   };
 
   const handleRoleFilterChange = (event: SelectChangeEvent) => {
     setRoleFilter(event.target.value);
+    setPage(1); // Reset to first page when filter changes
+    // We'll load data in the next render cycle after state updates
+    setTimeout(() => loadData(), 0);
   };
 
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
     setVillageFilter(event.target.value);
+    setPage(1); // Reset to first page when filter changes
+    // We'll load data in the next render cycle after state updates
+    setTimeout(() => loadData(), 0);
   };
 
   const handleStatusFilterChange = (event: SelectChangeEvent) => {
     setStatusFilter(event.target.value);
+    setPage(1); // Reset to first page when filter changes
+    // We'll load data in the next render cycle after state updates
+    setTimeout(() => loadData(), 0);
   };
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setPage(value);
+    // When changing pages, we'll rely on the loadData effect to fetch new data
   };
 
   // Update the handleViewDetails function to handle users with responsible_village but no villages
@@ -471,8 +521,9 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }));
   };
 
-  const paginatedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize);
-  const totalPages = Math.ceil(filteredUsers.length / pageSize);
+  // Don't paginate the data locally since we're already paginating on the server
+  const paginatedUsers = filteredUsers;
+  const totalPages = Math.ceil(totalUsers / pageSize);
 
   if (loading) {
     return (
@@ -529,7 +580,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                   Total Users
                 </Typography>
                 <Typography variant="h4">
-                  {filteredUsers.length}
+                  {userStats.total}
                 </Typography>
               </CardContent>
             </Card>
@@ -541,7 +592,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                   Active Users
                 </Typography>
                 <Typography variant="h4" color="success.main">
-                  {filteredUsers.filter(u => u.is_active).length}
+                  {userStats.active}
                 </Typography>
               </CardContent>
             </Card>
@@ -553,7 +604,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                   Admins
                 </Typography>
                 <Typography variant="h4" color="primary.main">
-                  {filteredUsers.filter(u => u.role === 'admin' || u.role === 'super_admin').length}
+                  {userStats.admins}
                 </Typography>
               </CardContent>
             </Card>
@@ -565,7 +616,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                   Owners
                 </Typography>
                 <Typography variant="h4" color="secondary.main">
-                  {filteredUsers.filter(u => u.role === 'owner').length}
+                  {userStats.owners}
                 </Typography>
               </CardContent>
             </Card>

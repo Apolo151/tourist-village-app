@@ -12,6 +12,7 @@
     "migrate:latest": "knex migrate:latest",
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
+    "seed": "knex seed:run",
     "seed:run": "knex seed:run",
     "seed:make": "knex seed:make",
     "test": "jest",

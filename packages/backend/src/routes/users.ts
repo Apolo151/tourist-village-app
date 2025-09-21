@@ -8,6 +8,39 @@ export const usersRouter = Router();
 const userService = new UserService();
 
 /**
+ * GET /api/users/counts
+ * Get global user counts by role
+ * Note: This endpoint doesn't need ValidationMiddleware.validateUserQueryParams
+ * because it doesn't use query parameters
+ * 
+ * This endpoint is public and doesn't require authentication since it only returns
+ * aggregate statistics with no sensitive data
+ * 
+ * IMPORTANT: This route must be defined BEFORE the /:id route to avoid path conflicts
+ */
+usersRouter.get(
+  '/counts',
+  async (req: Request, res: Response) => {
+    try {
+      const counts = await userService.getGlobalUserCounts();
+
+      res.json({
+        success: true,
+        data: counts,
+        message: 'User counts retrieved successfully'
+      });
+    } catch (error) {
+      console.error('Error fetching user counts:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to fetch user counts'
+      });
+    }
+  }
+);
+
+/**
  * GET /api/users
  * List all users with filtering, sorting, and pagination
  */
@@ -307,6 +340,7 @@ usersRouter.get(
     }
   }
 );
+
 
 /**
  * GET /api/users/by-role/:role

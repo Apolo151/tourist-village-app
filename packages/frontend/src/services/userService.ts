@@ -155,6 +155,22 @@ class UserService {
     
     throw new Error(response.message || 'Failed to fetch user statistics');
   }
+
+  async getUserCounts(): Promise<{
+    total: number;
+    active: number;
+    admins: number;
+    owners: number;
+    renters: number;
+  }> {
+    const response = await apiClient.get<ApiResponse<any>>('/users/counts');
+    
+    if (response.success && response.data) {
+      return response.data;
+    }
+    
+    throw new Error(response.message || 'Failed to fetch user counts');
+  }
 }
 
 export const userService = new UserService();
