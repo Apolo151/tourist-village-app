@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { usePreserveFocus } from '../hooks/usePreserveFocus';
 import {
   Box,
   Typography,
@@ -133,10 +134,42 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     fetchUserStats();
   }, []);
 
+  // Create a ref to store the current search term
+  const searchTermRef = useRef(searchTerm);
+  
+  // Update the ref whenever searchTerm changes
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
+  
+  // Use custom hook to preserve focus on the search field during re-renders
+  usePreserveFocus(!!searchTerm, 'search-users-field');
+  
   // Load data on component mount and when page changes
   useEffect(() => {
     loadData();
   }, [page]);
+
+  // Handle search term changes with debouncing
+  useEffect(() => {
+    // Skip the initial render
+    if (searchTermRef.current === '' && searchTerm === '') return;
+    
+    const timeoutId = setTimeout(() => {
+      // Save the currently focused element before loading data
+      const activeElement = document.activeElement;
+      
+      // Load data
+      loadData().then(() => {
+        // Restore focus after data is loaded
+        if (activeElement && activeElement.id === 'search-users-field') {
+          (activeElement as HTMLElement).focus();
+        }
+      });
+    }, 500); // 500ms debounce delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, roleFilter, villageFilter, statusFilter]);
 
   // Apply filters whenever filter values change
   useEffect(() => {
@@ -182,6 +215,10 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   
   // Update the loadData function to ensure we get complete user data with villages
   const loadData = async () => {
+    // Store the active element before setting loading state
+    const activeElement = document.activeElement;
+    const isSearchFieldFocused = activeElement && activeElement.id === 'search-users-field';
+    
     setLoading(true);
     setError(null);
     
@@ -249,7 +286,19 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       setError(err.message || 'Failed to load users data');
     } finally {
       setLoading(false);
+      
+      // Restore focus to search field after a short delay to ensure the DOM has updated
+      if (isSearchFieldFocused) {
+        setTimeout(() => {
+          const searchField = document.getElementById('search-users-field');
+          if (searchField) {
+            (searchField as HTMLElement).focus();
+          }
+        }, 0);
+      }
     }
+    
+    return Promise.resolve(); // Return a resolved promise for chaining
   };
 
   // Update the applyFilters function to apply client-side filters
@@ -275,29 +324,21 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
     setPage(1); // Reset to first page when filter changes
-    // We'll load data in the next render cycle after state updates
-    setTimeout(() => loadData(), 0);
   };
 
   const handleRoleFilterChange = (event: SelectChangeEvent) => {
     setRoleFilter(event.target.value);
     setPage(1); // Reset to first page when filter changes
-    // We'll load data in the next render cycle after state updates
-    setTimeout(() => loadData(), 0);
   };
 
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
     setVillageFilter(event.target.value);
     setPage(1); // Reset to first page when filter changes
-    // We'll load data in the next render cycle after state updates
-    setTimeout(() => loadData(), 0);
   };
 
   const handleStatusFilterChange = (event: SelectChangeEvent) => {
     setStatusFilter(event.target.value);
     setPage(1); // Reset to first page when filter changes
-    // We'll load data in the next render cycle after state updates
-    setTimeout(() => loadData(), 0);
   };
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
@@ -659,6 +700,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
             <Box sx={{ flex: '1 1 200px', minWidth: '200px' }}>
               <TextField
+                id="search-users-field"
                 label="Search users..."
                 variant="outlined"
                 size="small"
