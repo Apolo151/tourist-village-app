@@ -57,6 +57,8 @@ import { useNavigate } from 'react-router-dom';
 import { userService, type User } from '../services/userService';
 import { villageService, type Village } from '../services/villageService';
 import ExportButtons from '../components/ExportButtons';
+import ExcelImport from '../components/ExcelImport';
+import { excelService } from '../services/excelService';
 
 export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boolean }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -541,6 +543,10 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     setStartDate(null);
     setEndDate(null);
   }
+  
+  function handleDownloadTemplate() {
+    excelService.generateUserImportTemplate();
+  }
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box>
@@ -552,14 +558,25 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
               </Typography>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={handleAddUser}
-                sx={{ minWidth: 140 }}
-              >
-                Add User
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={handleAddUser}
+                  sx={{ minWidth: 140 }}
+                >
+                  Add User
+                </Button>
+                <ExcelImport
+                  onTemplateDownload={handleDownloadTemplate}
+                  onImport={(data) => excelService.processUserImport(data)}
+                  buttonText="Import Users"
+                  title="Import Users from Excel"
+                  successMessage="Users imported successfully"
+                  allowedFileTypes=".xlsx, .xls, .csv"
+                  maxFileSize={10}
+                />
+              </Box>
             </Grid>
           </Grid>
         </Box>
