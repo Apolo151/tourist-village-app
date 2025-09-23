@@ -733,6 +733,7 @@ export default function Services() {
                     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
                   }}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
                 <DatePicker
                   label="To Date"
@@ -742,6 +743,7 @@ export default function Services() {
                     setServiceRequestsPagination(prev => ({ ...prev, page: 1 }));
                   }}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
               </Box>
             </Paper>

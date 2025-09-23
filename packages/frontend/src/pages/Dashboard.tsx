@@ -389,12 +389,14 @@ export default function Dashboard() {
                     value={occupancyDateFrom ? new Date(occupancyDateFrom) : null}
                     onChange={(date) => setOccupancyDateFrom(date ? date.toISOString().split('T')[0] : '')}
                     slotProps={{ textField: { size: 'small', fullWidth: false, sx: { minWidth: 150 } } }}
+                    format="dd/MM/yyyy"
                   />
                   <DatePicker
                     label="To Date"
                     value={occupancyDateTo ? new Date(occupancyDateTo) : null}
                     onChange={(date) => setOccupancyDateTo(date ? date.toISOString().split('T')[0] : '')}
                     slotProps={{ textField: { size: 'small', fullWidth: false, sx: { minWidth: 150 } } }}
+                    format="dd/MM/yyyy"
                   />
                 </Box>
               </LocalizationProvider>

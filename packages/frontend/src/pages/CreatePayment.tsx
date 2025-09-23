@@ -581,6 +581,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
               <Grid size={{ xs: 12, sm: 6 }}>
                 <LocalizationProvider dateAdapter={AdapterDateFns}>
                   <DatePicker
+                    format="dd/MM/yyyy"
                     label="Payment Date"
                     value={formData.date ? new Date(formData.date) : null}
                     onChange={(date) => {

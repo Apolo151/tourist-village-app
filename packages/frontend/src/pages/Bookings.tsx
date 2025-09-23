@@ -552,24 +552,28 @@ export default function Bookings() {
                   value={filters.arrivalDateStart}
                   onChange={(date) => handleDateChange(date, 'arrivalDateStart')}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
                 <DatePicker
                   label="Arrival To"
                   value={filters.arrivalDateEnd}
                   onChange={(date) => handleDateChange(date, 'arrivalDateEnd')}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
                 <DatePicker
                   label="Departure From"
                   value={filters.leavingDateStart}
                   onChange={(date) => handleDateChange(date, 'leavingDateStart')}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
                 <DatePicker
                   label="Departure To"
                   value={filters.leavingDateEnd}
                   onChange={(date) => handleDateChange(date, 'leavingDateEnd')}
                   slotProps={{ textField: { size: 'small', margin: 'dense', sx: { minWidth: 120 } } }}
+                  format="dd/MM/yyyy"
                 />
               </Box>
             </Paper>

@@ -434,6 +434,7 @@ export default function CreateApartment() {
                         purchase_date: date ? date.toISOString().split('T')[0] : ''
                       }));
                     }}
+                    format="dd/MM/yyyy"
                     slotProps={{ textField: { fullWidth: true, size: 'small', margin: 'dense', helperText: 'When was this apartment purchased? (Optional)', disabled: saving } }}
                   />
                 </LocalizationProvider>

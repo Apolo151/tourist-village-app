@@ -463,6 +463,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   value={selectedDate}
                   onChange={handleDateChange}
                   disabled={fieldsLocked}
+                  format="dd/MM/yyyy"
                   slotProps={{
                     textField: {
                       fullWidth: true,

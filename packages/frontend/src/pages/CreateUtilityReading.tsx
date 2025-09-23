@@ -553,6 +553,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   required: true
                 }
               }}
+              format="dd/MM/yyyy"
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -566,6 +567,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   required: true
                 }
               }}
+              format="dd/MM/yyyy"
             />
           </Grid>
           <Grid size={{ xs: 12 }}>

@@ -121,70 +121,10 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
 
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-
-  // Allow both admin and super_admin to access this page
-  useEffect(() => {
-    if (currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'admin') {
-      navigate('/unauthorized');
-    }
-  }, [currentUser, navigate]);
-
-  // Initial load of user stats on component mount
-  useEffect(() => {
-    fetchUserStats();
-  }, []);
-
+  
   // Create a ref to store the current search term
   const searchTermRef = useRef(searchTerm);
   
-  // Update the ref whenever searchTerm changes
-  useEffect(() => {
-    searchTermRef.current = searchTerm;
-  }, [searchTerm]);
-  
-  // Use custom hook to preserve focus on the search field during re-renders
-  usePreserveFocus(!!searchTerm, 'search-users-field');
-  
-  // Load data on component mount and when page changes
-  useEffect(() => {
-    loadData();
-  }, [page]);
-
-  // Handle search term changes with debouncing
-  useEffect(() => {
-    // Skip the initial render
-    if (searchTermRef.current === '' && searchTerm === '') return;
-    
-    const timeoutId = setTimeout(() => {
-      // Save the currently focused element before loading data
-      const activeElement = document.activeElement;
-      
-      // Load data
-      loadData().then(() => {
-        // Restore focus after data is loaded
-        if (activeElement && activeElement.id === 'search-users-field') {
-          (activeElement as HTMLElement).focus();
-        }
-      });
-    }, 500); // 500ms debounce delay
-    
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, roleFilter, villageFilter, statusFilter]);
-
-  // Apply filters whenever filter values change
-  useEffect(() => {
-    applyFilters();
-  }, [users, startDate, endDate]);
-
-  // Filter out super_admin users for admin
-  useEffect(() => {
-    let filtered = [...users];
-    if (hideSuperAdmin) {
-      filtered = filtered.filter(user => user.role !== 'super_admin');
-    }
-    setFilteredUsers(filtered);
-  }, [users, hideSuperAdmin]);
-
   // Function to fetch global user stats
   const fetchUserStats = useCallback(async () => {
     try {
@@ -214,7 +154,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   }, []);
   
   // Update the loadData function to ensure we get complete user data with villages
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     // Store the active element before setting loading state
     const activeElement = document.activeElement;
     const isSearchFieldFocused = activeElement && activeElement.id === 'search-users-field';
@@ -299,10 +239,10 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
     
     return Promise.resolve(); // Return a resolved promise for chaining
-  };
+  }, [page, pageSize, searchTerm, roleFilter, statusFilter, villageFilter, fetchUserStats]);
 
   // Update the applyFilters function to apply client-side filters
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     // Apply client-side filters only
     // This is needed because we're doing server-side pagination, but we still want to apply some filters client-side
     // like date filtering and hiding super_admin users
@@ -319,7 +259,67 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
 
     setFilteredUsers(filtered);
-  };
+  }, [users, startDate, endDate]);
+
+  // Allow both admin and super_admin to access this page
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'super_admin' && currentUser.role !== 'admin') {
+      navigate('/unauthorized');
+    }
+  }, [currentUser, navigate]);
+
+  // Initial load of user stats on component mount
+  useEffect(() => {
+    fetchUserStats();
+  }, [fetchUserStats]);
+  
+  // Update the ref whenever searchTerm changes
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
+  
+  // Use custom hook to preserve focus on the search field during re-renders
+  usePreserveFocus(!!searchTerm, 'search-users-field');
+  
+  // Load data on component mount and when page changes
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Handle search term changes with debouncing
+  useEffect(() => {
+    // Skip the initial render
+    if (searchTermRef.current === '' && searchTerm === '') return;
+    
+    const timeoutId = setTimeout(() => {
+      // Save the currently focused element before loading data
+      const activeElement = document.activeElement;
+      
+      // Load data
+      loadData().then(() => {
+        // Restore focus after data is loaded
+        if (activeElement && activeElement.id === 'search-users-field') {
+          (activeElement as HTMLElement).focus();
+        }
+      });
+    }, 500); // 500ms debounce delay
+    
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, roleFilter, villageFilter, statusFilter, loadData]);
+
+  // Apply filters whenever filter values change
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  // Filter out super_admin users for admin
+  useEffect(() => {
+    let filtered = [...users];
+    if (hideSuperAdmin) {
+      filtered = filtered.filter(user => user.role !== 'super_admin');
+    }
+    setFilteredUsers(filtered);
+  }, [users, hideSuperAdmin]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
@@ -589,7 +589,6 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     excelService.generateUserImportTemplate();
   }
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Box>
         <Box sx={{ mb: 3 }}>
           <Grid container alignItems="center" justifyContent="space-between">
@@ -773,14 +772,14 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                   value={startDate}
                   onChange={setStartDate}
                   slotProps={{ textField: { size: 'small' } }}
-                  format="MM/dd/yyyy"
+                  format="dd/MM/yyyy"
                 />
                 <DatePicker
                   label="Created To"
                   value={endDate}
                   onChange={setEndDate}
                   slotProps={{ textField: { size: 'small' } }}
-                  format="MM/dd/yyyy"
+                  format="dd/MM/yyyy"
                 />
               </Box>
             </Box>
@@ -1320,6 +1319,5 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
           </DialogActions>
         </Dialog>
       </Box>
-    </LocalizationProvider>
   );
 }

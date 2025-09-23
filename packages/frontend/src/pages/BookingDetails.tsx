@@ -995,6 +995,7 @@ const BookingDetails: React.FC = () => {
                     label="Arrival Date"
                     value={formData.arrival_date}
                     onChange={(date) => handleDateChange(date, 'arrival_date')}
+                    format="dd/MM/yyyy HH:mm"
                     slotProps={{
                       textField: {
                         fullWidth: true,
@@ -1010,6 +1011,7 @@ const BookingDetails: React.FC = () => {
                     label="Departure Date"
                     value={formData.leaving_date}
                     onChange={(date) => handleDateChange(date, 'leaving_date')}
+                    format="dd/MM/yyyy HH:mm"
                     slotProps={{
                       textField: {
                         fullWidth: true,

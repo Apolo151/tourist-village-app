@@ -30,6 +30,8 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import CreateServiceRequest from './pages/CreateServiceRequest';
 import CreatePayment from './pages/CreatePayment';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 
 // Create a theme
 const theme = createTheme({
@@ -45,6 +47,7 @@ const theme = createTheme({
 
 function App() {
   return (
+    <LocalizationProvider dateAdapter={AdapterDateFns}>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
@@ -130,6 +133,7 @@ function App() {
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
+    </LocalizationProvider>
   );
 }
 

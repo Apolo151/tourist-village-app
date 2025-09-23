@@ -499,6 +499,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 label="Arrival DateTime"
                 value={formData.arrival_date}
                 onChange={(date) => setFormData(prev => ({ ...prev, arrival_date: date }))}
+                format="dd/MM/yyyy HH:mm"
                 slotProps={{
                   textField: {
                     fullWidth: true,
@@ -514,6 +515,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 label="Departure DateTime"
                 value={formData.leaving_date}
                 onChange={(date) => setFormData(prev => ({ ...prev, leaving_date: date }))}
+                format="dd/MM/yyyy HH:mm"
                 slotProps={{
                   textField: {
                     fullWidth: true,

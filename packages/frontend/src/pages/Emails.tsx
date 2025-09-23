@@ -561,12 +561,14 @@ export default function Emails() {
                 value={dateFromFilter ? new Date(dateFromFilter) : null}
                 onChange={date => setDateFromFilter(date ? date.toISOString().split('T')[0] : '')}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 110 }, margin: 'dense' } }}
+                format="dd/MM/yyyy"
               />
               <DatePicker
                 label="Date To"
                 value={dateToFilter ? new Date(dateToFilter) : null}
                 onChange={date => setDateToFilter(date ? date.toISOString().split('T')[0] : '')}
                 slotProps={{ textField: { size: 'small', sx: { minWidth: 110 }, margin: 'dense' } }}
+                format="dd/MM/yyyy"
               />
             </Box>
           </LocalizationProvider>

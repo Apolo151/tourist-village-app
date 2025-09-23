@@ -823,6 +823,7 @@ export default function CreateServiceRequest({
                                             : null
                                     }
                                     onChange={handleDateChange}
+                                    format="dd/MM/yyyy HH:mm"
                                     slotProps={{
                                         textField: {
                                             fullWidth: true,

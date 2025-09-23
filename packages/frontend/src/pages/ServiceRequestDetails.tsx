@@ -546,6 +546,7 @@ export default function ServiceRequestDetails() {
                         size: 'small'
                       }
                     }}
+                    format="dd/MM/yyyy HH:mm"
                   />
                 ) : (
                   <Typography variant="body1">{formatDate(serviceRequest.date_action)}</Typography>

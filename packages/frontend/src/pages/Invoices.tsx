@@ -452,14 +452,14 @@ export default function Invoices() {
                     value={startDate}
                     onChange={handleStartDateChange}
                     slotProps={{ textField: { size: 'small' } }}
-                    format="MM/dd/yyyy"
+                    format="dd/MM/yyyy"
                   />
                   <DatePicker
                     label="To"
                     value={endDate}
                     onChange={handleEndDateChange}
                     slotProps={{ textField: { size: 'small' } }}
-                    format="MM/dd/yyyy"
+                    format="dd/MM/yyyy"
                   />
                 </Box>
               </Box>

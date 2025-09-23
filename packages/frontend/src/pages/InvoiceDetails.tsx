@@ -203,14 +203,14 @@ const InvoiceDetails: React.FC = () => {
             value={fromDate}
             onChange={setFromDate}
             slotProps={{ textField: { size: 'small' } }}
-            format="MM/dd/yyyy"
+            format="dd/MM/yyyy"
           />
           <DatePicker
             label="To"
             value={toDate}
             onChange={setToDate}
             slotProps={{ textField: { size: 'small' } }}
-            format="MM/dd/yyyy"
+            format="dd/MM/yyyy"
           />
           <Button
             variant="outlined"
