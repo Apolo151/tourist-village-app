@@ -37,7 +37,9 @@ import {
   ClearAll as ClearIcon,
   Visibility as ViewIcon,
   Delete as DeleteIcon,
-  Edit as EditIcon
+  Edit as EditIcon,
+  ArrowUpward as ArrowUpIcon,
+  ArrowDownward as ArrowDownIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -83,6 +85,7 @@ export default function Bookings() {
   const [villages, setVillages] = useState<Village[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // Default to oldest first
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 20,
@@ -121,12 +124,12 @@ export default function Bookings() {
     loadInitialData();
   }, []);
 
-  // Load bookings when filters, pagination, or tab changes
+  // Load bookings when filters, pagination, sort order, or tab changes
   useEffect(() => {
     if (apartments.length > 0) {
       loadBookings();
     }
-  }, [tabValue, pagination.page, filters, apartments.length, searchInput]);
+  }, [tabValue, pagination.page, filters, apartments.length, searchInput, sortOrder]);
 
   // Reset apartment filter when project or phase changes
   useEffect(() => {
@@ -175,7 +178,7 @@ export default function Bookings() {
         page: pagination.page,
         limit: pagination.limit,
         sort_by: 'arrival_date',
-        sort_order: 'desc'
+        sort_order: sortOrder
       };
 
       // Apply tab-specific filters
@@ -319,6 +322,11 @@ export default function Bookings() {
   const toggleFilters = () => {
     setShowFilters(prev => !prev);
   };
+  
+  const toggleSortOrder = () => {
+    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset to first page
+  };
 
   const formatDate = (dateString: string) => {
     try {
@@ -438,6 +446,11 @@ export default function Bookings() {
               <Tab label="All" sx={{ minHeight: 0 }} />
             </Tabs>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Tooltip title={`Sort by arrival date: ${sortOrder === 'asc' ? 'oldest to newest' : 'newest to oldest'}`}>
+                <IconButton size="small" onClick={toggleSortOrder}>
+                  {sortOrder === 'asc' ? <ArrowUpIcon fontSize="small" /> : <ArrowDownIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
               <Tooltip title="Toggle Filters">
                 <IconButton size="small" onClick={toggleFilters}>
                   <FilterIcon fontSize="small" />
@@ -592,7 +605,16 @@ export default function Bookings() {
                     <TableCell>User Name</TableCell>
                     <TableCell>User Type</TableCell>
                     <TableCell>Apartment</TableCell>
-                    <TableCell>Arrival DateTime</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        Arrival DateTime
+                        <Tooltip title={sortOrder === 'asc' ? "Oldest to newest" : "Newest to oldest"}>
+                          <Box component="span" sx={{ ml: 0.5 }}>
+                            {sortOrder === 'asc' ? ' ↑' : ' ↓'}
+                          </Box>
+                        </Tooltip>
+                      </Box>
+                    </TableCell>
                     <TableCell>Departure DateTime</TableCell>
                     <TableCell>Reservation Date</TableCell>
                     <TableCell>Status</TableCell>
