@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { formatNumber, formatCurrency } from '../utils/numberUtils';
 import {
   Typography,
   Box,
@@ -365,10 +366,10 @@ const UtilityReadingDetails: React.FC = () => {
                       💧 Water Bill
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {waterBill.consumption.toFixed(2)} units × {reading.apartment?.village?.water_price?.toFixed(2)} EGP
+                      {formatNumber(waterBill.consumption)} units × {formatNumber(reading.apartment?.village?.water_price || 0)} EGP
                     </Typography>
                     <Typography variant="body1" fontWeight="bold">
-                      {waterBill.cost.toFixed(2)} EGP
+                      {formatCurrency(waterBill.cost, 'EGP')}
                     </Typography>
                   </Box>
                 )}
@@ -379,10 +380,10 @@ const UtilityReadingDetails: React.FC = () => {
                       ⚡ Electricity Bill
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {electricityBill.consumption.toFixed(2)} units × {reading.apartment?.village?.electricity_price?.toFixed(2)} EGP
+                      {formatNumber(electricityBill.consumption)} units × {formatNumber(reading.apartment?.village?.electricity_price || 0)} EGP
                     </Typography>
                     <Typography variant="body1" fontWeight="bold">
-                      {electricityBill.cost.toFixed(2)} EGP
+                      {formatCurrency(electricityBill.cost, 'EGP')}
                     </Typography>
                   </Box>
                 )}
@@ -391,7 +392,7 @@ const UtilityReadingDetails: React.FC = () => {
                 
                 <Box>
                   <Typography variant="h6" color="primary">
-                    Total: {totalCost.toFixed(2)} EGP
+                    Total: {formatCurrency(totalCost, 'EGP')}
                   </Typography>
                   <Chip
                     label={`Paid by ${reading.who_pays}`}

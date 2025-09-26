@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { formatNumber, formatCurrency, getNumericInputProps } from '../utils/numberUtils';
 import { 
   Box, 
   Typography, 
@@ -405,7 +406,7 @@ export default function ServiceRequestDetails() {
                       value={formData.cost || serviceRequest.cost}
                       onChange={(e) => setFormData(prev => ({ ...prev, cost: parseFloat(e.target.value) || 0 }))}
                       size="small"
-                      inputProps={{ min: 0, step: 0.01 }}
+                      inputProps={getNumericInputProps(0)}
                       sx={{ flex: 1 }}
                     />
                     <FormControl size="small" sx={{ minWidth: 80 }}>
@@ -420,7 +421,7 @@ export default function ServiceRequestDetails() {
                   </Box>
                 ) : (
                 <Typography variant="body1">
-                    {serviceRequest.cost.toFixed(2)} {serviceRequest.currency}
+                    {formatCurrency(serviceRequest.cost, serviceRequest.currency)}
                 </Typography>
                 )}
               </Grid>

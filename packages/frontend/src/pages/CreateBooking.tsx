@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getNumericInputProps } from '../utils/numberUtils';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -481,7 +482,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 type="number"
                 value={formData.number_of_people === 0 ? '' : formData.number_of_people}
                 onChange={(e) => setFormData(prev => ({ ...prev, number_of_people: e.target.value === '' ? 0 : parseInt(e.target.value) }))}
-                inputProps={{ min: 1, max: 20 }}
+                inputProps={getNumericInputProps(1, 20)}
               />
             </Grid>
 

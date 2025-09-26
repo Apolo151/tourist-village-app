@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import type { ApiResponse } from './api';
+import { formatNumber } from '../utils/numberUtils';
 
 export interface Payment {
   id: number;
@@ -271,7 +272,7 @@ class PaymentService {
   }
 
   formatAmount(amount: number, currency: 'EGP' | 'GBP'): string {
-    return `${amount.toLocaleString()} ${currency}`;
+    return `${formatNumber(amount)} ${currency}`;
   }
 
   formatDate(dateString: string): string {

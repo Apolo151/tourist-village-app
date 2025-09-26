@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import type { ApiResponse } from './api';
+import { formatCurrency as formatCurrencyUtil } from '../utils/numberUtils';
 
 export interface ServiceTypeVillagePrice {
   id: number;
@@ -328,7 +329,7 @@ class ServiceRequestService {
   }
 
   formatCurrency(amount: number, currency: 'EGP' | 'GBP'): string {
-    return `${amount.toFixed(2)} ${currency}`;
+    return formatCurrencyUtil(amount, currency);
   }
 
   formatWhoPayType(whoPays: 'owner' | 'renter' | 'company'): string {

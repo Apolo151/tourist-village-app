@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatNumber, formatCurrency, getNumericInputProps } from '../utils/numberUtils';
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import {
     Box,
@@ -970,7 +971,7 @@ export default function CreateServiceRequest({
                                             }
                                             return selectedServiceType?.cost?.toString() || 'Enter cost';
                                         })()}
-                                        inputProps={{ min: 0, step: 0.01 }}
+                                        inputProps={getNumericInputProps(0)}
                                         sx={{ flex: 1 }}
                                         helperText="Leave empty to use default pricing"
                                     />
@@ -1073,7 +1074,7 @@ export default function CreateServiceRequest({
                                                 {(() => {
                                                     // If custom cost is set, show it
                                                     if (formData.cost !== undefined && formData.currency !== undefined) {
-                                                        return `${formData.cost.toFixed(2)} ${formData.currency} (Custom)`;
+                                                        return `${formatCurrency(formData.cost, formData.currency)} (Custom)`;
                                                     }
                                                     
                                                     // If only cost is custom, show mixed
@@ -1088,7 +1089,7 @@ export default function CreateServiceRequest({
                                                             }
                                                             return selectedServiceType?.currency || 'EGP';
                                                         })();
-                                                        return `${formData.cost.toFixed(2)} ${defaultCurrency} (Custom Cost)`;
+                                                        return `${formatCurrency(formData.cost, defaultCurrency)} (Custom Cost)`;
                                                     }
                                                     
                                                     // If only currency is custom, show mixed

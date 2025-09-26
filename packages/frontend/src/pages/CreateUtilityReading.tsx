@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { formatNumber, formatCurrency, getNumericInputProps } from '../utils/numberUtils';
 import {
   Box,
   Button,
@@ -584,7 +585,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               type="number"
               value={waterStartReading === undefined ? '' : waterStartReading}
               onChange={(e) => setWaterStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-              inputProps={{ min: 0, step: 0.01 }}
+              inputProps={getNumericInputProps(0)}
               helperText="Starting meter reading for water"
             />
           </Grid>
@@ -595,7 +596,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               type="number"
               value={waterEndReading === undefined ? '' : waterEndReading}
               onChange={(e) => setWaterEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-              inputProps={{ min: 0, step: 0.01 }}
+              inputProps={getNumericInputProps(0)}
               helperText="Ending meter reading for water"
             />
           </Grid>
@@ -613,7 +614,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               type="number"
               value={electricityStartReading === undefined ? '' : electricityStartReading}
               onChange={(e) => setElectricityStartReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-              inputProps={{ min: 0, step: 0.01 }}
+              inputProps={getNumericInputProps(0)}
               helperText="Starting meter reading for electricity"
             />
           </Grid>
@@ -624,7 +625,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               type="number"
               value={electricityEndReading === undefined ? '' : electricityEndReading}
               onChange={(e) => setElectricityEndReading(e.target.value === '' ? undefined : parseFloat(e.target.value))}
-              inputProps={{ min: 0, step: 0.01 }}
+              inputProps={getNumericInputProps(0)}
               helperText="Ending meter reading for electricity"
             />
           </Grid>
@@ -704,17 +705,17 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   </Typography>
                   {waterBill && (
                     <Typography variant="body2" sx={{ mb: 1 }}>
-                      💧 Water: {waterBill.consumption} units = {waterBill.cost.toFixed(2)} EGP
+                      💧 Water: {waterBill.consumption} units = {formatCurrency(waterBill.cost, 'EGP')}
                     </Typography>
                   )}
                   {electricityBill && (
                     <Typography variant="body2">
-                      ⚡ Electricity: {electricityBill.consumption} units = {electricityBill.cost.toFixed(2)} EGP
+                      ⚡ Electricity: {electricityBill.consumption} units = {formatCurrency(electricityBill.cost, 'EGP')}
                     </Typography>
                   )}
                   {waterBill && electricityBill && (
                     <Typography variant="body2" sx={{ mt: 1, fontWeight: 'bold' }}>
-                      Total: {(waterBill.cost + electricityBill.cost).toFixed(2)} EGP
+                      Total: {formatCurrency(waterBill.cost + electricityBill.cost, 'EGP')}
                     </Typography>
                   )}
                 </CardContent>
