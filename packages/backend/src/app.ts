@@ -167,6 +167,7 @@ app.use((req, res, next) => {
   if (req.path.startsWith(API_PREFIX) && 
       // But not already handled routes
       !req.path.match(/^\/api\/(health|auth|apartments|villages|users|bookings|service-types|service-requests|utility-readings|emails|payment-methods|payments|invoices|paying-status-types|sales-status-types)(\/.+)?$/)) {
+    console.log(`[DEBUG] API 404 handler: ${req.method} ${req.path}`);
     return res.status(404).json({ 
       success: false, 
       error: 'API route not found',
@@ -181,6 +182,9 @@ app.use((req, res, next) => {
   // only intercept GET or HEAD
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
   if (req.path.startsWith(API_PREFIX)) return next();
+  
+  // For any non-API route, serve the frontend index.html
+  console.log(`[DEBUG] Serving frontend for path: ${req.path}`);
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 

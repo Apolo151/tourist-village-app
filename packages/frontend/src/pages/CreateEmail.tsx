@@ -133,7 +133,21 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         } else {
           // Prefill apartment if provided (create/quick action mode)
           if (apartmentId) {
-            setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+            setFormData(prev => ({ 
+              ...prev, 
+              apartment_id: apartmentId,
+              // Also set booking ID if provided
+              ...(bookingId ? { booking_id: bookingId } : {})
+            }));
+            
+            // If we have the apartment data, also set the project and phase filters
+            const apt = apartments.find(a => a.id === apartmentId);
+            if (apt && apt.village?.id && lockApartment) {
+              setProjectFilter(apt.village.id.toString());
+              if (apt.phase) {
+                setPhaseFilter(apt.phase.toString());
+              }
+            }
           }
         }
       } catch (err) {
@@ -143,7 +157,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       }
     };
     loadInitialData();
-  }, [id, apartmentId]);
+  }, [id, apartmentId, bookingId, apartments, lockApartment, onCancel, onSuccess]);
 
   // Update available phases when project changes
   useEffect(() => {
@@ -154,30 +168,73 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       } else {
         setAvailablePhases([]);
       }
-      setPhaseFilter('');
-      setFormData(prev => ({ ...prev, apartment_id: undefined }));
+      
+      // Only reset phase filter and apartment if we're not in locked apartment mode
+      if (!lockApartment) {
+        setPhaseFilter('');
+        setFormData(prev => ({ ...prev, apartment_id: undefined }));
+      }
     } else {
       setAvailablePhases([]);
-      setPhaseFilter('');
-      setFormData(prev => ({ ...prev, apartment_id: undefined }));
+      
+      // Only reset phase filter and apartment if we're not in locked apartment mode
+      if (!lockApartment) {
+        setPhaseFilter('');
+        setFormData(prev => ({ ...prev, apartment_id: undefined }));
+      }
     }
-  }, [projectFilter, villages]);
+  }, [projectFilter, villages, lockApartment]);
 
   // Reset apartment when phase changes
   useEffect(() => {
-    setFormData(prev => ({ ...prev, apartment_id: undefined }));
-  }, [phaseFilter]);
+    // Only reset apartment if we're not in locked apartment mode
+    if (!lockApartment) {
+      setFormData(prev => ({ ...prev, apartment_id: undefined }));
+    }
+  }, [phaseFilter, lockApartment]);
 
   // When lockApartment and apartmentId are set, set project and phase filters and lock them
   useEffect(() => {
     if (lockApartment && apartmentId && apartments.length > 0) {
       const apt = apartments.find(a => a.id === apartmentId);
-      if (apt) {
-        setProjectFilter(apt.village?.id?.toString() || '');
-        setPhaseFilter(apt.phase?.toString() || '');
+      if (apt && apt.village?.id) {
+        // Set project filter first
+        setProjectFilter(apt.village.id.toString());
+        
+        // Then set phase filter if available
+        if (apt.phase) {
+          // Use setTimeout to ensure this happens after the project filter has been processed
+          setTimeout(() => {
+            setPhaseFilter(apt.phase?.toString() || '');
+          }, 0);
+        }
+        
+        // Ensure the apartment is selected in the form data
+        // Also preserve booking ID if it's provided
+        setFormData(prev => ({ 
+          ...prev, 
+          apartment_id: apartmentId,
+          ...(bookingId !== undefined ? { booking_id: bookingId } : {})
+        }));
       }
     }
-  }, [lockApartment, apartmentId, apartments]);
+  }, [lockApartment, apartmentId, apartments, bookingId]);
+
+  // Ensure the booking exists in the bookings list
+  useEffect(() => {
+    if (bookingId && bookings.length > 0 && !bookings.find(b => b.id === bookingId)) {
+      // If the booking isn't in the list, fetch it individually
+      const fetchBooking = async () => {
+        try {
+          const booking = await bookingService.getBookingById(bookingId);
+          setBookings(prev => [...prev, booking]);
+        } catch (error) {
+          console.error("Failed to fetch booking:", error);
+        }
+      };
+      fetchBooking();
+    }
+  }, [bookingId, bookings]);
 
   // Filter apartments based on selected project and phase
   const getFilteredApartments = () => {
@@ -218,8 +275,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       setFormData(prev => ({
         ...prev,
         apartment_id: value ? parseInt(value) : undefined as any,
-        // Always clear booking_id and booking text when apartment changes in edit mode
-        booking_id: actuallyEditing ? undefined : prev.booking_id
+        // Preserve booking_id if it's locked (quick action with bookingId), otherwise clear it
+        booking_id: bookingFieldLocked ? prev.booking_id : undefined
       }));
     } else if (name === 'booking_id') {
       setFormData(prev => ({
@@ -400,6 +457,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   // Apartment field: lock if lockApartment is true and apartmentId is provided
   // Also lock if in view mode (details page)
   const apartmentFieldLocked = (fieldsLocked || (lockApartment && apartmentId !== undefined));
+  
+  // Determine if booking field should be locked
+  const bookingFieldLocked = fieldsLocked || (bookingId !== undefined && isQuickAction);
 
   if (loading) {
     return (
@@ -570,7 +630,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   label="Related Apartment"
                   placeholder="Search apartments by name..."
                   required
-                  disabled={false}
+                  disabled={apartmentFieldLocked}
                   error={!!formErrors.apartment_id}
                   helperText={formErrors.apartment_id}
                   getOptionLabel={(option) => option.label}
@@ -603,9 +663,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
                   label="Related Booking (Optional)"
                   placeholder="Search bookings by user name..."
-                  disabled={fieldsLocked || !formData.apartment_id /* do not lock for lockApartment, only for fieldsLocked */}
+                  disabled={bookingFieldLocked || !formData.apartment_id}
                   error={!!formErrors.booking_id}
-                  helperText={formErrors.booking_id || (!formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
+                  helperText={formErrors.booking_id || (bookingFieldLocked && bookingId ? 'Booking is locked for this action' : !formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
                   getOptionLabel={(option) => option.label}
                   key={`booking-dropdown-${formData.apartment_id}`}
                   renderOption={(props, option) => (
