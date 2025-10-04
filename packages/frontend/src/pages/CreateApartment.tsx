@@ -45,8 +45,10 @@ export default function CreateApartment() {
   const [payingStatusTypes, setPayingStatusTypes] = useState<PayingStatusType[]>([]);
   const [salesStatusTypes, setSalesStatusTypes] = useState<SalesStatusType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchingOwners, setSearchingOwners] = useState(false);
   const [saving, setSaving] = useState(false);
   const [detailedError, setDetailedError] = useState<DetailedError | null>(null);
+  const [ownerSearchText, setOwnerSearchText] = useState('');  
   
   // Form state
   const [formData, setFormData] = useState<CreateApartmentRequest>({
@@ -77,12 +79,19 @@ export default function CreateApartment() {
       setLoading(true);
       setDetailedError(null);
       
-      const [villagesData, usersData, payingStatusData, salesStatusData] = await Promise.all([
+      const [villagesData, payingStatusData, salesStatusData] = await Promise.all([
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ role: 'owner', limit: 100 }),
         payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
         salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
       ]);
+      
+      // Initial list of popular/recent owners (limit to 20 to improve performance)
+      const usersData = await userService.getUsers({ 
+        role: 'owner', 
+        limit: 20,
+        sort_by: 'created_at',
+        sort_order: 'desc' 
+      });
       
       setVillages(villagesData.data);
       setOwners(usersData.data);
@@ -264,6 +273,26 @@ export default function CreateApartment() {
     handleSubmit(new Event('submit') as any);
   };
 
+  const handleOwnerSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 2) return;
+
+    try {
+      setSearchingOwners(true);
+      const result = await userService.getUsers({ 
+        role: 'owner',
+        search: searchQuery,
+        limit: 50
+      });
+      
+      setOwners(result.data);
+    } catch (err) {
+      console.error('Error searching for owners:', err);
+      // Don't show an error message to the user during searching
+    } finally {
+      setSearchingOwners(false);
+    }
+  };
+
   const handleBack = () => {
     navigate('/apartments');
   };
@@ -403,12 +432,17 @@ export default function CreateApartment() {
                   value={formData.owner_id || null}
                   onChange={(value) => handleSelectChange({ target: { name: 'owner_id', value: value?.toString() || '0' } } as SelectChangeEvent<string>)}
                   label="Owner Name"
-                  placeholder="Search owners by name or email..."
+                  placeholder="Type at least 2 characters to search owners..."
                   required
                   disabled={saving}
                   error={!!fieldErrors.owner_id}
-                  helperText={fieldErrors.owner_id || 'Choose the person who owns this apartment'}
+                  helperText={fieldErrors.owner_id || 'Search for apartment owners by name or email'}
                   getOptionLabel={(option) => option.label}
+                  loading={searchingOwners}
+                  serverSideSearch={true}
+                  onServerSearch={handleOwnerSearch}
+                  inputValue={ownerSearchText}
+                  onInputChange={(value) => setOwnerSearchText(value)}
                   renderOption={(props, option) => (
                     <li {...props}>
                       <Box>

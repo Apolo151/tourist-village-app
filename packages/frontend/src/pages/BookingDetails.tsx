@@ -133,6 +133,7 @@ const BookingDetails: React.FC = () => {
   const [relatedData, setRelatedData] = useState<BookingRelatedData | null>(null);
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -203,7 +204,12 @@ const BookingDetails: React.FC = () => {
         setLoading(true);
         const [apartmentsData, usersData] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
-          userService.getUsers({ limit: 100 })
+          // Load only the most recent 20 users initially
+          userService.getUsers({
+            limit: 20,
+            sort_by: 'created_at',
+            sort_order: 'desc'
+          })
         ]);
         setApartments(apartmentsData.data);
         setUsers(usersData.data);
@@ -690,6 +696,26 @@ const BookingDetails: React.FC = () => {
   const formatDate = (dateString: string) => {
     return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
   };
+  
+  // Handle server-side search for users
+  const handleUserSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 2) return;
+    
+    try {
+      setSearchingUsers(true);
+      const result = await userService.getUsers({
+        search: searchQuery,
+        limit: 30
+      });
+      
+      setUsers(result.data);
+    } catch (err) {
+      console.error('Error searching for users:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -937,7 +963,7 @@ const BookingDetails: React.FC = () => {
                         }
                       }}
                       label="User Name"
-                      placeholder="Search users or type new name..."
+                      placeholder="Type at least 2 characters to search users..."
                       required
                       freeSolo={true}
                       onInputChange={(inputValue) => {
@@ -945,6 +971,9 @@ const BookingDetails: React.FC = () => {
                         setUserNameInput(inputValue);
                       }}
                       inputValue={userNameInput}
+                      loading={searchingUsers}
+                      serverSideSearch={true}
+                      onServerSearch={handleUserSearch}
                       // This is the key change - modify how options are displayed in the input field
                       getOptionLabel={(option) => typeof option === 'string' ? option : option.name}
                       renderOption={(props, option) => (

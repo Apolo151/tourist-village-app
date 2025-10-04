@@ -46,6 +46,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   // Data
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
   
   // Villages and phase filter state
   const [villages, setVillages] = useState<Village[]>([]);
@@ -82,7 +83,12 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         setLoading(true);
         const [apartmentsResult, usersResult] = await Promise.all([
           apartmentService.getApartments({ limit: 100 }),
-          userService.getUsers({ limit: 100 })
+          // Load only the most recent 20 users initially
+          userService.getUsers({ 
+            limit: 20,
+            sort_by: 'created_at',
+            sort_order: 'desc'
+          })
         ]);
         setApartments(apartmentsResult.data);
         setUsers(usersResult.data);
@@ -147,16 +153,15 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   useEffect(() => {
     if (formData.user_type === 'owner' && formData.apartment_id) {
       const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-      if (selectedApartment?.owner_id) {
-        const apartmentOwner = users.find(user => user.id === selectedApartment.owner_id);
+      if (selectedApartment?.owner) {
         setFormData(prev => ({ 
           ...prev, 
-          user_id: selectedApartment.owner_id,
-          user_name: apartmentOwner ? apartmentOwner.name : ''
+          user_id: selectedApartment.owner?.id || 0,
+          user_name: selectedApartment.owner?.name || ''
         }));
       }
     }
-  }, [formData.apartment_id, formData.user_type, apartments, users]);
+  }, [formData.apartment_id, formData.user_type, apartments]);
 
   // When lockApartment and apartmentId are set, ensure owner autofill logic is triggered
   useEffect(() => {
@@ -169,33 +174,31 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           // If user_type is owner, set user_id and user_name to owner
           let user_id = prev.user_id;
           let user_name = prev.user_name;
-          if (prev.user_type === 'owner' && apt.owner_id) {
-            const apartmentOwner = users.find(user => user.id === apt.owner_id);
-            user_id = apt.owner_id;
-            user_name = apartmentOwner ? apartmentOwner.name : '';
+          if (prev.user_type === 'owner' && apt.owner) {
+            user_id = apt.owner.id;
+            user_name = apt.owner.name;
           }
           return { ...prev, apartment_id: apt.id, user_id, user_name };
         });
       }
     }
-  }, [lockApartment, apartmentId, apartments, users]);
+  }, [lockApartment, apartmentId, apartments]);
 
   // When User Type is set to 'owner' and lockApartment is true, unlock User and Apartment fields, set owner, then relock
   useEffect(() => {
     if (lockApartment && formData.user_type === 'owner' && apartmentId && apartments.length > 0) {
       const apt = apartments.find(a => a.id === apartmentId);
-      if (apt && apt.owner_id) {
-        const apartmentOwner = users.find(user => user.id === apt.owner_id);
+      if (apt && apt.owner) {
         // Temporarily unlock, set, then relock (effectively just set the values)
         setFormData(prev => ({
           ...prev,
           apartment_id: apt.id,
-          user_id: apt.owner_id,
-          user_name: apartmentOwner ? apartmentOwner.name : ''
+          user_id: apt.owner?.id || 0,
+          user_name: apt.owner?.name || ''
         }));
       }
     }
-  }, [formData.user_type, lockApartment, apartmentId, apartments, users]);
+  }, [formData.user_type, lockApartment, apartmentId, apartments]);
 
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
@@ -272,6 +275,26 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handle server-side search for users
+  const handleUserSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 2) return;
+    
+    try {
+      setSearchingUsers(true);
+      const result = await userService.getUsers({
+        search: searchQuery,
+        limit: 30
+      });
+      
+      setUsers(result.data);
+    } catch (err) {
+      console.error('Error searching for users:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingUsers(false);
     }
   };
 
@@ -382,7 +405,33 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 <Select
                   value={formData.user_type}
                   label="User Type"
-                  onChange={(e) => setFormData(prev => ({ ...prev, user_type: e.target.value as 'owner' | 'renter' }))}
+                  onChange={(e) => {
+                    const newUserType = e.target.value as 'owner' | 'renter';
+                    setFormData(prev => {
+                      // If switching to owner and apartment is selected, auto-fill owner info
+                      if (newUserType === 'owner' && prev.apartment_id) {
+                        const selectedApartment = apartments.find(apt => apt.id === prev.apartment_id);
+                        if (selectedApartment?.owner) {
+                          return {
+                            ...prev,
+                            user_type: newUserType,
+                            user_id: selectedApartment.owner.id,
+                            user_name: selectedApartment.owner.name
+                          };
+                        }
+                      }
+                      // If switching to renter, clear owner info
+                      if (newUserType === 'renter') {
+                        return {
+                          ...prev,
+                          user_type: newUserType,
+                          user_id: 0,
+                          user_name: ''
+                        };
+                      }
+                      return { ...prev, user_type: newUserType };
+                    });
+                  }}
                 >
                   <MenuItem value="owner">Owner</MenuItem>
                   <MenuItem value="renter">Tenant</MenuItem>
@@ -403,15 +452,14 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               {formData.user_type === 'owner' ? (
                 (() => {
                   const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-                  const apartmentOwner = users.find(user => user.id === selectedApartment?.owner_id);
                   return (
                     <TextField
                       fullWidth
                       required
                       label="User Name (Owner)"
-                      value={apartmentOwner ? apartmentOwner.name : ''}
+                      value={selectedApartment?.owner?.name || ''}
                       disabled
-                      helperText={apartmentOwner ? `Apartment owner: ${apartmentOwner.email}` : 'Select an apartment to prefill owner'}
+                      helperText={selectedApartment?.owner ? `Apartment owner: ${selectedApartment.owner.email}` : 'Select an apartment to prefill owner'}
                     />
                   );
                 })()
@@ -439,13 +487,16 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                     }
                   }}
                   label="User Name"
-                  placeholder="Search users or type new name..."
+                  placeholder="Type at least 2 characters to search users..."
                   required
                   freeSolo={true}
                   onInputChange={(inputValue) => {
                     setFormData(prev => ({ ...prev, user_name: inputValue }));
                   }}
                   inputValue={formData.user_name}
+                  loading={searchingUsers}
+                  serverSideSearch={true}
+                  onServerSearch={handleUserSearch}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>

@@ -40,6 +40,8 @@ import { bookingService } from "../services/bookingService";
 import type { Booking } from "../services/bookingService";
 import { userService } from "../services/userService";
 import type { User } from "../services/userService";
+import { villageService } from "../services/villageService";
+import type { Village } from "../services/villageService";
 import SearchableDropdown from "../components/SearchableDropdown";
 
 export interface CreateServiceRequestProps {
@@ -84,8 +86,11 @@ export default function CreateServiceRequest({
     // Data states
     const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
     const [apartments, setApartments] = useState<Apartment[]>([]);
+    const [searchingApartments, setSearchingApartments] = useState(false);
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [users, setUsers] = useState<User[]>([]);
+    const [searchingUsers, setSearchingUsers] = useState(false);
+    const [villages, setVillages] = useState<Village[]>([]);
 
     // Form data
     const [formData, setFormData] = useState<
@@ -118,16 +123,29 @@ export default function CreateServiceRequest({
                 setLoading(true);
                 setError(null);
 
-                const [serviceTypesData, apartmentsData, usersData] =
+                const [serviceTypesData, apartmentsData, usersData, villagesData] =
                     await Promise.all([
                         serviceRequestService.getServiceTypes({ limit: 100 }),
-                        apartmentService.getApartments({ limit: 100 }),
-                        userService.getUsers({ limit: 100 }),
+                        // Load only the most recent 20 apartments initially
+                        apartmentService.getApartments({
+                            limit: 20,
+                            sort_by: 'created_at',
+                            sort_order: 'desc'
+                        }),
+                        // Load only the most recent 20 users initially
+                        userService.getUsers({
+                            limit: 20,
+                            sort_by: 'created_at',
+                            sort_order: 'desc'
+                        }),
+                        // Load all villages for project selection
+                        villageService.getVillages({ limit: 100 }),
                     ]);
 
                 setServiceTypes(serviceTypesData.data);
                 setApartments(apartmentsData.data);
                 setUsers(usersData.data);
+                setVillages(villagesData.data);
 
                 // Pre-select service type if provided in URL
                 const serviceTypeId = searchParams.get("serviceTypeId");
@@ -461,6 +479,97 @@ export default function CreateServiceRequest({
             navigate("/services");
         }
     };
+    
+    // Handle server-side search for apartments
+    const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
+        if (searchQuery.length < 1) return;
+        
+        try {
+            setSearchingApartments(true);
+            
+            // Build filters based on current project/phase selections
+            const filters: any = {
+                search: searchQuery,
+                limit: 100
+            };
+            
+            // Add project filter if selected
+            if (projectFilter) {
+                filters.village_id = parseInt(projectFilter);
+            }
+            
+            // Add phase filter if selected
+            if (phaseFilter) {
+                filters.phase = parseInt(phaseFilter);
+            }
+            
+            const result = await apartmentService.getApartments(filters);
+            setApartments(result.data);
+        } catch (err) {
+            console.error('Error searching for apartments:', err);
+            // Don't show error message during search
+        } finally {
+            setSearchingApartments(false);
+        }
+    };
+    
+    // Handle server-side search for users
+    const handleUserSearch = async (searchQuery: string): Promise<void> => {
+        if (searchQuery.length < 1) return;
+        
+        try {
+            setSearchingUsers(true);
+            const result = await userService.getUsers({
+                search: searchQuery,
+                limit: 100
+            });
+            
+            setUsers(result.data);
+        } catch (err) {
+            console.error('Error searching for users:', err);
+            // Don't show error message during search
+        } finally {
+            setSearchingUsers(false);
+        }
+    };
+
+    // Custom input change handler for apartments to bypass 2-char limit
+    const handleApartmentInputChange = (text: string) => {
+        // Always search when field is clicked (empty text) or when typing (1+ characters)
+        // This ensures the dropdown shows filtered results when clicked, even before typing
+        setSearchingApartments(true);
+        // Add slight delay for better UX
+        setTimeout(() => {
+            if (text.length >= 1) {
+                handleApartmentSearch(text).finally(() => setSearchingApartments(false));
+            } else {
+                // Load apartments based on current filters when field is clicked
+                loadFilteredApartments().finally(() => setSearchingApartments(false));
+            }
+        }, 100);
+    };
+
+    // Load apartments based on current project/phase filters
+    const loadFilteredApartments = async () => {
+        try {
+            const filters: any = { limit: 100 };
+            
+            // Add project filter if selected
+            if (projectFilter) {
+                filters.village_id = parseInt(projectFilter);
+            }
+            
+            // Add phase filter if selected
+            if (phaseFilter) {
+                filters.phase = parseInt(phaseFilter);
+            }
+            
+            const result = await apartmentService.getApartments(filters);
+            setApartments(result.data);
+        } catch (err) {
+            console.error('Error loading filtered apartments:', err);
+        }
+    };
 
     const getSelectedServiceType = () => {
         return serviceTypes.find((st) => st.id === formData.type_id);
@@ -476,19 +585,18 @@ export default function CreateServiceRequest({
 
     // Helper functions for project and phase filtering
     const getUniqueVillages = () => {
-        const villages = apartments.map(apt => apt.village).filter(Boolean);
-        const uniqueVillages = villages.filter((village, index, self) => 
-            index === self.findIndex(v => v?.id === village?.id)
-        );
-        return uniqueVillages;
+        // Use the villages state directly instead of deriving from apartments
+        return villages;
     };
 
     const getAvailablePhases = () => {
         if (!projectFilter) return [];
         const selectedVillageId = parseInt(projectFilter);
-        const apartmentsInVillage = apartments.filter(apt => apt.village?.id === selectedVillageId);
-        const phases = [...new Set(apartmentsInVillage.map(apt => apt.phase))].sort((a, b) => a - b);
-        return phases;
+        const selectedVillage = villages.find(v => v.id === selectedVillageId);
+        if (selectedVillage) {
+            return Array.from({ length: selectedVillage.phases }, (_, i) => i + 1);
+        }
+        return [];
     };
 
     const getFilteredApartments = () => {
@@ -664,8 +772,8 @@ export default function CreateServiceRequest({
                                             <em>Select a project</em>
                                         </MenuItem>
                                         {getUniqueVillages().map(village => (
-                                            <MenuItem key={village!.id} value={village!.id.toString()}>
-                                                {village!.name}
+                                            <MenuItem key={village.id} value={village.id.toString()}>
+                                                {village.name}
                                             </MenuItem>
                                         ))}
                                     </Select>
@@ -705,12 +813,15 @@ export default function CreateServiceRequest({
                                     value={formData.apartment_id || null}
                                     onChange={handleApartmentChange}
                                     label="Apartment"
-                                    placeholder="Search apartments by name..."
+                                    placeholder="Type to search apartments by name or village..."
                                     required
                                     disabled={
                                         lockApartment &&
                                         apartmentId !== undefined
                                     }
+                                    loading={searchingApartments}
+                                    serverSideSearch={false}
+                                    onInputChange={handleApartmentInputChange}
                                     getOptionLabel={(option) => option.label}
                                     renderOption={(props, option) => (
                                         <li {...props}>
@@ -727,6 +838,7 @@ export default function CreateServiceRequest({
                                             </Box>
                                         </li>
                                     )}
+                                    helperText="Type at least one character to see search results"
                                 />
                             </Grid>
 
@@ -875,8 +987,15 @@ export default function CreateServiceRequest({
                                         )
                                     }
                                     label="Requester"
-                                    placeholder="Search users by name..."
+                                    placeholder="Type to search users by name..."
                                     required
+                                    loading={searchingUsers}
+                                    serverSideSearch={false}
+                                    onInputChange={(text) => {
+                                        if (text.length >= 1) {
+                                            handleUserSearch(text);
+                                        }
+                                    }}
                                     getOptionLabel={(option) => option.label}
                                     renderOption={(props, option) => (
                                         <li {...props}>
@@ -893,6 +1012,7 @@ export default function CreateServiceRequest({
                                             </Box>
                                         </li>
                                     )}
+                                    helperText="Type at least one character to see search results"
                                 />
                             </Grid>
 

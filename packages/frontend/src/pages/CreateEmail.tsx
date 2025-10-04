@@ -83,6 +83,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const [projectFilter, setProjectFilter] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('');
   const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+  const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
 
   // Patch: extend CreateEmailRequest to allow apartment_id: number | undefined
   type CreateEmailRequestWithOptionalApartment = Omit<CreateEmailRequest, 'apartment_id'> & { apartment_id?: number };
@@ -157,7 +158,10 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       }
     };
     loadInitialData();
-  }, [id, apartmentId, bookingId, apartments, lockApartment, onCancel, onSuccess]);
+  // Note: We're intentionally excluding 'apartments' from the dependency array to avoid an infinite loop,
+  // as we update 'apartments' inside this effect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, apartmentId, bookingId, lockApartment, onCancel, onSuccess]);
 
   // Update available phases when project changes
   useEffect(() => {
@@ -236,7 +240,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     }
   }, [bookingId, bookings]);
 
-  // Filter apartments based on selected project and phase
+  // Filter apartments based on selected project and phase (client-side)
   const getFilteredApartments = () => {
     let filtered = apartments;
     if (projectFilter) {
@@ -249,6 +253,97 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     }
     // Only return apartments with a valid id
     return filtered.filter(apt => typeof apt.id === 'number');
+  };
+  
+  // State for apartment search loading
+  const [searchLoading, setSearchLoading] = useState(false);
+  
+  // Fetch apartments with server-side filtering
+  const searchApartments = async (searchTerm: string): Promise<void> => {
+    setApartmentSearchTerm(searchTerm);
+    
+    try {
+      // Build filters object including search term, project and phase
+      const filters: any = { 
+        search: searchTerm,
+        limit: 100 
+      };
+      
+      // Add project/village filter if selected
+      if (projectFilter) {
+        filters.village_id = Number(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = Number(phaseFilter);
+      }
+      
+      // Fetch apartments with server-side filtering
+      const response = await apartmentService.getApartments(filters);
+      setApartments(response.data.filter(apt => typeof apt.id === 'number'));
+    } catch (error) {
+      console.error('Error fetching apartments:', error);
+      setApartments([]);
+    }
+  };
+  
+  // Custom search function to bypass 2-char requirement and respond to field clicks
+  const handleApartmentInputChange = (text: string) => {
+    setApartmentSearchTerm(text);
+    
+    // Always search when field is clicked (empty text) or when typing (1+ characters)
+    // This ensures the dropdown shows filtered results when clicked, even before typing
+    setSearchLoading(true);
+    // Add slight delay for better UX
+    setTimeout(() => {
+      if (text.length >= 1) {
+        // Normal search with text
+        searchApartments(text).finally(() => setSearchLoading(false));
+      } else {
+        // Empty search when field is clicked - show filtered results based on project/phase
+        loadFilteredApartments().finally(() => setSearchLoading(false));
+      }
+    }, 100);
+  };
+  
+  // Load apartments based on current project/phase filters
+  const loadFilteredApartments = async () => {
+    setSearchLoading(true);
+    try {
+      // Build filters based on current project/phase selections
+      const filters: any = { 
+        limit: 100
+      };
+      
+      // Add project/village filter if selected
+      if (projectFilter) {
+        filters.village_id = Number(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = Number(phaseFilter);
+      }
+      
+      // Use search term if available
+      if (apartmentSearchTerm && apartmentSearchTerm.length >= 1) {
+        filters.search = apartmentSearchTerm;
+      }
+      
+      // Fetch apartments with server-side filtering
+      const response = await apartmentService.getApartments(filters);
+      setApartments(response.data.filter(apt => typeof apt.id === 'number'));
+    } catch (error) {
+      console.error('Error fetching apartments:', error);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+  
+  // Handle field focus - load apartments based on current filters
+  const handleApartmentFieldFocus = () => {
+    loadFilteredApartments();
   };
 
   // Handle form changes
@@ -628,12 +723,21 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   value={typeof formData.apartment_id === 'number' ? formData.apartment_id : null}
                   onChange={(value) => handleSelectChange({ target: { name: 'apartment_id', value: value?.toString() || '' } })}
                   label="Related Apartment"
-                  placeholder="Search apartments by name..."
+                  placeholder={projectFilter && phaseFilter 
+                    ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''} Phase ${phaseFilter}...` 
+                    : projectFilter 
+                      ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''}...` 
+                      : "Search apartments by name or village..."}
                   required
                   disabled={apartmentFieldLocked}
                   error={!!formErrors.apartment_id}
-                  helperText={formErrors.apartment_id}
+                  helperText={formErrors.apartment_id || "Type at least one character to see search results"}
                   getOptionLabel={(option) => option.label}
+                  onInputChange={handleApartmentInputChange}
+                  loading={searchLoading}
+                  inputValue={apartmentSearchTerm}
+                  freeSolo={false}
+                  serverSideSearch={false}
                   renderOption={(props, option) => (
                     <li {...props}>
                       <Box>

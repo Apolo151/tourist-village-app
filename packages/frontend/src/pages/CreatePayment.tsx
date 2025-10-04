@@ -96,6 +96,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
   
   // Related data
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [searchingApartments, setSearchingApartments] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -117,7 +118,12 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
 
         // Load apartments, payment methods, and villages
         const [apartmentsData, paymentMethodsData, villagesData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          // Load the most recent 100 apartments initially
+          apartmentService.getApartments({ 
+            limit: 100,
+            sort_by: 'created_at',
+            sort_order: 'desc'
+          }),
           paymentService.getPaymentMethods({ limit: 100 }),
           villageService.getVillages({ limit: 100 })
         ]);
@@ -317,6 +323,49 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     } else {
       navigate('/payments');
     }
+  };
+  
+  // Handle server-side search for apartments
+  const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
+    try {
+      setSearchingApartments(true);
+      
+      // Build filters based on current project/phase selections
+      const filters: any = {
+        limit: 100
+      };
+      
+      // Add search query if provided (length >= 1)
+      if (searchQuery && searchQuery.length >= 1) {
+        filters.search = searchQuery;
+      }
+      
+      // Add project filter if selected
+      if (projectFilter) {
+        filters.village_id = parseInt(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = parseInt(phaseFilter);
+      }
+      
+      const result = await apartmentService.getApartments(filters);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error searching for apartments:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingApartments(false);
+    }
+  };
+  
+  // Handle apartment input changes - always trigger search
+  const handleApartmentInputChange = (inputText: string) => {
+    // Even when field is clicked (empty text), show filtered results
+    setTimeout(() => {
+      handleApartmentSearch(inputText);
+    }, 100);
   };
   
   // Filter bookings by selected apartment
@@ -522,11 +571,14 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                   value={formData.apartment_id ? parseInt(formData.apartment_id) : null}
                   onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value?.toString() || '' }))}
                   label="Apartment"
-                  placeholder="Search apartments by name..."
+                  placeholder="Type to search apartments by name or village..."
                   required
                   disabled={lockApartment && apartmentId !== undefined}
                   error={Boolean(errors.apartment_id)}
-                  helperText={errors.apartment_id}
+                  helperText={errors.apartment_id || "Type at least one character to see search results"}
+                  loading={searchingApartments}
+                  serverSideSearch={false}
+                  onInputChange={handleApartmentInputChange}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>

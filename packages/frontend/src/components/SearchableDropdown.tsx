@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Autocomplete,
   TextField,
@@ -6,7 +6,8 @@ import {
   FormHelperText,
   Box,
   Typography,
-  Chip
+  Chip,
+  CircularProgress
 } from '@mui/material';
 import type { AutocompleteProps, FilterOptionsState } from '@mui/material';
 
@@ -38,6 +39,9 @@ export interface SearchableDropdownProps {
   freeSolo?: boolean;
   onInputChange?: (inputValue: string) => void;
   inputValue?: string;
+  loading?: boolean;
+  onServerSearch?: (searchText: string) => Promise<void>;
+  serverSideSearch?: boolean;
 }
 
 export default function SearchableDropdown({
@@ -61,12 +65,21 @@ export default function SearchableDropdown({
   onMultipleChange,
   freeSolo = false,
   onInputChange,
-  inputValue
+  inputValue,
+  loading = false,
+  onServerSearch,
+  serverSideSearch = false
 }: SearchableDropdownProps) {
   const selectedOption = options.find(option => option.id === value);
 
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  
   const defaultFilterOptions: AutocompleteProps<SearchableDropdownOption, false, false, false>['filterOptions'] = 
     (options, { inputValue }) => {
+      // If using server-side search, don't filter client-side
+      if (serverSideSearch) return options;
+      
       const filterValue = inputValue.toLowerCase();
       return options.filter(option => 
         getOptionLabel(option).toLowerCase().includes(filterValue)
@@ -138,6 +151,15 @@ export default function SearchableDropdown({
             placeholder={placeholder}
             size={size}
             error={error}
+            InputProps={{
+              ...params.InputProps,
+              endAdornment: (
+                <React.Fragment>
+                  {(loading || isSearching) && <CircularProgress color="inherit" size={20} />}
+                  {params.InputProps.endAdornment}
+                </React.Fragment>
+              ),
+            }}
           />
         )}
         disabled={disabled}
@@ -145,7 +167,20 @@ export default function SearchableDropdown({
         size={size}
         freeSolo={freeSolo}
         onInputChange={(_, inputValue) => {
-          onInputChange?.(inputValue);
+          // Only proceed if the search text has actually changed
+          if (inputValue !== searchText) {
+            // Track search text internally
+            setSearchText(inputValue);
+            
+            // Handle server-side search
+            if (serverSideSearch && inputValue.length >= 2) {
+              setIsSearching(true);
+              onServerSearch?.(inputValue)
+                .finally(() => setIsSearching(false));
+            }
+            
+            onInputChange?.(inputValue);
+          }
         }}
         inputValue={inputValue}
       />
