@@ -28,6 +28,7 @@ import type { User } from '../services/userService';
 import type { PayingStatusType } from '../services/payingStatusTypeService';
 import type { SalesStatusType } from '../services/salesStatusTypeService';
 import type { Apartment, UpdateApartmentRequest } from '../services/apartmentService';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 export default function EditApartment() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +43,8 @@ export default function EditApartment() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>('');
+  const [searchingOwners, setSearchingOwners] = useState(false);
+  const [ownerSearchText, setOwnerSearchText] = useState('');
   
   const [formData, setFormData] = useState<UpdateApartmentRequest>({
     name: '',
@@ -72,17 +75,15 @@ export default function EditApartment() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [apartmentData, villagesData, usersData, payingStatusData, salesStatusData] = await Promise.all([
+      const [apartmentData, villagesData, payingStatusData, salesStatusData] = await Promise.all([
         apartmentService.getApartmentById(parseInt(id!)),
         villageService.getVillages({ limit: 100 }),
-        userService.getUsers({ role: 'owner', limit: 100 }),
         payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
         salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
       ]);
       
       setApartment(apartmentData);
       setVillages(villagesData.data);
-      setOwners(usersData.data);
       setPayingStatusTypes(payingStatusData.data);
       setSalesStatusTypes(salesStatusData.data);
       
@@ -96,6 +97,19 @@ export default function EditApartment() {
         paying_status_id: apartmentData.paying_status_id,
         sales_status_id: apartmentData.sales_status_id
       });
+
+      // Load the current owner data
+      if (apartmentData.owner_id) {
+        try {
+          const ownerData = await userService.getUserById(apartmentData.owner_id);
+          if (ownerData) {
+            setOwners([ownerData]);
+            setOwnerSearchText(ownerData.name);
+          }
+        } catch (err) {
+          console.error('Error loading owner data:', err);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load apartment data');
     } finally {
@@ -148,6 +162,28 @@ export default function EditApartment() {
         delete newErrors[name];
         return newErrors;
       });
+    }
+  };
+
+  /**
+   * Handle owner search with server-side filtering
+   */
+  const handleOwnerSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 2) return;
+
+    try {
+      setSearchingOwners(true);
+      const result = await userService.getUsers({ 
+        role: 'owner',
+        search: searchQuery,
+        limit: 50
+      });
+      
+      setOwners(result.data);
+    } catch (err) {
+      console.error('Error searching for owners:', err);
+    } finally {
+      setSearchingOwners(false);
     }
   };
 
@@ -318,29 +354,39 @@ export default function EditApartment() {
               </Grid>
 
               <Grid size={{xs: 12}}>
-                <FormControl fullWidth error={!!errors.owner_id} required>
-                  <InputLabel>Owner Name</InputLabel>
-                  <Select
-                    name="owner_id"
-                    value={formData.owner_id?.toString() || ''}
-                    label="Owner Name"
-                    onChange={handleSelectChange}
-                  >
-                    <MenuItem value="">
-                      <em>Select Owner</em>
-                    </MenuItem>
-                    {owners.map(owner => (
-                      <MenuItem key={owner.id} value={owner.id.toString()}>
-                        {owner.name} ({owner.email})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.owner_id && (
-                    <Typography variant="caption" color="error" sx={{ mt: 1, ml: 2 }}>
-                      {errors.owner_id}
-                    </Typography>
+                <SearchableDropdown
+                  options={owners.map(owner => ({
+                    id: owner.id,
+                    label: `${owner.name} (${owner.email})${owner.phone_number ? ` - ${owner.phone_number}` : ''}`,
+                    name: owner.name,
+                    email: owner.email,
+                    phone_number: owner.phone_number
+                  }))}
+                  value={formData.owner_id || null}
+                  onChange={(value) => setFormData(prev => ({ ...prev, owner_id: value as number || 0 }))}
+                  label="Owner Name"
+                  placeholder="Type at least 2 characters to search owners..."
+                  required
+                  disabled={saving}
+                  error={!!errors.owner_id}
+                  helperText={errors.owner_id || 'Search for apartment owners by name or email'}
+                  getOptionLabel={(option) => option.label}
+                  loading={searchingOwners}
+                  serverSideSearch={true}
+                  onServerSearch={handleOwnerSearch}
+                  inputValue={ownerSearchText}
+                  onInputChange={(value) => setOwnerSearchText(value)}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {option.email}{option.phone_number ? ` • ${option.phone_number}` : ''}
+                        </Typography>
+                      </Box>
+                    </li>
                   )}
-                </FormControl>
+                />
               </Grid>
 
               <Grid size={{xs: 12, sm: 6}}>
@@ -426,4 +472,4 @@ export default function EditApartment() {
       </Box>
     </Container>
   );
-} 
+}

@@ -74,8 +74,12 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     month_year: format(new Date(), 'yyyy-MM'),
   });
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [searchingApartments, setSearchingApartments] = useState(false);
+  const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [searchingBookings, setSearchingBookings] = useState(false);
+  const [bookingSearchTerm, setBookingSearchTerm] = useState('');
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [existingReading, setExistingReading] = useState<UtilityReading | null>(null);
   
@@ -121,17 +125,28 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       }
       setPhaseFilter('');
       if (!lockApartment) setApartmentId(0);
+      
+      // Load apartments for the selected project
+      loadFilteredApartments();
     } else {
       setAvailablePhases([]);
       setPhaseFilter('');
       if (!lockApartment) setApartmentId(0);
+      
+      // Load a limited set of apartments when no project is selected
+      loadFilteredApartments();
     }
   }, [projectFilter, villages, lockApartment]);
 
   // Reset apartment when phase changes
   useEffect(() => {
     if (!lockApartment) setApartmentId(0);
-  }, [phaseFilter, lockApartment]);
+    
+    // Load apartments for the selected phase
+    if (projectFilter) {
+      loadFilteredApartments();
+    }
+  }, [phaseFilter, lockApartment, projectFilter]);
 
   // When lockApartment and apartmentId are set, set project and phase filters and whoPays to 'owner'
   useEffect(() => {
@@ -145,18 +160,83 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     }
   }, [lockApartment, propApartmentId, apartments]);
 
-  // Filter apartments based on selected project and phase
+  // Handle server-side search for apartments
+  const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 1) return;
+      
+    try {
+      setSearchingApartments(true);
+      setApartmentSearchTerm(searchQuery);
+      
+      // Build filters based on current project/phase selections
+      const filters: any = {
+        search: searchQuery,
+        limit: 100
+      };
+      
+      // Add project filter if selected
+      if (projectFilter) {
+        filters.village_id = parseInt(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = parseInt(phaseFilter);
+      }
+      
+      const result = await apartmentService.getApartments(filters);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error searching for apartments:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingApartments(false);
+    }
+  };
+
+  // Load apartments based on current project/phase filters
+  const loadFilteredApartments = async () => {
+    try {
+      setSearchingApartments(true);
+      const filters: any = { limit: 100 };
+      
+      // Add project filter if selected
+      if (projectFilter) {
+        filters.village_id = parseInt(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = parseInt(phaseFilter);
+      }
+      
+      const result = await apartmentService.getApartments(filters);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error loading filtered apartments:', err);
+    } finally {
+      setSearchingApartments(false);
+    }
+  };
+
+  // Custom input change handler for apartments to bypass 2-char limit
+  const handleApartmentInputChange = (text: string) => {
+    setApartmentSearchTerm(text);
+    setSearchingApartments(true);
+    // Add slight delay for better UX
+    setTimeout(() => {
+      if (text.length >= 1) {
+        handleApartmentSearch(text).finally(() => setSearchingApartments(false));
+      } else {
+        // Load apartments based on current filters when field is clicked
+        loadFilteredApartments().finally(() => setSearchingApartments(false));
+      }
+    }, 100);
+  };
+
+  // Filter apartments based on selected project and phase (for backward compatibility)
   const getFilteredApartments = () => {
-    let filtered = apartments;
-    if (projectFilter) {
-      const selectedVillageId = Number(projectFilter);
-      filtered = filtered.filter(apt => apt.village?.id === selectedVillageId);
-    }
-    if (phaseFilter) {
-      const selectedPhase = Number(phaseFilter);
-      filtered = filtered.filter(apt => apt.phase === selectedPhase);
-    }
-    return filtered;
+    return apartments;
   };
 
   // Check if user is admin
@@ -172,12 +252,10 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       try {
         setLoading(true);
         
-        const [apartmentsResult, bookingsResult] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+        const [bookingsResult] = await Promise.all([
           bookingService.getBookings({ limit: 100 })
         ]);
         
-        setApartments(apartmentsResult.data);
         setBookings(bookingsResult.bookings);
         
         // If editing, load existing reading (only if not quick action)
@@ -206,28 +284,89 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     loadInitialData();
   }, [isEditMode, id, isQuickAction]);
 
+  // Handle server-side search for bookings
+  const handleBookingSearch = async (searchQuery: string): Promise<void> => {
+    if (!apartmentId) return;
+
+    try {
+      setSearchingBookings(true);
+      setBookingSearchTerm(searchQuery);
+      
+      // Build filters based on apartment and search query
+      const filters: any = {
+        apartment_id: apartmentId,
+        limit: 100
+      };
+      
+      // Add search query if provided and has at least 1 character
+      if (searchQuery && searchQuery.length >= 1) {
+        filters.search = searchQuery;
+      }
+      
+      const result = await bookingService.getBookings(filters);
+      setFilteredBookings(result.bookings || []);
+    } catch (err) {
+      console.error('Error searching for bookings:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingBookings(false);
+    }
+  };
+
+  // Load bookings based on selected apartment
+  const loadFilteredBookings = async () => {
+    if (!apartmentId) {
+      setFilteredBookings([]);
+      return;
+    }
+    
+    try {
+      setSearchingBookings(true);
+      const filters: any = { 
+        apartment_id: apartmentId,
+        limit: 100
+      };
+      
+      const result = await bookingService.getBookings(filters);
+      const filtered = result.bookings || [];
+      setFilteredBookings(filtered);
+      
+      // No longer auto-selecting booking when only one is available
+      // User must explicitly select the booking
+    } catch (err) {
+      console.error('Error loading filtered bookings:', err);
+      setFilteredBookings([]);
+    } finally {
+      setSearchingBookings(false);
+    }
+  };
+
+  // Custom input change handler for bookings
+  const handleBookingInputChange = (text: string) => {
+    setBookingSearchTerm(text);
+    setSearchingBookings(true);
+    // Add slight delay for better UX
+    setTimeout(() => {
+      if (text.length >= 1) {
+        handleBookingSearch(text).finally(() => setSearchingBookings(false));
+      } else {
+        // Load bookings based on current apartment when field is clicked
+        loadFilteredBookings().finally(() => setSearchingBookings(false));
+      }
+    }, 100);
+  };
+
   // Filter bookings when apartment changes
   useEffect(() => {
     if (apartmentId) {
-      const filtered = (bookings || []).filter(booking => booking.apartment_id === apartmentId);
-      setFilteredBookings(filtered);
-      
-      // If only one booking available, auto-select it
-      if (filtered.length === 1 && !isEditMode) {
-        setBookingId(filtered[0].id);
-        // Auto-fill dates from booking
-        setStartDate(new Date(filtered[0].arrival_date));
-        setEndDate(new Date(filtered[0].leaving_date));
-        // Auto-set who pays based on booking type
-        setWhoPays(filtered[0].user_type === 'owner' ? 'owner' : 'renter');
-      }
+      loadFilteredBookings();
     } else {
       setFilteredBookings([]);
       if (!isEditMode) {
         setBookingId(undefined);
       }
     }
-  }, [apartmentId, bookings, isEditMode]);
+  }, [apartmentId, isEditMode]);
 
   // Handle pre-selected booking from props (quick action mode)
   useEffect(() => {
@@ -473,9 +612,18 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               value={apartmentId || null}
               onChange={(value) => setApartmentId(value as number || 0)}
               label="Related Apartment"
-              placeholder="Search apartments by name..."
+              placeholder={projectFilter && phaseFilter 
+                ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''} Phase ${phaseFilter}...` 
+                : projectFilter 
+                  ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''}...` 
+                  : "Search apartments by name or village..."}
               required
               disabled={lockApartment && propApartmentId !== undefined || (isQuickAction && typeof propApartmentId === 'number')}
+              loading={searchingApartments}
+              serverSideSearch={false}
+              onInputChange={handleApartmentInputChange}
+              inputValue={apartmentSearchTerm}
+              helperText="Type at least one character to see search results"
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>
@@ -510,6 +658,11 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               label="Related Booking (Optional)"
               placeholder="Search bookings by user name..."
               disabled={!apartmentId || (isQuickAction && typeof propBookingId === 'number')}
+              loading={searchingBookings}
+              serverSideSearch={false}
+              onInputChange={handleBookingInputChange}
+              inputValue={bookingSearchTerm}
+              helperText={!apartmentId ? "Select an apartment first" : "Type at least one character to search bookings"}
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>

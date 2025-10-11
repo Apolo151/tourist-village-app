@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useRef } from "react";
 import { getNumericInputProps } from '../utils/numberUtils';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -47,6 +47,8 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [searchingApartments, setSearchingApartments] = useState(false);
+  const apartmentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Villages and phase filter state
   const [villages, setVillages] = useState<Village[]>([]);
@@ -81,8 +83,19 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        
+        // Load initial apartments data
+        const apartmentsPromise = apartmentService.getApartments({
+          limit: 30,
+          sort_by: 'created_at',
+          sort_order: 'desc'
+        });
+        
+        // If specific apartmentId is provided, we'll ensure it's included in the results
+        let specificApartment: Apartment | undefined;
+        
         const [apartmentsResult, usersResult] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentsPromise,
           // Load only the most recent 20 users initially
           userService.getUsers({ 
             limit: 20,
@@ -90,7 +103,27 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             sort_order: 'desc'
           })
         ]);
-        setApartments(apartmentsResult.data);
+        
+        let apartmentsData = apartmentsResult.data;
+        
+        // If apartmentId was provided, fetch that specific apartment if not already in results
+        if (apartmentId) {
+          const foundApartment = apartmentsData.find(apt => apt.id === apartmentId);
+          if (!foundApartment) {
+            try {
+              // Fetch the specific apartment individually
+              const specificResult = await apartmentService.getApartmentById(apartmentId);
+              // Add it to our apartments array
+              if (specificResult) {
+                apartmentsData = [specificResult, ...apartmentsData];
+              }
+            } catch (specificErr) {
+              console.error('Error fetching specific apartment:', specificErr);
+            }
+          }
+        }
+        
+        setApartments(apartmentsData);
         setUsers(usersResult.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -100,7 +133,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     };
 
     loadInitialData();
-  }, []);
+  }, [apartmentId]);
 
   // Fetch villages on mount
   useEffect(() => {
@@ -115,7 +148,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     fetchVillages();
   }, []);
 
-  // Update available phases when village changes
+  // Update available phases when village changes and trigger apartment search
   useEffect(() => {
     if (selectedVillageId) {
       const village = villages.find(v => v.id === Number(selectedVillageId));
@@ -126,41 +159,77 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       }
       setSelectedPhase('');
       setFormData(prev => ({ ...prev, apartment_id: 0 }));
+      
+      // Trigger apartment search with new village filter
+      handleApartmentSearch('');
     } else {
       setAvailablePhases([]);
       setSelectedPhase('');
       setFormData(prev => ({ ...prev, apartment_id: 0 }));
+      
+      // Reset apartment search without filters
+      handleApartmentSearch('');
     }
   }, [selectedVillageId, villages]);
 
-  // Reset apartment when phase changes
+  // Reset apartment when phase changes and trigger search
   useEffect(() => {
     setFormData(prev => ({ ...prev, apartment_id: 0 }));
+    
+    // Trigger apartment search with updated phase filter
+    if (selectedVillageId) {
+      handleApartmentSearch('');
+    }
   }, [selectedPhase]);
 
-  // Filter apartments based on selected village and phase
-  const filteredApartments = apartments.filter(apartment => {
-    if (selectedVillageId && selectedPhase) {
-      return apartment.village_id === Number(selectedVillageId) && apartment.phase === Number(selectedPhase);
-    } else if (selectedVillageId) {
-      return apartment.village_id === Number(selectedVillageId);
-    } else {
-      return true;
-    }
-  });
+  // We'll use the apartments list directly, since filtering is now handled server-side
+  // But keep the filteredApartments variable for compatibility with existing code
+  const filteredApartments = apartments;
 
   // Auto-select apartment owner when apartment is selected and user type is owner
   useEffect(() => {
-    if (formData.user_type === 'owner' && formData.apartment_id) {
-      const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-      if (selectedApartment?.owner) {
-        setFormData(prev => ({ 
-          ...prev, 
-          user_id: selectedApartment.owner?.id || 0,
-          user_name: selectedApartment.owner?.name || ''
-        }));
+    const fetchApartmentWithOwner = async () => {
+      if (formData.user_type === 'owner' && formData.apartment_id) {
+        try {
+          // First check if we already have owner data in our apartments list
+          const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+          
+          if (selectedApartment?.owner) {
+            // We have owner data, use it
+            console.log('Using owner data from apartments list:', selectedApartment.owner);
+            setFormData(prev => ({ 
+              ...prev, 
+              user_id: selectedApartment.owner?.id || 0,
+              user_name: selectedApartment.owner?.name || ''
+            }));
+          } else {
+            // We don't have owner data, fetch it directly
+            console.log('No owner data in apartments list, fetching apartment details...');
+            try {
+              const apartmentDetails = await apartmentService.getApartmentById(formData.apartment_id);
+              console.log('Fetched apartment details:', apartmentDetails);
+              
+              if (apartmentDetails?.owner) {
+                console.log('Found owner in fetched details:', apartmentDetails.owner);
+                setFormData(prev => ({ 
+                  ...prev, 
+                  user_id: apartmentDetails.owner?.id || 0,
+                  user_name: apartmentDetails.owner?.name || ''
+                }));
+              } else {
+                console.log('No owner found in fetched apartment details');
+              }
+            } catch (error) {
+              console.error('Error fetching apartment details:', error);
+            }
+          }
+        } catch (error) {
+          console.error('Error in apartment owner auto-selection:', error);
+        }
       }
-    }
+    };
+    
+    fetchApartmentWithOwner();
   }, [formData.apartment_id, formData.user_type, apartments]);
 
   // When lockApartment and apartmentId are set, ensure owner autofill logic is triggered
@@ -278,6 +347,61 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     }
   };
 
+  // Handle server-side search for apartments
+  const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
+    try {
+      setSearchingApartments(true);
+      
+      // Build filters based on current village and phase selections
+      const filters: any = {
+        limit: 100
+      };
+      
+      // Add search query if provided (length >= 1)
+      if (searchQuery && searchQuery.length >= 1) {
+        filters.search = searchQuery;
+      }
+      
+      // Add village filter if selected
+      if (selectedVillageId) {
+        filters.village_id = parseInt(selectedVillageId);
+      }
+      
+      // Add phase filter if selected
+      if (selectedPhase) {
+        filters.phase = parseInt(selectedPhase);
+      }
+      
+      const result = await apartmentService.getApartments(filters);
+      console.log('Received apartments data:', result.data);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error searching for apartments:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingApartments(false);
+    }
+  };
+  
+  // Handle apartment input changes with better empty input handling
+  const handleApartmentInputChange = (inputText: string) => {
+    // Clear the search timeout if it exists
+    if (apartmentSearchTimeoutRef.current) {
+      clearTimeout(apartmentSearchTimeoutRef.current);
+      apartmentSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    apartmentSearchTimeoutRef.current = setTimeout(() => {
+      // If input is empty and there's no village/phase filter, limit to a small set
+      if (!inputText && !selectedVillageId && !selectedPhase) {
+        handleApartmentSearch('__recent');  // Special keyword to get recent apartments
+      } else {
+        handleApartmentSearch(inputText);
+      }
+    }, 300); // Increased delay for better typing experience
+  };
+
   // Handle server-side search for users
   const handleUserSearch = async (searchQuery: string): Promise<void> => {
     if (searchQuery.length < 2) return;
@@ -381,9 +505,12 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 value={formData.apartment_id || null}
                 onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || 0 }))}
                 label="Related Apartment"
-                placeholder="Search apartments by name..."
+                placeholder="Type to search apartments by name..."
                 required
                 disabled={lockApartment}
+                loading={searchingApartments}
+                serverSideSearch={true}
+                onInputChange={handleApartmentInputChange}
                 getOptionLabel={(option) => option.label}
                 renderOption={(props, option) => (
                   <li {...props}>
