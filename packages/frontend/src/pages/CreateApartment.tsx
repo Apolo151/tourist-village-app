@@ -34,6 +34,7 @@ import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
 import { ErrorMessageHandler } from '../utils/errorUtils';
 import type { DetailedError } from '../utils/errorUtils';
 import SearchableDropdown from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 
 export default function CreateApartment() {
   const navigate = useNavigate();
@@ -292,6 +293,22 @@ export default function CreateApartment() {
       setSearchingOwners(false);
     }
   };
+  
+  // Handle clearing the owner selection
+  const handleClearOwner = () => {
+    // Clear both the search term and the selection
+    setOwnerSearchText('');
+    setFormData(prev => ({ ...prev, owner_id: 0 }));
+    
+    // Clear field error for this field if it exists
+    if (fieldErrors.owner_id) {
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.owner_id;
+        return newErrors;
+      });
+    }
+  };
 
   const handleBack = () => {
     navigate('/apartments');
@@ -421,7 +438,7 @@ export default function CreateApartment() {
 
               {/* Owner */}
               <Grid size={{xs: 12}}>
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={owners.map(owner => ({
                     id: owner.id,
                     label: `${owner.name} (${owner.email})${owner.phone_number ? ` - ${owner.phone_number}` : ''}`,
@@ -431,6 +448,7 @@ export default function CreateApartment() {
                   }))}
                   value={formData.owner_id || null}
                   onChange={(value) => handleSelectChange({ target: { name: 'owner_id', value: value?.toString() || '0' } } as SelectChangeEvent<string>)}
+                  onClearSelection={handleClearOwner}
                   label="Owner Name"
                   placeholder="Type at least 2 characters to search owners..."
                   required
@@ -453,6 +471,8 @@ export default function CreateApartment() {
                       </Box>
                     </li>
                   )}
+                  clearable={true}
+                  showClearButton={!!formData.owner_id}
                 />
               </Grid>
 

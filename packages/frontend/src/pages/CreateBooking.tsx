@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { getNumericInputProps } from '../utils/numberUtils';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -35,9 +35,15 @@ export interface CreateBookingProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
+  bookingId?: number; // Added for edit mode
+  isEditMode?: boolean; // Flag to indicate edit mode
 }
 
-export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockApartment }: CreateBookingProps) {
+export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockApartment, bookingId: propBookingId, isEditMode: propIsEditMode }: CreateBookingProps) {
+  // Get ID from URL params for edit mode
+  const { id: urlId } = useParams<{ id: string }>();
+  const bookingId = propBookingId || (urlId ? parseInt(urlId) : undefined);
+  const isEditMode = propIsEditMode || !!urlId;
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -149,8 +155,60 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           });
         }
         
-        // If apartmentId and user type is owner, prefill owner data
-        if (apartmentId && formData.user_type === 'owner') {
+        // If in edit mode, load the booking data
+        if (isEditMode && bookingId) {
+          try {
+            const bookingData = await bookingService.getBookingById(bookingId);
+            
+            // Update form data with booking information
+            setFormData({
+              apartment_id: bookingData.apartment_id,
+              user_id: bookingData.user_id,
+              user_name: bookingData.user?.name || '',
+              user_type: bookingData.user_type === 'owner' ? 'owner' : 'renter',
+              number_of_people: bookingData.number_of_people,
+              arrival_date: new Date(bookingData.arrival_date),
+              leaving_date: new Date(bookingData.leaving_date),
+              status: bookingData.status,
+              notes: bookingData.notes || '',
+              person_name: bookingData.person_name || '',
+              flightDetails: ''
+            });
+            
+            // Set user search term for UI consistency
+            setUserSearchTerm(bookingData.user?.name || '');
+            
+            // Extract flight details from notes if present
+            if (bookingData.notes && bookingData.notes.includes('Flight Details:')) {
+              const flightMatch = bookingData.notes.match(/Flight Details:\s*(.+)/);
+              if (flightMatch) {
+                setFormData(prev => ({
+                  ...prev,
+                  notes: bookingData.notes?.replace(/\n\nFlight Details:.*/, '') || '',
+                  flightDetails: flightMatch[1].trim()
+                }));
+              }
+            }
+            
+            // Set village and phase
+            if (bookingData.apartment) {
+              setSelectedVillageId(String(bookingData.apartment.village_id));
+              setSelectedPhase(String(bookingData.apartment.phase));
+            }
+            
+            // If user is owner, ensure owner data is in cache
+            if (bookingData.user_type === 'owner' && bookingData.user) {
+              setOwnerCache(prev => ({
+                ...prev,
+                [bookingData.apartment_id]: bookingData.user!
+              }));
+            }
+          } catch (err) {
+            console.error('Error loading booking data:', err);
+            setError('Failed to load booking data for editing');
+          }
+        } else if (apartmentId && formData.user_type === 'owner') {
+          // If not in edit mode but apartmentId is provided and user type is owner, prefill owner data
           prefillOwnerData(apartmentId);
         }
       } catch (err) {
@@ -161,7 +219,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     };
 
     loadInitialData();
-  }, [apartmentId]);
+  }, [apartmentId, isEditMode, bookingId]);
 
   // Fetch villages on mount
   useEffect(() => {
@@ -368,17 +426,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         arrival_date: formData.arrival_date!.toISOString(),
         leaving_date: formData.leaving_date!.toISOString(),
         status: formData.status,
-        notes: formData.notes + (formData.flightDetails ? `\n\nFlight Details: ${formData.flightDetails}` : '')
+        notes: formData.notes + (formData.flightDetails ? `\n\nFlight Details: ${formData.flightDetails}` : ''),
+        person_name: formData.person_name
       };
 
       // Add user data based on type
       if (formData.user_type === 'owner') {
         bookingData.user_id = formData.user_id;
+        bookingData.user_type = 'owner';
       } else {
         // For renter bookings, check if it's an existing user or new user
         if (formData.user_id && formData.user_id > 0) {
           // Existing user selected
           bookingData.user_id = formData.user_id;
+          bookingData.user_type = 'renter';
         } else {
           // New user to be created
           bookingData.user_name = formData.user_name.trim();
@@ -386,20 +447,33 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         }
       }
 
-      await bookingService.createBooking(bookingData);
-      // Ensure ApartmentDetails refreshes bookings after creation
-      if (onSuccess) {
-        // Optionally, you could fetch the latest bookings here if needed
-        onSuccess();
+      if (isEditMode && bookingId) {
+        // Update existing booking
+        await bookingService.updateBooking(bookingId, bookingData);
+        
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          navigate(`/bookings/${bookingId}?success=true&message=Booking%20updated%20successfully`);
+        }
       } else {
-        navigate('/bookings?success=true&message=Booking%20created%20successfully');
+        // Create new booking
+        const newBooking = await bookingService.createBooking(bookingData);
+        
+        // Ensure ApartmentDetails refreshes bookings after creation
+        if (onSuccess) {
+          // Optionally, you could fetch the latest bookings here if needed
+          onSuccess();
+        } else {
+          navigate(`/bookings/${newBooking.id}?success=true&message=Booking%20created%20successfully`);
+        }
       }
     } catch (err: any) {
       // If the error is an Axios error with a response and status 409, show the backend message
       if (err.response && err.response.status === 409 && err.response.data && err.response.data.message) {
         setError(err.response.data.message);
       } else {
-        setError(err instanceof Error ? err.message : 'Failed to create booking');
+        setError(err instanceof Error ? err.message : `Failed to ${isEditMode ? 'update' : 'create'} booking`);
       }
     } finally {
       setSubmitting(false);
@@ -570,7 +644,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               Back
             </Button>
             <Typography variant="h4">
-              Create New Booking
+              {isEditMode ? 'Edit Booking' : 'Create New Booking'}
             </Typography>
           </Box>
 
@@ -911,7 +985,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   size="large"
                   color="primary"
                 >
-                  {submitting ? <CircularProgress size={24} /> : 'Create Booking'}
+                  {submitting ? <CircularProgress size={24} /> : (isEditMode ? 'Update Booking' : 'Create Booking')}
                 </Button>
               </Box>
             </Grid>
