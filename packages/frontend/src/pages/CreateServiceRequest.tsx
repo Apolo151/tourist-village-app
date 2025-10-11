@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { formatNumber, formatCurrency, getNumericInputProps } from '../utils/numberUtils';
 import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import {
@@ -43,6 +43,7 @@ import type { User } from "../services/userService";
 import { villageService } from "../services/villageService";
 import type { Village } from "../services/villageService";
 import SearchableDropdown from "../components/SearchableDropdown";
+import ClearableSearchDropdown from "../components/ClearableSearchDropdown";
 
 export interface CreateServiceRequestProps {
     apartmentId?: number;
@@ -87,10 +88,18 @@ export default function CreateServiceRequest({
     const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
     const [apartments, setApartments] = useState<Apartment[]>([]);
     const [searchingApartments, setSearchingApartments] = useState(false);
+    const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
+    const apartmentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [users, setUsers] = useState<User[]>([]);
     const [searchingUsers, setSearchingUsers] = useState(false);
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const userSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [villages, setVillages] = useState<Village[]>([]);
+    
+    // Owner cache to prevent infinite cycles and minimize API calls
+    const [ownerCache, setOwnerCache] = useState<Record<number, User>>({});
+    const pendingOwnerFetchRef = useRef<Record<number, boolean>>({});
 
     // Form data
     const [formData, setFormData] = useState<
@@ -115,6 +124,47 @@ export default function CreateServiceRequest({
     // Filter states for easier apartment selection
     const [projectFilter, setProjectFilter] = useState(''); // Village filter
     const [phaseFilter, setPhaseFilter] = useState('');
+    
+    // Load apartments based on current project/phase filters
+    const loadFilteredApartments = useCallback(async () => {
+        try {
+            const filters: any = { 
+                limit: 100
+            };
+            
+            // Add project filter if selected
+            if (projectFilter) {
+                filters.village_id = parseInt(projectFilter);
+            }
+            
+            // Add phase filter if selected
+            if (phaseFilter) {
+                filters.phase = parseInt(phaseFilter);
+            }
+            
+            // Add include property separately as it's not in the type definition
+            const filtersWithInclude = { ...filters, include: 'owner' };
+            
+            const result = await apartmentService.getApartments(filtersWithInclude as any);
+            setApartments(result.data);
+            
+            // Update owner cache with any owner data received
+            const apartmentsWithOwners = result.data.filter(apt => apt.owner);
+            if (apartmentsWithOwners.length > 0) {
+                setOwnerCache(prev => {
+                    const newCache = { ...prev };
+                    apartmentsWithOwners.forEach(apt => {
+                        if (apt.owner) {
+                            newCache[apt.id] = apt.owner;
+                        }
+                    });
+                    return newCache;
+                });
+            }
+        } catch (err) {
+            console.error('Error loading filtered apartments:', err);
+        }
+    }, [projectFilter, phaseFilter]);
 
     // Load initial data
     useEffect(() => {
@@ -123,15 +173,9 @@ export default function CreateServiceRequest({
                 setLoading(true);
                 setError(null);
 
-                const [serviceTypesData, apartmentsData, usersData, villagesData] =
+                const [serviceTypesData, usersData, villagesData] =
                     await Promise.all([
                         serviceRequestService.getServiceTypes({ limit: 100 }),
-                        // Load only the most recent 20 apartments initially
-                        apartmentService.getApartments({
-                            limit: 20,
-                            sort_by: 'created_at',
-                            sort_order: 'desc'
-                        }),
                         // Load only the most recent 20 users initially
                         userService.getUsers({
                             limit: 20,
@@ -143,9 +187,11 @@ export default function CreateServiceRequest({
                     ]);
 
                 setServiceTypes(serviceTypesData.data);
-                setApartments(apartmentsData.data);
                 setUsers(usersData.data);
                 setVillages(villagesData.data);
+                
+                // Load apartments with owner data separately
+                await loadFilteredApartments();
 
                 // Pre-select service type if provided in URL
                 const serviceTypeId = searchParams.get("serviceTypeId");
@@ -170,7 +216,7 @@ export default function CreateServiceRequest({
         };
 
         loadData();
-    }, [searchParams]);
+    }, [searchParams, loadFilteredApartments]);
 
     // Load bookings when apartment is selected
     useEffect(() => {
@@ -255,7 +301,7 @@ export default function CreateServiceRequest({
       if (requesterId && (!formData.requester_id || formData.requester_id !== requesterId)) {
         setFormData(prev => ({ ...prev, requester_id: requesterId }));
       }
-    }, [requesterId]);
+    }, [requesterId, formData.requester_id]);
 
     // Auto-set project and phase filters when apartment is selected
     useEffect(() => {
@@ -318,7 +364,7 @@ export default function CreateServiceRequest({
         };
 
         prefillDefaultCost();
-    }, [formData.type_id, formData.apartment_id, serviceTypes, apartments]);
+    }, [formData.type_id, formData.apartment_id, formData.cost, formData.currency, serviceTypes, apartments]);
 
     // Clear cost when service type or apartment changes (to allow new defaults)
     const handleServiceTypeChange = (event: SelectChangeEvent) => {
@@ -482,15 +528,14 @@ export default function CreateServiceRequest({
     
     // Handle server-side search for apartments
     const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
-        if (searchQuery.length < 1) return;
-        
         try {
             setSearchingApartments(true);
+            setApartmentSearchTerm(searchQuery);
             
             // Build filters based on current project/phase selections
             const filters: any = {
-                search: searchQuery,
-                limit: 100
+                limit: 100,
+                search: searchQuery // Add search query regardless of length
             };
             
             // Add project filter if selected
@@ -503,8 +548,25 @@ export default function CreateServiceRequest({
                 filters.phase = parseInt(phaseFilter);
             }
             
-            const result = await apartmentService.getApartments(filters);
+            // Add include property separately as it's not in the type definition
+            const filtersWithInclude = { ...filters, include: 'owner' };
+            
+            const result = await apartmentService.getApartments(filtersWithInclude as any);
             setApartments(result.data);
+            
+            // Update owner cache with any owner data received
+            const apartmentsWithOwners = result.data.filter(apt => apt.owner);
+            if (apartmentsWithOwners.length > 0) {
+                setOwnerCache(prev => {
+                    const newCache = { ...prev };
+                    apartmentsWithOwners.forEach(apt => {
+                        if (apt.owner) {
+                            newCache[apt.id] = apt.owner;
+                        }
+                    });
+                    return newCache;
+                });
+            }
         } catch (err) {
             console.error('Error searching for apartments:', err);
             // Don't show error message during search
@@ -515,15 +577,18 @@ export default function CreateServiceRequest({
     
     // Handle server-side search for users
     const handleUserSearch = async (searchQuery: string): Promise<void> => {
-        if (searchQuery.length < 1) return;
-        
         try {
             setSearchingUsers(true);
-            const result = await userService.getUsers({
-                search: searchQuery,
-                limit: 100
-            });
+            setUserSearchTerm(searchQuery);
             
+            const filters: any = {
+                limit: 100
+            };
+            
+            // Add search query regardless of length
+            filters.search = searchQuery;
+            
+            const result = await userService.getUsers(filters);
             setUsers(result.data);
         } catch (err) {
             console.error('Error searching for users:', err);
@@ -535,40 +600,70 @@ export default function CreateServiceRequest({
 
     // Custom input change handler for apartments to bypass 2-char limit
     const handleApartmentInputChange = (text: string) => {
-        // Always search when field is clicked (empty text) or when typing (1+ characters)
-        // This ensures the dropdown shows filtered results when clicked, even before typing
-        setSearchingApartments(true);
-        // Add slight delay for better UX
-        setTimeout(() => {
-            if (text.length >= 1) {
-                handleApartmentSearch(text).finally(() => setSearchingApartments(false));
-            } else {
-                // Load apartments based on current filters when field is clicked
-                loadFilteredApartments().finally(() => setSearchingApartments(false));
-            }
-        }, 100);
+        // Update the search term state immediately for UI responsiveness
+        setApartmentSearchTerm(text);
+        
+        // Handle explicit clearing of the input field
+        if (text === '') {
+            // Keep the current filters but don't reset the selection
+            // This allows users to clear the search text without losing their selection
+            handleApartmentSearch('').finally(() => setSearchingApartments(false));
+            return;
+        }
+        
+        // Clear the search timeout if it exists
+        if (apartmentSearchTimeoutRef.current) {
+            clearTimeout(apartmentSearchTimeoutRef.current);
+            apartmentSearchTimeoutRef.current = null;
+        }
+        
+        // Set a new timeout to prevent too many API calls while typing
+        apartmentSearchTimeoutRef.current = setTimeout(() => {
+            // Always call handleApartmentSearch with the current input text
+            // This ensures filters are applied even with empty input
+            handleApartmentSearch(text);
+        }, 300); // Increased delay for better typing experience
+    };
+    
+    // Handle clearing the apartment selection
+    const handleClearApartment = () => {
+        // Clear both the search term and the selection
+        setApartmentSearchTerm('');
+        setFormData(prev => ({ ...prev, apartment_id: 0 }));
+        // Refresh the apartment list with current filters but empty search
+        handleApartmentSearch('');
     };
 
-    // Load apartments based on current project/phase filters
-    const loadFilteredApartments = async () => {
-        try {
-            const filters: any = { limit: 100 };
-            
-            // Add project filter if selected
-            if (projectFilter) {
-                filters.village_id = parseInt(projectFilter);
-            }
-            
-            // Add phase filter if selected
-            if (phaseFilter) {
-                filters.phase = parseInt(phaseFilter);
-            }
-            
-            const result = await apartmentService.getApartments(filters);
-            setApartments(result.data);
-        } catch (err) {
-            console.error('Error loading filtered apartments:', err);
+    
+    // Custom input change handler for users
+    const handleUserInputChange = (text: string) => {
+        // Update the search term state immediately
+        setUserSearchTerm(text);
+        
+        // Handle explicit clearing of the input field
+        if (text === '') {
+            // Allow clearing the field without losing selection
+            handleUserSearch('');
+            return;
         }
+        
+        // Clear the search timeout if it exists
+        if (userSearchTimeoutRef.current) {
+            clearTimeout(userSearchTimeoutRef.current);
+            userSearchTimeoutRef.current = null;
+        }
+        
+        // Set a new timeout to prevent too many API calls while typing
+        userSearchTimeoutRef.current = setTimeout(() => {
+            handleUserSearch(text);
+        }, 300);
+    };
+    
+    // Handle clearing the user selection
+    const handleClearUser = () => {
+        setUserSearchTerm('');
+        setFormData(prev => ({ ...prev, requester_id: undefined }));
+        handleUserSearch('');
     };
 
     const getSelectedServiceType = () => {
@@ -625,6 +720,14 @@ export default function CreateServiceRequest({
             }
         }
     }, [lockApartment, apartmentId, apartments]);
+    
+    // Load apartments when filters change or component mounts
+    useEffect(() => {
+        // Don't reload if we're already loading or if we're in a locked apartment state
+        if (!loading && !(lockApartment && apartmentId)) {
+            loadFilteredApartments();
+        }
+    }, [projectFilter, phaseFilter, loading, lockApartment, apartmentId, loadFilteredApartments]);
 
     if (loading) {
         return (
@@ -802,7 +905,7 @@ export default function CreateServiceRequest({
                             </Grid>
 
                             <Grid size={{ xs: 12 }}>
-                                <SearchableDropdown
+                                <ClearableSearchDropdown
                                     options={getFilteredApartments().map((apartment) => ({
                                         id: apartment.id,
                                         label: `${apartment.name} - Phase ${apartment.phase}`,
@@ -812,6 +915,7 @@ export default function CreateServiceRequest({
                                     }))}
                                     value={formData.apartment_id || null}
                                     onChange={handleApartmentChange}
+                                    onClearSelection={handleClearApartment}
                                     label="Apartment"
                                     placeholder="Type to search apartments by name or village..."
                                     required
@@ -822,6 +926,7 @@ export default function CreateServiceRequest({
                                     loading={searchingApartments}
                                     serverSideSearch={false}
                                     onInputChange={handleApartmentInputChange}
+                                    inputValue={apartmentSearchTerm}
                                     getOptionLabel={(option) => option.label}
                                     renderOption={(props, option) => (
                                         <li {...props}>
@@ -838,7 +943,9 @@ export default function CreateServiceRequest({
                                             </Box>
                                         </li>
                                     )}
-                                    helperText="Type at least one character to see search results"
+                                    helperText="Showing apartments based on selected filters"
+                                    clearable={true}
+                                    showClearButton={formData.apartment_id > 0}
                                 />
                             </Grid>
 
@@ -967,7 +1074,7 @@ export default function CreateServiceRequest({
                             </Grid>
 
                             <Grid size={{ xs: 12, sm: 6 }}>
-                                <SearchableDropdown
+                                <ClearableSearchDropdown
                                     options={users.map((user) => ({
                                         id: user.id,
                                         label: `${user.name} (${user.role})`,
@@ -986,16 +1093,14 @@ export default function CreateServiceRequest({
                                             "requester_id"
                                         )
                                     }
+                                    onClearSelection={handleClearUser}
                                     label="Requester"
                                     placeholder="Type to search users by name..."
                                     required
                                     loading={searchingUsers}
                                     serverSideSearch={false}
-                                    onInputChange={(text) => {
-                                        if (text.length >= 1) {
-                                            handleUserSearch(text);
-                                        }
-                                    }}
+                                    onInputChange={handleUserInputChange}
+                                    inputValue={userSearchTerm}
                                     getOptionLabel={(option) => option.label}
                                     renderOption={(props, option) => (
                                         <li {...props}>
@@ -1012,7 +1117,9 @@ export default function CreateServiceRequest({
                                             </Box>
                                         </li>
                                     )}
-                                    helperText="Type at least one character to see search results"
+                                    helperText="Type to search users"
+                                    clearable={true}
+                                    showClearButton={!!formData.requester_id}
                                 />
                             </Grid>
 

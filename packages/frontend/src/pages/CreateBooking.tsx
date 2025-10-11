@@ -28,6 +28,7 @@ import type { Apartment } from '../services/apartmentService';
 import type { User } from '../services/userService';
 import type { Village } from '../services/villageService';
 import SearchableDropdown, { type SearchableDropdownOption } from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 
 export interface CreateBookingProps {
   apartmentId?: number;
@@ -47,8 +48,14 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [searchingUsers, setSearchingUsers] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [searchingApartments, setSearchingApartments] = useState(false);
+  const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
   const apartmentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Owner cache to prevent infinite cycles and minimize API calls
+  const [ownerCache, setOwnerCache] = useState<Record<number, User>>({});
+  const pendingOwnerFetchRef = useRef<Record<number, boolean>>({});
   
   // Villages and phase filter state
   const [villages, setVillages] = useState<Village[]>([]);
@@ -84,11 +91,13 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       try {
         setLoading(true);
         
-        // Load initial apartments data
+        // Load initial apartments data with owner information
         const apartmentsPromise = apartmentService.getApartments({
           limit: 30,
           sort_by: 'created_at',
-          sort_order: 'desc'
+          sort_order: 'desc',
+          // @ts-ignore - 'include' might be supported by the API but not in the type definition
+          include: 'owner' // Explicitly request owner data
         });
         
         // If specific apartmentId is provided, we'll ensure it's included in the results
@@ -125,6 +134,25 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         
         setApartments(apartmentsData);
         setUsers(usersResult.data);
+        
+        // Update owner cache with any owner data received
+        const apartmentsWithOwners = apartmentsData.filter(apt => apt.owner);
+        if (apartmentsWithOwners.length > 0) {
+          setOwnerCache(prev => {
+            const newCache = { ...prev };
+            apartmentsWithOwners.forEach(apt => {
+              if (apt.owner) {
+                newCache[apt.id] = apt.owner;
+              }
+            });
+            return newCache;
+          });
+        }
+        
+        // If apartmentId and user type is owner, prefill owner data
+        if (apartmentId && formData.user_type === 'owner') {
+          prefillOwnerData(apartmentId);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
       } finally {
@@ -186,88 +214,119 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   // But keep the filteredApartments variable for compatibility with existing code
   const filteredApartments = apartments;
 
-  // Auto-select apartment owner when apartment is selected and user type is owner
-  useEffect(() => {
-    const fetchApartmentWithOwner = async () => {
-      if (formData.user_type === 'owner' && formData.apartment_id) {
-        try {
-          // First check if we already have owner data in our apartments list
-          const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-          
-          if (selectedApartment?.owner) {
-            // We have owner data, use it
-            console.log('Using owner data from apartments list:', selectedApartment.owner);
-            setFormData(prev => ({ 
-              ...prev, 
-              user_id: selectedApartment.owner?.id || 0,
-              user_name: selectedApartment.owner?.name || ''
-            }));
-          } else {
-            // We don't have owner data, fetch it directly
-            console.log('No owner data in apartments list, fetching apartment details...');
-            try {
-              const apartmentDetails = await apartmentService.getApartmentById(formData.apartment_id);
-              console.log('Fetched apartment details:', apartmentDetails);
-              
-              if (apartmentDetails?.owner) {
-                console.log('Found owner in fetched details:', apartmentDetails.owner);
-                setFormData(prev => ({ 
-                  ...prev, 
-                  user_id: apartmentDetails.owner?.id || 0,
-                  user_name: apartmentDetails.owner?.name || ''
-                }));
-              } else {
-                console.log('No owner found in fetched apartment details');
-              }
-            } catch (error) {
-              console.error('Error fetching apartment details:', error);
-            }
-          }
-        } catch (error) {
-          console.error('Error in apartment owner auto-selection:', error);
-        }
-      }
-    };
+  // Function to get owner data for an apartment
+  const getOwnerForApartment = async (apartmentId: number): Promise<User | undefined> => {
+    // Check cache first
+    if (ownerCache[apartmentId]) {
+      console.log('Using cached owner data for apartment', apartmentId, ownerCache[apartmentId]);
+      return ownerCache[apartmentId];
+    }
     
-    fetchApartmentWithOwner();
-  }, [formData.apartment_id, formData.user_type, apartments]);
+    // Check if there's a pending request
+    if (pendingOwnerFetchRef.current[apartmentId]) {
+      console.log('Owner fetch already in progress for apartment', apartmentId);
+      return undefined; // Will be handled when request completes
+    }
+    
+    // Check if the apartment already has owner data in the apartments array
+    const apartmentWithOwner = apartments.find(apt => apt.id === apartmentId && apt.owner);
+    if (apartmentWithOwner?.owner) {
+      console.log('Found owner data in apartments array', apartmentWithOwner.owner);
+      // Update cache
+      setOwnerCache(prev => ({
+        ...prev,
+        [apartmentId]: apartmentWithOwner.owner!
+      }));
+      return apartmentWithOwner.owner;
+    }
+    
+    // Need to fetch owner data
+    console.log('Fetching owner data for apartment', apartmentId);
+    try {
+      pendingOwnerFetchRef.current[apartmentId] = true;
+      const apartmentDetails = await apartmentService.getApartmentById(apartmentId);
+      pendingOwnerFetchRef.current[apartmentId] = false;
+      
+      if (apartmentDetails?.owner) {
+        console.log('Fetched owner data successfully', apartmentDetails.owner);
+        // Update cache
+        setOwnerCache(prev => ({
+          ...prev,
+          [apartmentId]: apartmentDetails.owner!
+        }));
+        return apartmentDetails.owner;
+      } else {
+        console.log('No owner found for apartment', apartmentId);
+      }
+    } catch (error) {
+      console.error('Error fetching apartment details:', error);
+      pendingOwnerFetchRef.current[apartmentId] = false;
+    }
+    
+    return undefined;
+  };
+  
+  // Function to prefill owner data
+  const prefillOwnerData = async (apartmentId: number) => {
+    if (!apartmentId) return;
+    
+    const owner = await getOwnerForApartment(apartmentId);
+    if (owner) {
+      // First update the form data
+      setFormData(prev => {
+        // Only update if user type is still 'owner' and apartment hasn't changed
+        if (prev.user_type === 'owner' && prev.apartment_id === apartmentId) {
+          return {
+            ...prev,
+            user_id: owner.id,
+            user_name: owner.name
+          };
+        }
+        return prev;
+      });
+      
+      // Update user search term for UI consistency
+      setUserSearchTerm(owner.name);
+      
+      // Update the apartments array to ensure the owner data is available for the TextField
+      setApartments(prevApartments => {
+        return prevApartments.map(apt => {
+          if (apt.id === apartmentId) {
+            // Make sure we don't lose any existing data
+            return {
+              ...apt,
+              owner: owner
+            };
+          }
+          return apt;
+        });
+      });
+    }
+  };
+  
+  // Effect to handle owner prefill when apartment or user type changes
+  useEffect(() => {
+    // Only proceed if user type is owner and apartment is selected
+    if (formData.user_type === 'owner' && formData.apartment_id) {
+      prefillOwnerData(formData.apartment_id);
+    }
+  }, [formData.apartment_id, formData.user_type]);
 
-  // When lockApartment and apartmentId are set, ensure owner autofill logic is triggered
+  // When lockApartment and apartmentId are set, set village and phase
   useEffect(() => {
     if (lockApartment && apartmentId && apartments.length > 0) {
       const apt = apartments.find(a => a.id === apartmentId);
       if (apt) {
         setSelectedVillageId(String(apt.village_id));
         setSelectedPhase(String(apt.phase));
-        setFormData(prev => {
-          // If user_type is owner, set user_id and user_name to owner
-          let user_id = prev.user_id;
-          let user_name = prev.user_name;
-          if (prev.user_type === 'owner' && apt.owner) {
-            user_id = apt.owner.id;
-            user_name = apt.owner.name;
-          }
-          return { ...prev, apartment_id: apt.id, user_id, user_name };
-        });
+        setFormData(prev => ({ ...prev, apartment_id: apt.id }));
+        // Owner prefill will be handled by the main useEffect
       }
     }
   }, [lockApartment, apartmentId, apartments]);
 
-  // When User Type is set to 'owner' and lockApartment is true, unlock User and Apartment fields, set owner, then relock
-  useEffect(() => {
-    if (lockApartment && formData.user_type === 'owner' && apartmentId && apartments.length > 0) {
-      const apt = apartments.find(a => a.id === apartmentId);
-      if (apt && apt.owner) {
-        // Temporarily unlock, set, then relock (effectively just set the values)
-        setFormData(prev => ({
-          ...prev,
-          apartment_id: apt.id,
-          user_id: apt.owner?.id || 0,
-          user_name: apt.owner?.name || ''
-        }));
-      }
-    }
-  }, [formData.user_type, lockApartment, apartmentId, apartments]);
+  // This useEffect is no longer needed as the owner prefill is handled by the consolidated function
+  // The main useEffect will handle all cases including when user type changes to 'owner'
 
   const validateForm = (): string | null => {
     if (!formData.apartment_id || formData.apartment_id === 0) return 'Please select an apartment';
@@ -351,16 +410,18 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
     try {
       setSearchingApartments(true);
+      setApartmentSearchTerm(searchQuery);
       
       // Build filters based on current village and phase selections
       const filters: any = {
-        limit: 100
+        limit: 100,
+        // @ts-ignore - 'include' might be supported by the API but not in the type definition
+        include: 'owner' // Explicitly request owner data
       };
       
-      // Add search query if provided (length >= 1)
-      if (searchQuery && searchQuery.length >= 1) {
-        filters.search = searchQuery;
-      }
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
       
       // Add village filter if selected
       if (selectedVillageId) {
@@ -375,6 +436,20 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       const result = await apartmentService.getApartments(filters);
       console.log('Received apartments data:', result.data);
       setApartments(result.data);
+      
+      // Update owner cache with any owner data received
+      const apartmentsWithOwners = result.data.filter(apt => apt.owner);
+      if (apartmentsWithOwners.length > 0) {
+        setOwnerCache(prev => {
+          const newCache = { ...prev };
+          apartmentsWithOwners.forEach(apt => {
+            if (apt.owner) {
+              newCache[apt.id] = apt.owner;
+            }
+          });
+          return newCache;
+        });
+      }
     } catch (err) {
       console.error('Error searching for apartments:', err);
       // Don't show error message during search
@@ -385,6 +460,17 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   
   // Handle apartment input changes with better empty input handling
   const handleApartmentInputChange = (inputText: string) => {
+    // Update the search term state immediately for UI responsiveness
+    setApartmentSearchTerm(inputText);
+    
+    // Handle explicit clearing of the input field
+    if (inputText === '') {
+      // Keep the current filters but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleApartmentSearch('');
+      return;
+    }
+    
     // Clear the search timeout if it exists
     if (apartmentSearchTimeoutRef.current) {
       clearTimeout(apartmentSearchTimeoutRef.current);
@@ -393,26 +479,38 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     
     // Set a new timeout to prevent too many API calls while typing
     apartmentSearchTimeoutRef.current = setTimeout(() => {
-      // If input is empty and there's no village/phase filter, limit to a small set
-      if (!inputText && !selectedVillageId && !selectedPhase) {
-        handleApartmentSearch('__recent');  // Special keyword to get recent apartments
-      } else {
-        handleApartmentSearch(inputText);
-      }
+      // Always call handleApartmentSearch with the current input text
+      // This ensures filters are applied even with empty input
+      handleApartmentSearch(inputText);
     }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the apartment selection
+  const handleClearApartment = () => {
+    // Clear both the search term and the selection
+    setApartmentSearchTerm('');
+    setFormData(prev => ({ ...prev, apartment_id: 0 }));
+    // Refresh the apartment list with current filters but empty search
+    handleApartmentSearch('');
   };
 
   // Handle server-side search for users
   const handleUserSearch = async (searchQuery: string): Promise<void> => {
-    if (searchQuery.length < 2) return;
-    
     try {
       setSearchingUsers(true);
-      const result = await userService.getUsers({
-        search: searchQuery,
-        limit: 30
-      });
+      setUserSearchTerm(searchQuery);
       
+      // Only search if we have at least 1 character
+      // For users, we still want minimum 1 character to avoid loading all users
+      const filters: any = {
+        limit: 30
+      };
+      
+      if (searchQuery.length >= 1) {
+        filters.search = searchQuery;
+      }
+      
+      const result = await userService.getUsers(filters);
       setUsers(result.data);
     } catch (err) {
       console.error('Error searching for users:', err);
@@ -420,6 +518,35 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
     } finally {
       setSearchingUsers(false);
     }
+  };
+  
+  // Handle user input changes
+  const handleUserInputChange = (inputText: string) => {
+    // Update the search term state immediately
+    setUserSearchTerm(inputText);
+    
+    // Update the user_name in form data to match what the user is typing
+    // This is important for freeSolo mode where users can enter custom names
+    setFormData(prev => ({ ...prev, user_name: inputText }));
+    
+    // Handle explicit clearing of the input field
+    if (inputText === '') {
+      // Allow clearing the field without losing selection
+      handleUserSearch('');
+      return;
+    }
+    
+    // Debounce the search
+    setTimeout(() => {
+      handleUserSearch(inputText);
+    }, 300);
+  };
+  
+  // Handle clearing the user selection
+  const handleClearUser = () => {
+    setUserSearchTerm('');
+    setFormData(prev => ({ ...prev, user_id: 0, user_name: '' }));
+    handleUserSearch('');
   };
 
   if (loading) {
@@ -494,7 +621,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
             {/* Apartment Selection */}
             <Grid size = {{xs:12, md:6}}>
-              <SearchableDropdown
+              <ClearableSearchDropdown
                 options={filteredApartments.map(apartment => ({
                   id: apartment.id,
                   label: `${apartment.name} (${apartment.village?.name}, Phase ${apartment.phase})`,
@@ -503,14 +630,30 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   phase: apartment.phase
                 }))}
                 value={formData.apartment_id || null}
-                onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || 0 }))}
+                onChange={(value) => {
+                  const newValue = value as number || 0;
+                  setFormData(prev => ({ 
+                    ...prev, 
+                    apartment_id: newValue,
+                    // Clear user data if switching apartments and user type is 'owner'
+                    ...(prev.apartment_id !== newValue && prev.user_type === 'owner' ? { user_id: 0, user_name: '' } : {})
+                  }));
+                  // If value is cleared, ensure the search term is also cleared
+                  if (!newValue) {
+                    setApartmentSearchTerm('');
+                  }
+                  // Note: We don't need to call prefillOwnerData here
+                  // The useEffect will handle it to avoid duplicate calls
+                }}
+                onClearSelection={handleClearApartment}
                 label="Related Apartment"
                 placeholder="Type to search apartments by name..."
                 required
                 disabled={lockApartment}
                 loading={searchingApartments}
-                serverSideSearch={true}
+                serverSideSearch={false}
                 onInputChange={handleApartmentInputChange}
+                inputValue={apartmentSearchTerm}
                 getOptionLabel={(option) => option.label}
                 renderOption={(props, option) => (
                   <li {...props}>
@@ -522,6 +665,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                     </Box>
                   </li>
                 )}
+                helperText="Type to search or filter by project and phase"
+                clearable={true}
+                showClearButton={formData.apartment_id > 0}
               />
             </Grid>
 
@@ -534,30 +680,15 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   label="User Type"
                   onChange={(e) => {
                     const newUserType = e.target.value as 'owner' | 'renter';
-                    setFormData(prev => {
-                      // If switching to owner and apartment is selected, auto-fill owner info
-                      if (newUserType === 'owner' && prev.apartment_id) {
-                        const selectedApartment = apartments.find(apt => apt.id === prev.apartment_id);
-                        if (selectedApartment?.owner) {
-                          return {
-                            ...prev,
-                            user_type: newUserType,
-                            user_id: selectedApartment.owner.id,
-                            user_name: selectedApartment.owner.name
-                          };
-                        }
-                      }
-                      // If switching to renter, clear owner info
-                      if (newUserType === 'renter') {
-                        return {
-                          ...prev,
-                          user_type: newUserType,
-                          user_id: 0,
-                          user_name: ''
-                        };
-                      }
-                      return { ...prev, user_type: newUserType };
-                    });
+                    setFormData(prev => ({
+                      ...prev,
+                      user_type: newUserType,
+                      // Clear user data when switching to renter
+                      ...(newUserType === 'renter' ? { user_id: 0, user_name: '' } : {})
+                    }));
+                    
+                    // Note: We don't need to call prefillOwnerData here
+                    // The useEffect will handle it to avoid duplicate calls
                   }}
                 >
                   <MenuItem value="owner">Owner</MenuItem>
@@ -578,20 +709,25 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             <Grid size={{xs:12, md:6}}>
               {formData.user_type === 'owner' ? (
                 (() => {
+                  // Check both the apartments array and the owner cache for the owner data
                   const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+                  const cachedOwner = ownerCache[formData.apartment_id];
+                  const ownerName = selectedApartment?.owner?.name || cachedOwner?.name || formData.user_name || '';
+                  const ownerEmail = selectedApartment?.owner?.email || cachedOwner?.email || '';
+                  
                   return (
                     <TextField
                       fullWidth
                       required
                       label="User Name (Owner)"
-                      value={selectedApartment?.owner?.name || ''}
+                      value={ownerName}
                       disabled
-                      helperText={selectedApartment?.owner ? `Apartment owner: ${selectedApartment.owner.email}` : 'Select an apartment to prefill owner'}
+                      helperText={ownerName ? `Apartment owner: ${ownerEmail}` : 'Select an apartment to prefill owner'}
                     />
                   );
                 })()
               ) : (
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={users.map(user => ({
                     id: user.id,
                     label: `${user.name} (${user.email})`,
@@ -608,22 +744,22 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                           user_id: selectedUser.id,
                           user_name: selectedUser.name 
                         }));
+                        setUserSearchTerm(selectedUser.name);
                       }
                     } else {
                       setFormData(prev => ({ ...prev, user_id: 0 }));
+                      // Don't clear user_name here as the user might be typing a custom name
                     }
                   }}
+                  onClearSelection={handleClearUser}
                   label="User Name"
-                  placeholder="Type at least 2 characters to search users..."
+                  placeholder="Type at least 1 character to search users..."
                   required
                   freeSolo={true}
-                  onInputChange={(inputValue) => {
-                    setFormData(prev => ({ ...prev, user_name: inputValue }));
-                  }}
-                  inputValue={formData.user_name}
+                  onInputChange={handleUserInputChange}
+                  inputValue={userSearchTerm}
                   loading={searchingUsers}
-                  serverSideSearch={true}
-                  onServerSearch={handleUserSearch}
+                  serverSideSearch={false}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>
@@ -635,6 +771,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                       </Box>
                     </li>
                   )}
+                  helperText="Type to search users or enter a new name"
+                  clearable={true}
+                  showClearButton={formData.user_id > 0}
                 />
               )}
             </Grid>
