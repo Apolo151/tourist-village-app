@@ -46,6 +46,7 @@ import type { Apartment } from '../services/apartmentService';
 import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format, parseISO } from 'date-fns';
+import SearchableDropdown from '../components/SearchableDropdown';
 
 export default function ServiceRequestDetails() {
   const { id } = useParams<{ id: string }>();
@@ -54,7 +55,11 @@ export default function ServiceRequestDetails() {
   
   const [serviceRequest, setServiceRequest] = useState<ServiceRequest | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [searchingApartments, setSearchingApartments] = useState(false);
+  const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [serviceTypes, setServiceTypes] = useState<ServiceType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -239,6 +244,103 @@ export default function ServiceRequestDetails() {
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Not scheduled';
     return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
+  };
+
+  // Handle server-side search for apartments
+  const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 1) return;
+
+    try {
+      setSearchingApartments(true);
+      
+      // Build filters based on search query
+      const filters: any = {
+        search: searchQuery,
+        limit: 100
+      };
+      
+      const result = await apartmentService.getApartments(filters);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error searching for apartments:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingApartments(false);
+    }
+  };
+
+  // Handle apartment input changes
+  const handleApartmentInputChange = (text: string) => {
+    setApartmentSearchTerm(text);
+    setSearchingApartments(true);
+    // Add slight delay for better UX
+    setTimeout(() => {
+      if (text.length >= 1) {
+        handleApartmentSearch(text).finally(() => setSearchingApartments(false));
+      } else {
+        // Load all apartments when field is clicked
+        loadApartments().finally(() => setSearchingApartments(false));
+      }
+    }, 100);
+  };
+
+  // Load apartments
+  const loadApartments = async () => {
+    try {
+      const result = await apartmentService.getApartments({ limit: 100 });
+      setApartments(result.data);
+      return result;
+    } catch (err) {
+      console.error('Error loading apartments:', err);
+      return { data: [] };
+    }
+  };
+
+  // Handle server-side search for users
+  const handleUserSearch = async (searchQuery: string): Promise<void> => {
+    if (searchQuery.length < 1) return;
+    
+    try {
+      setSearchingUsers(true);
+      const result = await userService.getUsers({
+        search: searchQuery,
+        limit: 100
+      });
+      
+      setUsers(result.data);
+    } catch (err) {
+      console.error('Error searching for users:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  // Handle user input changes
+  const handleUserInputChange = (text: string) => {
+    setUserSearchTerm(text);
+    setSearchingUsers(true);
+    // Add slight delay for better UX
+    setTimeout(() => {
+      if (text.length >= 1) {
+        handleUserSearch(text).finally(() => setSearchingUsers(false));
+      } else {
+        // Load all users when field is clicked
+        loadUsers().finally(() => setSearchingUsers(false));
+      }
+    }, 100);
+  };
+
+  // Load users
+  const loadUsers = async () => {
+    try {
+      const result = await userService.getUsers({ limit: 100 });
+      setUsers(result.data);
+      return result;
+    } catch (err) {
+      console.error('Error loading users:', err);
+      return { data: [] };
+    }
   };
 
   const canEdit = () => {
@@ -429,21 +531,37 @@ export default function ServiceRequestDetails() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
                 {isEditing ? (
-                  <FormControl size="small" fullWidth>
-                    <Select
-                      value={(formData.apartment_id != null && !isNaN(formData.apartment_id)) ? formData.apartment_id.toString() : ''}
-                      onChange={(e) => handleSelectChange(e, 'apartment_id')}
-                    >
-                      <MenuItem value="">
-                        <em>Select Apartment</em>
-                      </MenuItem>
-                      {apartments.map(apartment => (
-                        <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                          {apartment.name} - {apartment.village?.name}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <SearchableDropdown
+                    options={apartments.map(apartment => ({
+                      id: apartment.id,
+                      label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
+                      name: apartment.name,
+                      village: apartment.village,
+                      phase: apartment.phase
+                    }))}
+                    value={(formData.apartment_id != null && !isNaN(formData.apartment_id)) ? formData.apartment_id : null}
+                    onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || undefined }))}
+                    label="Apartment"
+                    placeholder="Type to search apartments by name or village..."
+                    required
+                    loading={searchingApartments}
+                    serverSideSearch={false}
+                    onInputChange={handleApartmentInputChange}
+                    inputValue={apartmentSearchTerm}
+                    helperText="Type at least one character to see search results"
+                    getOptionLabel={(option) => option.label}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body1">{option.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {option.village?.name} (Phase {option.phase})
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    size="small"
+                  />
                 ) : (
                 <Typography variant="body1">{serviceRequest.apartment?.name || 'Unknown'}</Typography>
                 )}
@@ -457,21 +575,37 @@ export default function ServiceRequestDetails() {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Requester</Typography>
                 {isEditing ? (
-                  <FormControl size="small" fullWidth>
-                    <Select
-                      value={(formData.requester_id != null && !isNaN(formData.requester_id)) ? formData.requester_id.toString() : ''}
-                      onChange={(e) => handleSelectChange(e, 'requester_id')}
-                    >
-                      <MenuItem value="">
-                        <em>Select Requester</em>
-                      </MenuItem>
-                      {users.map(user => (
-                        <MenuItem key={user.id} value={user.id.toString()}>
-                          {user.name} ({user.role})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+                  <SearchableDropdown
+                    options={users.map(user => ({
+                      id: user.id,
+                      label: `${user.name} (${user.role})`,
+                      name: user.name,
+                      role: user.role,
+                      email: user.email
+                    }))}
+                    value={(formData.requester_id != null && !isNaN(formData.requester_id)) ? formData.requester_id : null}
+                    onChange={(value) => setFormData(prev => ({ ...prev, requester_id: value as number || undefined }))}
+                    label="Requester"
+                    placeholder="Type to search users by name or email..."
+                    required
+                    loading={searchingUsers}
+                    serverSideSearch={false}
+                    onInputChange={handleUserInputChange}
+                    inputValue={userSearchTerm}
+                    helperText="Type at least one character to see search results"
+                    getOptionLabel={(option) => option.label}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body1">{option.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {option.role}{option.email ? ` • ${option.email}` : ''}
+                          </Typography>
+                        </Box>
+                      </li>
+                    )}
+                    size="small"
+                  />
                 ) : (
                 <Typography variant="body1">{serviceRequest.requester?.name || 'Unknown'}</Typography>
                 )}
