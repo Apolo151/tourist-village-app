@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { formatNumber, formatCurrency, getNumericInputProps } from '../utils/numberUtils';
 import {
@@ -31,6 +31,7 @@ import { bookingService } from '../services/bookingService';
 import type { Booking } from '../services/bookingService';
 import { format } from 'date-fns';
 import SearchableDropdown from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 import { villageService } from '../services/villageService';
 import type { Village } from '../services/villageService';
 
@@ -76,10 +77,12 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [searchingApartments, setSearchingApartments] = useState(false);
   const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
+  const apartmentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [searchingBookings, setSearchingBookings] = useState(false);
   const [bookingSearchTerm, setBookingSearchTerm] = useState('');
+  const bookingSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [existingReading, setExistingReading] = useState<UtilityReading | null>(null);
   
@@ -100,6 +103,31 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const [projectFilter, setProjectFilter] = useState(''); // Village filter
   const [phaseFilter, setPhaseFilter] = useState('');
   const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+
+  // Load apartments based on current project/phase filters
+  const loadFilteredApartments = useCallback(async () => {
+    try {
+      setSearchingApartments(true);
+      const filters: any = { limit: 100 };
+      
+      // Add project filter if selected
+      if (projectFilter) {
+        filters.village_id = parseInt(projectFilter);
+      }
+      
+      // Add phase filter if selected
+      if (phaseFilter) {
+        filters.phase = parseInt(phaseFilter);
+      }
+      
+      const result = await apartmentService.getApartments(filters);
+      setApartments(result.data);
+    } catch (err) {
+      console.error('Error loading filtered apartments:', err);
+    } finally {
+      setSearchingApartments(false);
+    }
+  }, [projectFilter, phaseFilter]);
 
   // Fetch villages on mount
   useEffect(() => {
@@ -159,20 +187,29 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       }
     }
   }, [lockApartment, propApartmentId, apartments]);
+  
+  // Load apartments when filters change or component mounts
+  useEffect(() => {
+    // Don't reload if we're already loading or if we're in a locked apartment state
+    if (!loading && !(lockApartment && propApartmentId)) {
+      loadFilteredApartments();
+    }
+  }, [projectFilter, phaseFilter, loading, lockApartment, propApartmentId, loadFilteredApartments]);
 
   // Handle server-side search for apartments
   const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
-    if (searchQuery.length < 1) return;
-      
     try {
       setSearchingApartments(true);
       setApartmentSearchTerm(searchQuery);
       
       // Build filters based on current project/phase selections
       const filters: any = {
-        search: searchQuery,
         limit: 100
       };
+      
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
       
       // Add project filter if selected
       if (projectFilter) {
@@ -194,44 +231,40 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     }
   };
 
-  // Load apartments based on current project/phase filters
-  const loadFilteredApartments = async () => {
-    try {
-      setSearchingApartments(true);
-      const filters: any = { limit: 100 };
-      
-      // Add project filter if selected
-      if (projectFilter) {
-        filters.village_id = parseInt(projectFilter);
-      }
-      
-      // Add phase filter if selected
-      if (phaseFilter) {
-        filters.phase = parseInt(phaseFilter);
-      }
-      
-      const result = await apartmentService.getApartments(filters);
-      setApartments(result.data);
-    } catch (err) {
-      console.error('Error loading filtered apartments:', err);
-    } finally {
-      setSearchingApartments(false);
-    }
-  };
-
   // Custom input change handler for apartments to bypass 2-char limit
   const handleApartmentInputChange = (text: string) => {
+    // Update the search term state immediately for UI responsiveness
     setApartmentSearchTerm(text);
-    setSearchingApartments(true);
-    // Add slight delay for better UX
-    setTimeout(() => {
-      if (text.length >= 1) {
-        handleApartmentSearch(text).finally(() => setSearchingApartments(false));
-      } else {
-        // Load apartments based on current filters when field is clicked
-        loadFilteredApartments().finally(() => setSearchingApartments(false));
-      }
-    }, 100);
+    
+    // Handle explicit clearing of the input field
+    if (text === '') {
+      // Keep the current filters but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleApartmentSearch('').finally(() => setSearchingApartments(false));
+      return;
+    }
+    
+    // Clear the search timeout if it exists
+    if (apartmentSearchTimeoutRef.current) {
+      clearTimeout(apartmentSearchTimeoutRef.current);
+      apartmentSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    apartmentSearchTimeoutRef.current = setTimeout(() => {
+      // Always call handleApartmentSearch with the current input text
+      // This ensures filters are applied even with empty input
+      handleApartmentSearch(text);
+    }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the apartment selection
+  const handleClearApartment = () => {
+    // Clear both the search term and the selection
+    setApartmentSearchTerm('');
+    setApartmentId(0);
+    // Refresh the apartment list with current filters but empty search
+    handleApartmentSearch('');
   };
 
   // Filter apartments based on selected project and phase (for backward compatibility)
@@ -295,16 +328,21 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       // Build filters based on apartment and search query
       const filters: any = {
         apartment_id: apartmentId,
-        limit: 100
+        limit: 100,
+        sort_by: 'arrival_date',
+        sort_order: 'desc'
       };
       
-      // Add search query if provided and has at least 1 character
-      if (searchQuery && searchQuery.length >= 1) {
-        filters.search = searchQuery;
-      }
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
       
       const result = await bookingService.getBookings(filters);
-      setFilteredBookings(result.bookings || []);
+      // Sort bookings from latest to earliest by arrival date
+      const sortedBookings = [...(result.bookings || [])].sort((a, b) => {
+        return new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime();
+      });
+      setFilteredBookings(sortedBookings);
     } catch (err) {
       console.error('Error searching for bookings:', err);
       // Don't show error message during search
@@ -314,7 +352,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   };
 
   // Load bookings based on selected apartment
-  const loadFilteredBookings = async () => {
+  const loadFilteredBookings = useCallback(async () => {
     if (!apartmentId) {
       setFilteredBookings([]);
       return;
@@ -324,12 +362,17 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       setSearchingBookings(true);
       const filters: any = { 
         apartment_id: apartmentId,
-        limit: 100
+        limit: 100,
+        sort_by: 'arrival_date',
+        sort_order: 'desc'
       };
       
       const result = await bookingService.getBookings(filters);
-      const filtered = result.bookings || [];
-      setFilteredBookings(filtered);
+      // Sort bookings from latest to earliest by arrival date
+      const sortedBookings = [...(result.bookings || [])].sort((a, b) => {
+        return new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime();
+      });
+      setFilteredBookings(sortedBookings);
       
       // No longer auto-selecting booking when only one is available
       // User must explicitly select the booking
@@ -339,21 +382,42 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     } finally {
       setSearchingBookings(false);
     }
-  };
+  }, [apartmentId]);
 
   // Custom input change handler for bookings
   const handleBookingInputChange = (text: string) => {
+    // Update the search term state immediately for UI responsiveness
     setBookingSearchTerm(text);
-    setSearchingBookings(true);
-    // Add slight delay for better UX
-    setTimeout(() => {
-      if (text.length >= 1) {
-        handleBookingSearch(text).finally(() => setSearchingBookings(false));
-      } else {
-        // Load bookings based on current apartment when field is clicked
-        loadFilteredBookings().finally(() => setSearchingBookings(false));
-      }
-    }, 100);
+    
+    // Handle explicit clearing of the input field
+    if (text === '') {
+      // Keep the current apartment filter but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleBookingSearch('').finally(() => setSearchingBookings(false));
+      return;
+    }
+    
+    // Clear the search timeout if it exists
+    if (bookingSearchTimeoutRef.current) {
+      clearTimeout(bookingSearchTimeoutRef.current);
+      bookingSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    bookingSearchTimeoutRef.current = setTimeout(() => {
+      // Always call handleBookingSearch with the current input text
+      // This ensures filters are applied even with empty input
+      handleBookingSearch(text);
+    }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the booking selection
+  const handleClearBooking = () => {
+    // Clear both the search term and the selection
+    setBookingSearchTerm('');
+    setBookingId(undefined);
+    // Refresh the booking list with current apartment filter but empty search
+    handleBookingSearch('');
   };
 
   // Filter bookings when apartment changes
@@ -601,7 +665,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
           </Grid>
           {/* Apartment Selection (filtered) */}
           <Grid size={{ xs: 12 }}>
-            <SearchableDropdown
+            <ClearableSearchDropdown
               options={getFilteredApartments().map(apartment => ({
                 id: apartment.id,
                 label: `${apartment.name} (${apartment.village?.name} - Phase ${apartment.phase})`,
@@ -611,6 +675,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               }))}
               value={apartmentId || null}
               onChange={(value) => setApartmentId(value as number || 0)}
+              onClearSelection={handleClearApartment}
               label="Related Apartment"
               placeholder={projectFilter && phaseFilter 
                 ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''} Phase ${phaseFilter}...` 
@@ -623,7 +688,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               serverSideSearch={false}
               onInputChange={handleApartmentInputChange}
               inputValue={apartmentSearchTerm}
-              helperText="Type at least one character to see search results"
+              helperText="Showing apartments based on selected filters"
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>
@@ -635,13 +700,15 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   </Box>
                 </li>
               )}
+              clearable={true}
+              showClearButton={apartmentId > 0}
             />
           </Grid>
           {/* Add spacing between Apartment and Booking fields */}
           <Grid size={{ xs: 12 }} sx={{ mt: 2 }} />
           {/* Booking Selection */}
           <Grid size={{ xs: 12 }}>
-            <SearchableDropdown
+            <ClearableSearchDropdown
               options={[
                 { id: '', label: 'No Booking', name: 'No Booking' },
                 ...filteredBookings.map(booking => ({
@@ -655,6 +722,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               ]}
               value={bookingId || null}
               onChange={(value) => setBookingId(value ? value as number : undefined)}
+              onClearSelection={handleClearBooking}
               label="Related Booking (Optional)"
               placeholder="Search bookings by user name..."
               disabled={!apartmentId || (isQuickAction && typeof propBookingId === 'number')}
@@ -662,7 +730,7 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
               serverSideSearch={false}
               onInputChange={handleBookingInputChange}
               inputValue={bookingSearchTerm}
-              helperText={!apartmentId ? "Select an apartment first" : "Type at least one character to search bookings"}
+              helperText={!apartmentId ? "Select an apartment first" : "Showing bookings for selected apartment"}
               getOptionLabel={(option) => option.label}
               renderOption={(props, option) => (
                 <li {...props}>
@@ -676,6 +744,8 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
                   </Box>
                 </li>
               )}
+              clearable={true}
+              showClearButton={!!bookingId}
             />
           </Grid>
           {/* Who Pays */}

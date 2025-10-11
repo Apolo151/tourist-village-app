@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Box,
@@ -38,6 +38,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SearchableDropdown from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 import { villageService } from '../services/villageService';
 import type { Village } from '../services/villageService';
 
@@ -97,7 +98,12 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
   // Related data
   const [apartments, setApartments] = useState<Apartment[]>([]);
   const [searchingApartments, setSearchingApartments] = useState(false);
+  const [apartmentSearchTerm, setApartmentSearchTerm] = useState('');
+  const apartmentSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [searchingBookings, setSearchingBookings] = useState(false);
+  const [bookingSearchTerm, setBookingSearchTerm] = useState('');
+  const bookingSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [projectFilter, setProjectFilter] = useState<string>('');
@@ -197,6 +203,13 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     }
   }, [bookingId, bookings]);
   
+  // Load bookings when apartment changes
+  useEffect(() => {
+    if (formData.apartment_id) {
+      handleBookingSearch('');
+    }
+  }, [formData.apartment_id]);
+  
   // When lockApartment and apartmentId are set, set project and phase filters and lock them
   useEffect(() => {
     if (lockApartment && apartmentId && apartments.length > 0 && !isEdit) {
@@ -207,6 +220,14 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
       }
     }
   }, [lockApartment, apartmentId, apartments, isEdit]);
+  
+  // Load apartments when filters change
+  useEffect(() => {
+    // Don't reload if we're in a locked apartment state
+    if (!(lockApartment && apartmentId)) {
+      handleApartmentSearch('');
+    }
+  }, [projectFilter, phaseFilter]);
   
   // Validate form
   const validateForm = (): boolean => {
@@ -329,16 +350,16 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
   const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
     try {
       setSearchingApartments(true);
+      setApartmentSearchTerm(searchQuery);
       
       // Build filters based on current project/phase selections
       const filters: any = {
         limit: 100
       };
       
-      // Add search query if provided (length >= 1)
-      if (searchQuery && searchQuery.length >= 1) {
-        filters.search = searchQuery;
-      }
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
       
       // Add project filter if selected
       if (projectFilter) {
@@ -362,10 +383,108 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
   
   // Handle apartment input changes - always trigger search
   const handleApartmentInputChange = (inputText: string) => {
-    // Even when field is clicked (empty text), show filtered results
-    setTimeout(() => {
+    // Update the search term state immediately for UI responsiveness
+    setApartmentSearchTerm(inputText);
+    
+    // Handle explicit clearing of the input field
+    if (inputText === '') {
+      // Keep the current filters but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleApartmentSearch('').finally(() => setSearchingApartments(false));
+      return;
+    }
+    
+    // Clear the search timeout if it exists
+    if (apartmentSearchTimeoutRef.current) {
+      clearTimeout(apartmentSearchTimeoutRef.current);
+      apartmentSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    apartmentSearchTimeoutRef.current = setTimeout(() => {
+      // Always call handleApartmentSearch with the current input text
+      // This ensures filters are applied even with empty input
       handleApartmentSearch(inputText);
-    }, 100);
+    }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the apartment selection
+  const handleClearApartment = () => {
+    // Clear both the search term and the selection
+    setApartmentSearchTerm('');
+    setFormData(prev => ({ ...prev, apartment_id: '' }));
+    // Refresh the apartment list with current filters but empty search
+    handleApartmentSearch('');
+  };
+  
+  // Handle server-side search for bookings
+  const handleBookingSearch = async (searchQuery: string): Promise<void> => {
+    if (!formData.apartment_id) return;
+
+    try {
+      setSearchingBookings(true);
+      setBookingSearchTerm(searchQuery);
+      
+      // Build filters based on apartment and search query
+      const filters: any = {
+        apartment_id: parseInt(formData.apartment_id),
+        limit: 100,
+        sort_by: 'arrival_date',
+        sort_order: 'desc'
+      };
+      
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
+      
+      const result = await bookingService.getBookings(filters);
+      // Sort bookings from latest to earliest by arrival date
+      const sortedBookings = [...(result.bookings || [])].sort((a, b) => {
+        return new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime();
+      });
+      setBookings(sortedBookings);
+    } catch (err) {
+      console.error('Error searching for bookings:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingBookings(false);
+    }
+  };
+
+  // Handle booking input changes
+  const handleBookingInputChange = (inputText: string) => {
+    // Update the search term state immediately for UI responsiveness
+    setBookingSearchTerm(inputText);
+    
+    // Handle explicit clearing of the input field
+    if (inputText === '') {
+      // Keep the current apartment filter but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleBookingSearch('').finally(() => setSearchingBookings(false));
+      return;
+    }
+    
+    // Clear the search timeout if it exists
+    if (bookingSearchTimeoutRef.current) {
+      clearTimeout(bookingSearchTimeoutRef.current);
+      bookingSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    bookingSearchTimeoutRef.current = setTimeout(() => {
+      // Always call handleBookingSearch with the current input text
+      // This ensures filters are applied even with empty input
+      handleBookingSearch(inputText);
+    }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the booking selection
+  const handleClearBooking = () => {
+    // Clear both the search term and the selection
+    setBookingSearchTerm('');
+    setFormData(prev => ({ ...prev, booking_id: '' }));
+    // Refresh the booking list with current apartment filter but empty search
+    handleBookingSearch('');
   };
   
   // Filter bookings by selected apartment
@@ -560,7 +679,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
               </Grid>
               {/* Apartment */}
               <Grid size={{ xs: 12 }}>
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={filteredApartments.map(apartment => ({
                     id: apartment.id,
                     label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
@@ -570,15 +689,17 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                   }))}
                   value={formData.apartment_id ? parseInt(formData.apartment_id) : null}
                   onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value?.toString() || '' }))}
+                  onClearSelection={handleClearApartment}
                   label="Apartment"
                   placeholder="Type to search apartments by name or village..."
                   required
                   disabled={lockApartment && apartmentId !== undefined}
                   error={Boolean(errors.apartment_id)}
-                  helperText={errors.apartment_id || "Type at least one character to see search results"}
+                  helperText={errors.apartment_id || "Showing apartments based on selected filters"}
                   loading={searchingApartments}
                   serverSideSearch={false}
                   onInputChange={handleApartmentInputChange}
+                  inputValue={apartmentSearchTerm}
                   getOptionLabel={(option) => option.label}
                   renderOption={(props, option) => (
                     <li {...props}>
@@ -590,43 +711,54 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                       </Box>
                     </li>
                   )}
+                  clearable={true}
+                  showClearButton={!!formData.apartment_id}
                 />
               </Grid>
 
               {/* Booking (always shown, required for renters) */}
               <Grid size={{ xs: 12 }}>
-                <FormControl 
-                  fullWidth 
-                  required={formData.user_type === 'renter'} 
+                <ClearableSearchDropdown
+                  options={availableBookings.map(booking => ({
+                    id: booking.id,
+                    label: `Booking #${booking.id} - ${booking.user?.name} (${format(new Date(booking.arrival_date), 'MMM dd, yyyy')} to ${format(new Date(booking.leaving_date), 'MMM dd, yyyy')})`,
+                    name: booking.user?.name || '',
+                    arrival_date: booking.arrival_date,
+                    leaving_date: booking.leaving_date
+                  }))}
+                  value={formData.booking_id ? parseInt(formData.booking_id) : null}
+                  onChange={(value) => setFormData(prev => ({ ...prev, booking_id: value?.toString() || '' }))}
+                  onClearSelection={handleClearBooking}
+                  label={`Related Booking ${formData.user_type === 'renter' ? '*' : ''}`}
+                  placeholder="Search bookings by user name..."
+                  required={formData.user_type === 'renter'}
+                  disabled={!formData.apartment_id || bookingId !== undefined} // Disable if bookingId is provided (quick action)
                   error={Boolean(errors.booking_id)}
-                >
-                  <InputLabel>Related Booking {formData.user_type === 'renter' && '*'}</InputLabel>
-                  <Select
-                    name="booking_id"
-                    value={formData.booking_id}
-                    label={`Related Booking ${formData.user_type === 'renter' ? '*' : ''}`}
-                    onChange={handleSelectChange}
-                    disabled={!formData.apartment_id || bookingId !== undefined} // Disable if bookingId is provided (quick action)
-                  >
-                    <MenuItem value="">
-                      <em>Select a booking (optional for owners)</em>
-                    </MenuItem>
-                    {availableBookings.map(booking => (
-                      <MenuItem key={booking.id} value={booking.id.toString()}>
-                        Booking #{booking.id} - {booking.user?.name} 
-                        ({format(new Date(booking.arrival_date), 'MMM dd, yyyy')} to {format(new Date(booking.leaving_date), 'MMM dd, yyyy')})
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  {errors.booking_id && <FormHelperText>{errors.booking_id}</FormHelperText>}
-                  {bookingId ? (
-                    <FormHelperText>Booking is pre-selected from the booking page</FormHelperText>
-                  ) : formData.user_type === 'renter' ? (
-                    <FormHelperText>Booking is required for renter payments</FormHelperText>
-                  ) : (
-                    <FormHelperText>Optional: Link this payment to a specific booking</FormHelperText>
+                  helperText={
+                    errors.booking_id ? errors.booking_id :
+                    bookingId ? "Booking is pre-selected from the booking page" :
+                    !formData.apartment_id ? "Select an apartment first" :
+                    formData.user_type === 'renter' ? "Booking is required for renter payments" :
+                    "Optional: Link this payment to a specific booking"
+                  }
+                  loading={searchingBookings}
+                  serverSideSearch={false}
+                  onInputChange={handleBookingInputChange}
+                  inputValue={bookingSearchTerm}
+                  getOptionLabel={(option) => option.label}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body1">{option.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {format(new Date(option.arrival_date), 'MMM dd, yyyy')} to {format(new Date(option.leaving_date), 'MMM dd, yyyy')}
+                        </Typography>
+                      </Box>
+                    </li>
                   )}
-                </FormControl>
+                  clearable={true}
+                  showClearButton={!!formData.booking_id}
+                />
               </Grid>
 
               {/* Date */}

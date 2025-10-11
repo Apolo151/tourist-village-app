@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Typography,
@@ -39,6 +39,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import SearchableDropdown from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 
 export interface CreateEmailProps {
   apartmentId?: number;
@@ -178,6 +179,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         setPhaseFilter('');
         setFormData(prev => ({ ...prev, apartment_id: undefined }));
       }
+      
+      // Load apartments based on the selected project
+      loadFilteredApartments();
     } else {
       setAvailablePhases([]);
       
@@ -186,6 +190,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         setPhaseFilter('');
         setFormData(prev => ({ ...prev, apartment_id: undefined }));
       }
+      
+      // Load all apartments when no project is selected
+      loadFilteredApartments();
     }
   }, [projectFilter, villages, lockApartment]);
 
@@ -195,7 +202,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     if (!lockApartment) {
       setFormData(prev => ({ ...prev, apartment_id: undefined }));
     }
-  }, [phaseFilter, lockApartment]);
+    
+    // Load apartments based on the selected phase
+    if (projectFilter) {
+      loadFilteredApartments();
+    }
+  }, [phaseFilter, lockApartment, projectFilter]);
 
   // When lockApartment and apartmentId are set, set project and phase filters and lock them
   useEffect(() => {
@@ -239,6 +251,13 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       fetchBooking();
     }
   }, [bookingId, bookings]);
+  
+  // Load bookings when apartment changes
+  useEffect(() => {
+    if (typeof formData.apartment_id === 'number') {
+      handleBookingSearch('');
+    }
+  }, [formData.apartment_id]);
 
   // Filter apartments based on selected project and phase (client-side)
   const getFilteredApartments = () => {
@@ -257,6 +276,11 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   
   // State for apartment search loading
   const [searchLoading, setSearchLoading] = useState(false);
+  
+  // State for booking search
+  const [searchingBookings, setSearchingBookings] = useState(false);
+  const [bookingSearchTerm, setBookingSearchTerm] = useState('');
+  const bookingSearchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Fetch apartments with server-side filtering
   const searchApartments = async (searchTerm: string): Promise<void> => {
@@ -290,21 +314,35 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   
   // Custom search function to bypass 2-char requirement and respond to field clicks
   const handleApartmentInputChange = (text: string) => {
+    // Update the search term state immediately for UI responsiveness
     setApartmentSearchTerm(text);
     
-    // Always search when field is clicked (empty text) or when typing (1+ characters)
+    // Handle explicit clearing of the input field
+    if (text === '') {
+      // Keep the current filters but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      loadFilteredApartments().finally(() => setSearchLoading(false));
+      return;
+    }
+    
+    // Always search when typing (1+ characters)
     // This ensures the dropdown shows filtered results when clicked, even before typing
     setSearchLoading(true);
-    // Add slight delay for better UX
+    
+    // Add slight delay for better UX and debounce
     setTimeout(() => {
-      if (text.length >= 1) {
-        // Normal search with text
-        searchApartments(text).finally(() => setSearchLoading(false));
-      } else {
-        // Empty search when field is clicked - show filtered results based on project/phase
-        loadFilteredApartments().finally(() => setSearchLoading(false));
-      }
-    }, 100);
+      // Normal search with text
+      searchApartments(text).finally(() => setSearchLoading(false));
+    }, 300);
+  };
+  
+  // Handle clearing the apartment selection
+  const handleClearApartment = () => {
+    // Clear both the search term and the selection
+    setApartmentSearchTerm('');
+    setFormData(prev => ({ ...prev, apartment_id: undefined }));
+    // Refresh the apartment list with current filters but empty search
+    loadFilteredApartments();
   };
   
   // Load apartments based on current project/phase filters
@@ -326,10 +364,9 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         filters.phase = Number(phaseFilter);
       }
       
-      // Use search term if available
-      if (apartmentSearchTerm && apartmentSearchTerm.length >= 1) {
-        filters.search = apartmentSearchTerm;
-      }
+      // Always include search term regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = apartmentSearchTerm || '';
       
       // Fetch apartments with server-side filtering
       const response = await apartmentService.getApartments(filters);
@@ -439,6 +476,76 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     return Object.keys(errors).length === 0;
   };
 
+  // Handle server-side search for bookings
+  const handleBookingSearch = async (searchQuery: string): Promise<void> => {
+    if (typeof formData.apartment_id !== 'number') return;
+
+    try {
+      setSearchingBookings(true);
+      setBookingSearchTerm(searchQuery);
+      
+      // Build filters based on apartment and search query
+      const filters: any = {
+        apartment_id: formData.apartment_id,
+        limit: 100,
+        sort_by: 'arrival_date',
+        sort_order: 'desc'
+      };
+      
+      // Add search query regardless of length
+      // This ensures filters work even with empty search terms
+      filters.search = searchQuery;
+      
+      const result = await bookingService.getBookings(filters);
+      // Sort bookings from latest to earliest by arrival date
+      const sortedBookings = [...(result.bookings || [])].sort((a, b) => {
+        return new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime();
+      });
+      setBookings(sortedBookings);
+    } catch (err) {
+      console.error('Error searching for bookings:', err);
+      // Don't show error message during search
+    } finally {
+      setSearchingBookings(false);
+    }
+  };
+
+  // Handle booking input changes
+  const handleBookingInputChange = (inputText: string) => {
+    // Update the search term state immediately for UI responsiveness
+    setBookingSearchTerm(inputText);
+    
+    // Handle explicit clearing of the input field
+    if (inputText === '') {
+      // Keep the current apartment filter but don't reset the selection
+      // This allows users to clear the search text without losing their selection
+      handleBookingSearch('').finally(() => setSearchingBookings(false));
+      return;
+    }
+    
+    // Clear the search timeout if it exists
+    if (bookingSearchTimeoutRef.current) {
+      clearTimeout(bookingSearchTimeoutRef.current);
+      bookingSearchTimeoutRef.current = null;
+    }
+    
+    // Set a new timeout to prevent too many API calls while typing
+    bookingSearchTimeoutRef.current = setTimeout(() => {
+      // Always call handleBookingSearch with the current input text
+      // This ensures filters are applied even with empty input
+      handleBookingSearch(inputText);
+    }, 300); // Increased delay for better typing experience
+  };
+  
+  // Handle clearing the booking selection
+  const handleClearBooking = () => {
+    // Clear both the search term and the selection
+    setBookingSearchTerm('');
+    setFormData(prev => ({ ...prev, booking_id: undefined }));
+    // Refresh the booking list with current apartment filter but empty search
+    handleBookingSearch('');
+  };
+  
   // Get bookings for selected apartment
   const getRelatedBookings = () => {
     if (typeof formData.apartment_id !== 'number' || !bookings || !Array.isArray(bookings)) {
@@ -712,7 +819,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
               </Grid>
               {/* Apartment */}
               <Grid size={{ xs: 12, sm: 4 }}>
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={getFilteredApartments().map(apartment => ({
                     id: apartment.id,
                     label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
@@ -722,6 +829,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   }))}
                   value={typeof formData.apartment_id === 'number' ? formData.apartment_id : null}
                   onChange={(value) => handleSelectChange({ target: { name: 'apartment_id', value: value?.toString() || '' } })}
+                  onClearSelection={handleClearApartment}
                   label="Related Apartment"
                   placeholder={projectFilter && phaseFilter 
                     ? `Search apartments in ${villages.find(v => v.id === Number(projectFilter))?.name || ''} Phase ${phaseFilter}...` 
@@ -731,7 +839,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   required
                   disabled={apartmentFieldLocked}
                   error={!!formErrors.apartment_id}
-                  helperText={formErrors.apartment_id || "Type at least one character to see search results"}
+                  helperText={formErrors.apartment_id || "Showing apartments based on selected filters"}
                   getOptionLabel={(option) => option.label}
                   onInputChange={handleApartmentInputChange}
                   loading={searchLoading}
@@ -748,11 +856,13 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                       </Box>
                     </li>
                   )}
+                  clearable={true}
+                  showClearButton={typeof formData.apartment_id === 'number'}
                 />
               </Grid>
               {/* Booking (Optional) */}
               <Grid size={{ xs: 12, sm: 6 }}>
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={[
                     { id: '', label: 'No related booking', name: 'No related booking' },
                     ...getAllBookingsForDisplay().map(booking => ({
@@ -760,11 +870,14 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                       label: `Booking #${booking.id} - ${booking.user?.name} (${booking.user_type})`,
                       name: booking.user?.name || 'Unknown',
                       user_type: booking.user_type,
-                      booking_id: booking.id
+                      booking_id: booking.id,
+                      arrival_date: booking.arrival_date,
+                      leaving_date: booking.leaving_date
                     }))
                   ]}
                   value={typeof formData.booking_id === 'number' ? formData.booking_id : null}
                   onChange={(value) => handleSelectChange({ target: { name: 'booking_id', value: value?.toString() || '' } })}
+                  onClearSelection={handleClearBooking}
                   label="Related Booking (Optional)"
                   placeholder="Search bookings by user name..."
                   disabled={bookingFieldLocked || !formData.apartment_id}
@@ -772,6 +885,10 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                   helperText={formErrors.booking_id || (bookingFieldLocked && bookingId ? 'Booking is locked for this action' : !formData.apartment_id ? 'Select an apartment first to see related bookings' : getAllBookingsForDisplay().length === 0 ? 'No bookings found for this apartment' : '')}
                   getOptionLabel={(option) => option.label}
                   key={`booking-dropdown-${formData.apartment_id}`}
+                  loading={searchingBookings}
+                  serverSideSearch={false}
+                  onInputChange={handleBookingInputChange}
+                  inputValue={bookingSearchTerm}
                   renderOption={(props, option) => (
                     <li {...props}>
                       <Box>
@@ -779,11 +896,16 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                         {option.user_type && (
                           <Typography variant="body2" color="text.secondary">
                             Booking #{option.booking_id} ({option.user_type})
+                            {option.arrival_date && option.leaving_date && (
+                              <> - {new Date(option.arrival_date).toLocaleDateString()} to {new Date(option.leaving_date).toLocaleDateString()}</>
+                            )}
                           </Typography>
                         )}
                       </Box>
                     </li>
                   )}
+                  clearable={true}
+                  showClearButton={typeof formData.booking_id === 'number'}
                 />
               </Grid>
               {/* From */}

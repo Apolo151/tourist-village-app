@@ -230,8 +230,14 @@ export default function CreateServiceRequest({
                 const bookingsData = await bookingService.getBookings({
                     apartment_id: formData.apartment_id,
                     limit: 50,
+                    sort_by: 'arrival_date',
+                    sort_order: 'desc'
                 });
-                setBookings(bookingsData.bookings || []);
+                // Sort bookings from latest to earliest by arrival date
+                const sortedBookings = [...(bookingsData.bookings || [])].sort((a, b) => {
+                    return new Date(b.arrival_date).getTime() - new Date(a.arrival_date).getTime();
+                });
+                setBookings(sortedBookings);
             } catch (err) {
                 console.error("Failed to load bookings:", err);
                 setBookings([]);
