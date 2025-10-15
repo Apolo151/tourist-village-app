@@ -484,7 +484,6 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const handleApartmentSearch = async (searchQuery: string): Promise<void> => {
     try {
       setSearchingApartments(true);
-      setApartmentSearchTerm(searchQuery);
       
       // Build filters based on current village and phase selections
       const filters: any = {
@@ -493,9 +492,14 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         include: 'owner' // Explicitly request owner data
       };
       
-      // Add search query regardless of length
-      // This ensures filters work even with empty search terms
-      filters.search = searchQuery;
+      // For server-side search, we only want to search if we have at least 2 characters
+      // or if the search is empty (which means show all with filters)
+      if (searchQuery.length >= 2 || searchQuery === '') {
+        filters.search = searchQuery;
+      } else if (searchQuery.length > 0 && searchQuery.length < 2) {
+        // If less than 2 characters and not empty, don't perform search
+        return;
+      }
       
       // Add village filter if selected
       if (selectedVillageId) {
@@ -545,18 +549,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       return;
     }
     
-    // Clear the search timeout if it exists
-    if (apartmentSearchTimeoutRef.current) {
-      clearTimeout(apartmentSearchTimeoutRef.current);
-      apartmentSearchTimeoutRef.current = null;
-    }
-    
-    // Set a new timeout to prevent too many API calls while typing
-    apartmentSearchTimeoutRef.current = setTimeout(() => {
-      // Always call handleApartmentSearch with the current input text
-      // This ensures filters are applied even with empty input
-      handleApartmentSearch(inputText);
-    }, 300); // Increased delay for better typing experience
+    // With server-side search enabled, the SearchableDropdown component will handle
+    // calling the onServerSearch function when appropriate
+    // We still need to update the search term for UI consistency
   };
   
   // Handle clearing the apartment selection
@@ -725,8 +720,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 required
                 disabled={lockApartment}
                 loading={searchingApartments}
-                serverSideSearch={false}
+                serverSideSearch={true}
                 onInputChange={handleApartmentInputChange}
+                onServerSearch={handleApartmentSearch}
                 inputValue={apartmentSearchTerm}
                 getOptionLabel={(option) => option.label}
                 renderOption={(props, option) => (

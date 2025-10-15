@@ -29,6 +29,7 @@ import type { PayingStatusType } from '../services/payingStatusTypeService';
 import type { SalesStatusType } from '../services/salesStatusTypeService';
 import type { Apartment, UpdateApartmentRequest } from '../services/apartmentService';
 import SearchableDropdown from '../components/SearchableDropdown';
+import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 
 export default function EditApartment() {
   const { id } = useParams<{ id: string }>();
@@ -239,6 +240,22 @@ export default function EditApartment() {
     }
   };
 
+  // Handle clearing the owner selection
+  const handleClearOwner = () => {
+    // Clear both the search term and the selection
+    setOwnerSearchText('');
+    setFormData(prev => ({ ...prev, owner_id: 0 }));
+    
+    // Clear field error for this field if it exists
+    if (errors.owner_id) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.owner_id;
+        return newErrors;
+      });
+    }
+  };
+
   const handleBack = () => {
     navigate(`/apartments/${id}`);
   };
@@ -354,7 +371,7 @@ export default function EditApartment() {
               </Grid>
 
               <Grid size={{xs: 12}}>
-                <SearchableDropdown
+                <ClearableSearchDropdown
                   options={owners.map(owner => ({
                     id: owner.id,
                     label: `${owner.name} (${owner.email})${owner.phone_number ? ` - ${owner.phone_number}` : ''}`,
@@ -364,6 +381,7 @@ export default function EditApartment() {
                   }))}
                   value={formData.owner_id || null}
                   onChange={(value) => setFormData(prev => ({ ...prev, owner_id: value as number || 0 }))}
+                  onClearSelection={handleClearOwner}
                   label="Owner Name"
                   placeholder="Type at least 2 characters to search owners..."
                   required
@@ -386,6 +404,8 @@ export default function EditApartment() {
                       </Box>
                     </li>
                   )}
+                  clearable={true}
+                  showClearButton={!!formData.owner_id}
                 />
               </Grid>
 

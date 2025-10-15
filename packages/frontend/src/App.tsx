@@ -22,6 +22,7 @@ import Payments from './pages/Payments';
 import PaymentDetails from './pages/PaymentDetails';
 import Emails from './pages/Emails';
 import CreateEmail from './pages/CreateEmail';
+import EmailDetails from './pages/EmailDetails';
 import Settings from './pages/Settings';
 import Invoices from './pages/Invoices';
 import InvoiceDetails from './pages/InvoiceDetails';
@@ -67,7 +68,7 @@ function App() {
                 
                 {/* Admin-only apartment routes */}
                 <Route element={<ProtectedRoute requiredRole="admin" />}>
-                  <Route path="/apartments/:id/edit" element={<EditApartment />} />
+                  <Route path="/apartments/:id/edit" element={<CreateApartment />} />
                   <Route path="/apartments/new" element={<CreateApartment />} />
                 </Route>
                 
@@ -108,7 +109,7 @@ function App() {
                   {/* Emails */}
                   <Route path="/emails" element={<Emails />} />
                   <Route path="/emails/new" element={<CreateEmail />} />
-                  <Route path="/emails/:id" element={<CreateEmail />} />
+                  <Route path="/emails/:id" element={<EmailDetails />} />
                   <Route path="/emails/:id/edit" element={<CreateEmail />} />
                   
                   {/* Settings */}

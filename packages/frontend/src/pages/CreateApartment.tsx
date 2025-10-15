@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -29,7 +29,7 @@ import type { Village } from '../services/villageService';
 import type { User } from '../services/userService';
 import type { PayingStatusType } from '../services/payingStatusTypeService';
 import type { SalesStatusType } from '../services/salesStatusTypeService';
-import type { CreateApartmentRequest } from '../services/apartmentService';
+import type { CreateApartmentRequest, UpdateApartmentRequest, Apartment } from '../services/apartmentService';
 import { EnhancedErrorDisplay } from '../components/EnhancedErrorDisplay';
 import { ErrorMessageHandler } from '../utils/errorUtils';
 import type { DetailedError } from '../utils/errorUtils';
@@ -37,8 +37,13 @@ import SearchableDropdown from '../components/SearchableDropdown';
 import ClearableSearchDropdown from '../components/ClearableSearchDropdown';
 
 export default function CreateApartment() {
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  
+  // Store the apartment data when in edit mode
+  const [apartment, setApartment] = useState<Apartment | null>(null);
   
   // Data state
   const [villages, setVillages] = useState<Village[]>([]);
@@ -73,49 +78,92 @@ export default function CreateApartment() {
       return;
     }
     loadInitialData();
-  }, [isAdmin, navigate]);
+  }, [isAdmin, navigate, id]);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
       setDetailedError(null);
       
+      // Load common data
       const [villagesData, payingStatusData, salesStatusData] = await Promise.all([
         villageService.getVillages({ limit: 100 }),
         payingStatusTypeService.getPayingStatusTypes({ limit: 100, is_active: true }),
         salesStatusTypeService.getSalesStatusTypes({ limit: 100, is_active: true })
       ]);
       
-      // Initial list of popular/recent owners (limit to 20 to improve performance)
-      const usersData = await userService.getUsers({ 
-        role: 'owner', 
-        limit: 20,
-        sort_by: 'created_at',
-        sort_order: 'desc' 
-      });
-      
       setVillages(villagesData.data);
-      setOwners(usersData.data);
       setPayingStatusTypes(payingStatusData.data);
       setSalesStatusTypes(salesStatusData.data);
       
-      // Set default values if available
-      if (payingStatusData.data.length > 0) {
-        const defaultPayingStatus = payingStatusData.data.find(s => s.name === 'non-payer') || payingStatusData.data[0];
-        setFormData(prev => ({ ...prev, paying_status_id: defaultPayingStatus.id }));
-      }
-      
-      if (salesStatusData.data.length > 0) {
-        const defaultSalesStatus = salesStatusData.data.find(s => s.name === 'not_for_sale') || salesStatusData.data[0];
-        setFormData(prev => ({ ...prev, sales_status_id: defaultSalesStatus.id }));
-      }
-      
-      // If the admin has a responsible village, prefill the village field
-      if (currentUser?.responsible_village) {
-        setFormData(prev => ({
-          ...prev,
-          village_id: currentUser.responsible_village!
-        }));
+      // Handle edit mode - load existing apartment data
+      if (isEditMode && id) {
+        try {
+          const apartmentData = await apartmentService.getApartmentById(parseInt(id));
+          setApartment(apartmentData);
+          
+          // Set form data from apartment
+          setFormData({
+            name: apartmentData.name,
+            village_id: apartmentData.village_id,
+            phase: apartmentData.phase,
+            owner_id: apartmentData.owner_id,
+            purchase_date: apartmentData.purchase_date ? apartmentData.purchase_date.split('T')[0] : new Date().toISOString().split('T')[0],
+            paying_status_id: apartmentData.paying_status_id,
+            sales_status_id: apartmentData.sales_status_id
+          });
+          
+          // Load the current owner data
+          if (apartmentData.owner_id) {
+            try {
+              const ownerData = await userService.getUserById(apartmentData.owner_id);
+              if (ownerData) {
+                setOwners([ownerData]);
+                setOwnerSearchText(ownerData.name);
+              }
+            } catch (err) {
+              console.error('Error loading owner data:', err);
+            }
+          }
+        } catch (err) {
+          console.error('Error loading apartment data:', err);
+          const enhancedError = ErrorMessageHandler.parseApiError(err);
+          setDetailedError({
+            ...enhancedError,
+            title: 'Failed to Load Apartment Data',
+            message: 'Could not load the apartment data for editing.',
+            action: 'Please refresh the page to try again. If the problem persists, contact support.'
+          });
+        }
+      } else {
+        // Create mode - load initial owner data
+        const usersData = await userService.getUsers({ 
+          role: 'owner', 
+          limit: 20,
+          sort_by: 'created_at',
+          sort_order: 'desc' 
+        });
+        
+        setOwners(usersData.data);
+        
+        // Set default values if available
+        if (payingStatusData.data.length > 0) {
+          const defaultPayingStatus = payingStatusData.data.find(s => s.name === 'non-payer') || payingStatusData.data[0];
+          setFormData(prev => ({ ...prev, paying_status_id: defaultPayingStatus.id }));
+        }
+        
+        if (salesStatusData.data.length > 0) {
+          const defaultSalesStatus = salesStatusData.data.find(s => s.name === 'not_for_sale') || salesStatusData.data[0];
+          setFormData(prev => ({ ...prev, sales_status_id: defaultSalesStatus.id }));
+        }
+        
+        // If the admin has a responsible village, prefill the village field
+        if (currentUser?.responsible_village) {
+          setFormData(prev => ({
+            ...prev,
+            village_id: currentUser.responsible_village!
+          }));
+        }
       }
     } catch (err: any) {
       console.error('Load initial data error:', err);
@@ -256,13 +304,22 @@ export default function CreateApartment() {
       setSaving(true);
       setDetailedError(null);
       
-      const apartment = await apartmentService.createApartment(formData);
-      
-      // Navigate to the created apartment with success message
-      navigate(`/apartments/${apartment.id}?success=true&message=${encodeURIComponent('Apartment created successfully')}`);
+      if (isEditMode && id) {
+        // Update existing apartment
+        await apartmentService.updateApartment(parseInt(id), formData as UpdateApartmentRequest);
+        
+        // Navigate to the updated apartment with success message
+        navigate(`/apartments/${id}?success=true&message=${encodeURIComponent('Apartment updated successfully')}`);
+      } else {
+        // Create new apartment
+        const apartment = await apartmentService.createApartment(formData);
+        
+        // Navigate to the created apartment with success message
+        navigate(`/apartments/${apartment.id}?success=true&message=${encodeURIComponent('Apartment created successfully')}`);
+      }
     } catch (err: any) {
-      console.error('Create apartment error:', err);
-      const enhancedError = ErrorMessageHandler.getContextualErrorMessage('create_apartment', err);
+      console.error(`${isEditMode ? 'Update' : 'Create'} apartment error:`, err);
+      const enhancedError = ErrorMessageHandler.getContextualErrorMessage(isEditMode ? 'update_apartment' : 'create_apartment', err);
       setDetailedError(enhancedError);
     } finally {
       setSaving(false);
@@ -311,7 +368,11 @@ export default function CreateApartment() {
   };
 
   const handleBack = () => {
-    navigate('/apartments');
+    if (isEditMode && id) {
+      navigate(`/apartments/${id}`);
+    } else {
+      navigate('/apartments');
+    }
   };
 
   if (loading) {
@@ -337,7 +398,7 @@ export default function CreateApartment() {
             Back to Apartments
           </Button>
           <Typography variant="h4" component="h1">
-            Create New Apartment
+            {isEditMode ? 'Edit Apartment' : 'Create New Apartment'}
           </Typography>
         </Box>
 
@@ -570,7 +631,7 @@ export default function CreateApartment() {
                 startIcon={saving ? <CircularProgress size={20} /> : <SaveIcon />}
                 disabled={saving}
               >
-                {saving ? 'Creating...' : 'Create Apartment'}
+                {saving ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Apartment' : 'Create Apartment')}
               </Button>
             </Box>
           </form>

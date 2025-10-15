@@ -152,29 +152,34 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
         setAvailablePhases([]);
       }
       setPhaseFilter('');
-      if (!lockApartment) setApartmentId(0);
+      
+      // Only reset apartment ID if not in edit mode and not locked
+      if (!lockApartment && !isEditMode) setApartmentId(0);
       
       // Load apartments for the selected project
       loadFilteredApartments();
     } else {
       setAvailablePhases([]);
       setPhaseFilter('');
-      if (!lockApartment) setApartmentId(0);
+      
+      // Only reset apartment ID if not in edit mode and not locked
+      if (!lockApartment && !isEditMode) setApartmentId(0);
       
       // Load a limited set of apartments when no project is selected
       loadFilteredApartments();
     }
-  }, [projectFilter, villages, lockApartment]);
+  }, [projectFilter, villages, lockApartment, isEditMode]);
 
   // Reset apartment when phase changes
   useEffect(() => {
-    if (!lockApartment) setApartmentId(0);
+    // Only reset apartment ID if not in edit mode and not locked
+    if (!lockApartment && !isEditMode) setApartmentId(0);
     
     // Load apartments for the selected phase
     if (projectFilter) {
       loadFilteredApartments();
     }
-  }, [phaseFilter, lockApartment, projectFilter]);
+  }, [phaseFilter, lockApartment, projectFilter, isEditMode]);
 
   // When lockApartment and apartmentId are set, set project and phase filters and whoPays to 'owner'
   useEffect(() => {
@@ -306,6 +311,43 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
           setStartDate(new Date(reading.start_date));
           setEndDate(new Date(reading.end_date));
           setWhoPays(reading.who_pays);
+          
+          // Set project and phase filters based on the apartment
+          if (reading.apartment) {
+            // First, get the complete apartment data
+            const apartmentResult = await apartmentService.getApartmentById(reading.apartment_id);
+            
+            // Then set project and phase filters
+            if (apartmentResult.village_id) {
+              setProjectFilter(apartmentResult.village_id.toString());
+            }
+            if (apartmentResult.phase) {
+              setPhaseFilter(apartmentResult.phase.toString());
+            }
+            
+            // Add the apartment to the list to ensure it's available in the dropdown
+            setApartments([apartmentResult]);
+            
+            // Set apartment search term for UI consistency
+            setApartmentSearchTerm(apartmentResult.name || '');
+          }
+          
+          // If there's a related booking, load it and set the search term
+          if (reading.booking_id) {
+            try {
+              const bookingResult = await bookingService.getBookingById(reading.booking_id);
+              if (bookingResult) {
+                // Add to filtered bookings to ensure it's in the dropdown
+                setFilteredBookings([bookingResult]);
+                
+                // Set booking search term for UI consistency
+                const bookingLabel = `${bookingResult.user?.name || 'Unknown'} (${bookingResult.user_type}) - ${utilityReadingService.formatDate(bookingResult.arrival_date)} to ${utilityReadingService.formatDate(bookingResult.leaving_date)}`;
+                setBookingSearchTerm(bookingLabel);
+              }
+            } catch (err) {
+              console.error('Error loading booking data:', err);
+            }
+          }
         }
       } catch (err) {
         setErrors(err instanceof Error ? { general: err.message } : { general: 'Failed to load data' });
@@ -423,14 +465,18 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   // Filter bookings when apartment changes
   useEffect(() => {
     if (apartmentId) {
-      loadFilteredBookings();
+      // Only load filtered bookings if we're not already loading a specific booking in edit mode
+      // This prevents overwriting the booking data that was loaded from the existing reading
+      if (!(isEditMode && existingReading?.booking_id)) {
+        loadFilteredBookings();
+      }
     } else {
       setFilteredBookings([]);
       if (!isEditMode) {
         setBookingId(undefined);
       }
     }
-  }, [apartmentId, isEditMode]);
+  }, [apartmentId, isEditMode, existingReading, loadFilteredBookings]);
 
   // Handle pre-selected booking from props (quick action mode)
   useEffect(() => {

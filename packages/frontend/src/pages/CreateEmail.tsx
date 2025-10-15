@@ -132,6 +132,38 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           setLoading(true);
           const emailData = await emailService.getEmailById(parseInt(id));
           setFormData({ ...emailData });
+
+          // Prefill apartment field: ensure current apartment exists in options and set filters/search text
+          if (emailData.apartment_id) {
+            try {
+              // Try to locate apartment in the initially loaded list
+              let currentApartment = apartmentsData.data.find(a => a.id === emailData.apartment_id);
+              if (!currentApartment) {
+                // Fetch individually if not present
+                currentApartment = await apartmentService.getApartmentById(emailData.apartment_id);
+              }
+              if (currentApartment) {
+                // Ensure apartment is in options
+                setApartments(prev => {
+                  const exists = prev.some(a => a.id === currentApartment!.id);
+                  return exists ? prev : [currentApartment!, ...prev];
+                });
+                // Set filters so apartment shows up in filtered list
+                if (currentApartment.village?.id) {
+                  setProjectFilter(currentApartment.village.id.toString());
+                }
+                if (currentApartment.phase) {
+                  setPhaseFilter(currentApartment.phase.toString());
+                }
+                // Set search input to apartment name for clear context
+                setApartmentSearchTerm(currentApartment.name || '');
+              }
+            } catch (e) {
+              // Non-blocking
+              // eslint-disable-next-line no-console
+              console.warn('Could not prefill apartment in edit mode:', e);
+            }
+          }
         } else {
           // Prefill apartment if provided (create/quick action mode)
           if (apartmentId) {
@@ -175,7 +207,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       }
       
       // Only reset phase filter and apartment if we're not in locked apartment mode
-      if (!lockApartment) {
+      // and not in edit mode (to preserve current value)
+      if (!lockApartment && !actuallyEditing) {
         setPhaseFilter('');
         setFormData(prev => ({ ...prev, apartment_id: undefined }));
       }
@@ -186,7 +219,8 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       setAvailablePhases([]);
       
       // Only reset phase filter and apartment if we're not in locked apartment mode
-      if (!lockApartment) {
+      // and not in edit mode (to preserve current value)
+      if (!lockApartment && !actuallyEditing) {
         setPhaseFilter('');
         setFormData(prev => ({ ...prev, apartment_id: undefined }));
       }
@@ -194,12 +228,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       // Load all apartments when no project is selected
       loadFilteredApartments();
     }
-  }, [projectFilter, villages, lockApartment]);
+  }, [projectFilter, villages, lockApartment, actuallyEditing]);
 
   // Reset apartment when phase changes
   useEffect(() => {
     // Only reset apartment if we're not in locked apartment mode
-    if (!lockApartment) {
+    if (!lockApartment && !actuallyEditing) {
       setFormData(prev => ({ ...prev, apartment_id: undefined }));
     }
     
@@ -207,7 +241,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     if (projectFilter) {
       loadFilteredApartments();
     }
-  }, [phaseFilter, lockApartment, projectFilter]);
+  }, [phaseFilter, lockApartment, projectFilter, actuallyEditing]);
 
   // When lockApartment and apartmentId are set, set project and phase filters and lock them
   useEffect(() => {
@@ -271,7 +305,20 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
       filtered = filtered.filter(apt => apt.phase === selectedPhase);
     }
     // Only return apartments with a valid id
-    return filtered.filter(apt => typeof apt.id === 'number');
+    filtered = filtered.filter(apt => typeof apt.id === 'number');
+
+    // Ensure currently selected apartment is present even if not matching filters yet
+    if (typeof formData.apartment_id === 'number') {
+      const hasSelected = filtered.some(apt => apt.id === formData.apartment_id);
+      if (!hasSelected) {
+        const selected = apartments.find(apt => apt.id === formData.apartment_id);
+        if (selected) {
+          filtered = [selected, ...filtered];
+        }
+      }
+    }
+
+    return filtered;
   };
   
   // State for apartment search loading
@@ -382,6 +429,27 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const handleApartmentFieldFocus = () => {
     loadFilteredApartments();
   };
+
+  // Ensure selected apartment exists in options in edit mode
+  useEffect(() => {
+    const ensureSelectedApartmentPresent = async () => {
+      if (!actuallyEditing || typeof formData.apartment_id !== 'number') return;
+      const exists = apartments.some(a => a.id === formData.apartment_id);
+      if (!exists) {
+        try {
+          const apt = await apartmentService.getApartmentById(formData.apartment_id);
+          setApartments(prev => [apt, ...prev]);
+          if (apt.village?.id) setProjectFilter(prev => prev || apt.village!.id.toString());
+          if (apt.phase) setPhaseFilter(prev => prev || apt.phase!.toString());
+          setApartmentSearchTerm(prev => prev || apt.name || '');
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('Failed to ensure selected apartment in options:', e);
+        }
+      }
+    };
+    ensureSelectedApartmentPresent();
+  }, [actuallyEditing, formData.apartment_id, apartments]);
 
   // Handle form changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -774,7 +842,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                 </FormControl>
               </Grid>
               {/* Project (Village) */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <FormControl fullWidth>
                   <InputLabel>Project</InputLabel>
                   <Select
@@ -795,7 +863,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                 </FormControl>
               </Grid>
               {/* Phase */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 3 }}>
                 <FormControl fullWidth>
                   <InputLabel>Phase</InputLabel>
                   <Select
@@ -818,7 +886,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                 </FormControl>
               </Grid>
               {/* Apartment */}
-              <Grid size={{ xs: 12, sm: 4 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <ClearableSearchDropdown
                   options={getFilteredApartments().map(apartment => ({
                     id: apartment.id,
