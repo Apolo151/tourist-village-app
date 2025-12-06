@@ -1231,6 +1231,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                     margin: 'normal'
                   }
                 }}
+                format="dd/MM/yyyy"
               />
               
               {/* Address */}
