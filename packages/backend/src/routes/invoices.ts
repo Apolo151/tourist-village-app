@@ -336,7 +336,7 @@ router.get(
             if (date_to) qb.whereRaw('COALESCE(sr.date_action, sr.date_created) <= ?', [date_to]);
           }
         })
-        .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
+        .orderByRaw('COALESCE(sr.date_action, sr.date_created) DESC');
 
       // Get all utility readings for this apartment
       const utilityReadings = await db('utility_readings as ur')
@@ -564,7 +564,7 @@ router.get(
             'booking_user.name as person_name'
           )
           .where('a.owner_id', userId)
-          .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
+          .orderByRaw('COALESCE(sr.date_action, sr.date_created) DESC');
       } else {
         // For renters, get payments and service requests they created
         payments = await db('payments as p')
@@ -593,7 +593,7 @@ router.get(
             'b.arrival_date as booking_arrival_date'
           )
           .where('sr.requester_id', userId)
-          .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
+          .orderByRaw('COALESCE(sr.date_action, sr.date_created) DESC');
       }
 
       // Combine and format invoices
