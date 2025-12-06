@@ -150,7 +150,7 @@ export interface ServiceRequest {
   apartment_id: number;
   booking_id?: number;
   requester_id: number;
-  date_action?: Date;
+  date_action: Date; // Required for all service requests
   date_created: Date;
   status: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
@@ -538,7 +538,7 @@ export interface CreateServiceRequestRequest {
   apartment_id: number;
   booking_id?: number;
   requester_id: number;
-  date_action?: string; // ISO string - when the service will be done
+  date_action: string; // ISO string - when the service will be done (REQUIRED)
   status?: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
   notes?: string;

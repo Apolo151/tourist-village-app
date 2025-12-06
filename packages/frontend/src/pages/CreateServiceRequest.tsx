@@ -112,7 +112,7 @@ export default function CreateServiceRequest({
         apartment_id: apartmentId || 0,
         booking_id: bookingId,
         requester_id: currentUser?.id,
-        date_action: undefined,
+        date_action: "",
         status: "Created",
         who_pays: whoPays ?? "owner", // Use the passed whoPays or default to owner
         notes: "",
@@ -445,7 +445,7 @@ export default function CreateServiceRequest({
     const handleDateChange = (date: Date | null) => {
         setFormData((prev) => ({
             ...prev,
-            date_action: date ? date.toISOString() : undefined,
+            date_action: date ? date.toISOString() : "",
         }));
     };
 
@@ -477,10 +477,11 @@ export default function CreateServiceRequest({
             if (
                 !formData.type_id ||
                 !formData.apartment_id ||
-                !formData.requester_id
+                !formData.requester_id ||
+                !formData.date_action
             ) {
                 setError(
-                    "Please select service type, apartment, and requester"
+                    "Please fill in all required fields: service type, apartment, requester, and action date"
                 );
                 return;
             }
@@ -1042,7 +1043,7 @@ export default function CreateServiceRequest({
                         <Grid container spacing={3}>
                             <Grid size={{ xs: 12, sm: 6 }}>
                                 <DateTimePicker
-                                    label="Action Date (When should the service be done?)"
+                                    label="Action Date (When should the service be done?) *"
                                     value={
                                         formData.date_action
                                             ? new Date(formData.date_action)
@@ -1053,6 +1054,8 @@ export default function CreateServiceRequest({
                                     slotProps={{
                                         textField: {
                                             fullWidth: true,
+                                            required: true,
+                                            error: !formData.date_action,
                                         },
                                     }}
                                 />
@@ -1441,7 +1444,8 @@ export default function CreateServiceRequest({
                                 submitting ||
                                 !formData.type_id ||
                                 !formData.apartment_id ||
-                                !formData.requester_id
+                                !formData.requester_id ||
+                                !formData.date_action
                             }
                         >
                             {submitting

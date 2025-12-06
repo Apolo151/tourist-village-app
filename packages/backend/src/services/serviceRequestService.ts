@@ -246,7 +246,7 @@ export class ServiceRequestService {
       apartment_id: sr.apartment_id,
       booking_id: sr.booking_id || undefined,
       requester_id: sr.requester_id,
-      date_action: sr.date_action ? new Date(sr.date_action) : undefined,
+      date_action: sr.date_action ? new Date(sr.date_action) : new Date(sr.date_created), // Fallback to date_created for old records
       date_created: new Date(sr.date_created),
       status: sr.status,
       who_pays: sr.who_pays,
@@ -465,7 +465,7 @@ export class ServiceRequestService {
       apartment_id: serviceRequest.apartment_id,
       booking_id: serviceRequest.booking_id || undefined,
       requester_id: serviceRequest.requester_id,
-      date_action: serviceRequest.date_action ? new Date(serviceRequest.date_action) : undefined,
+      date_action: serviceRequest.date_action ? new Date(serviceRequest.date_action) : new Date(serviceRequest.date_created), // Fallback to date_created for old records
       date_created: new Date(serviceRequest.date_created),
       status: serviceRequest.status,
       who_pays: serviceRequest.who_pays,
@@ -576,6 +576,10 @@ export class ServiceRequestService {
       throw new Error('Service type, apartment, and requester are required');
     }
 
+    if (!data.date_action) {
+      throw new Error('Action date is required');
+    }
+
     if (!data.who_pays || !['owner', 'renter', 'company'].includes(data.who_pays)) {
       throw new Error('Valid who_pays value is required (owner, renter, or company)');
     }
@@ -651,13 +655,10 @@ export class ServiceRequestService {
       }
     }
 
-    // Validate date_action if provided
-    let dateAction: Date | null = null;
-    if (data.date_action) {
-      dateAction = new Date(data.date_action);
-      if (isNaN(dateAction.getTime())) {
-        throw new Error('Invalid date_action format');
-      }
+    // Validate and parse date_action (required)
+    const dateAction = new Date(data.date_action);
+    if (isNaN(dateAction.getTime())) {
+      throw new Error('Invalid date_action format');
     }
 
     try {

@@ -974,7 +974,7 @@ export default function ApartmentDetails() {
                       <TableHead>
                         <TableRow>
                           <TableCell>Service Type</TableCell>
-                          <TableCell>Request Date</TableCell>
+                          <TableCell>Created At</TableCell>
                           <TableCell>Action Date</TableCell>
                           <TableCell>Cost</TableCell>
                           <TableCell>Paid By</TableCell>

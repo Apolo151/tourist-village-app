@@ -46,7 +46,7 @@ export interface ServiceRequest {
   apartment_id: number;
   booking_id?: number;
   requester_id: number;
-  date_action?: string;
+  date_action: string;
   date_created: string;
   status: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
@@ -122,7 +122,7 @@ export interface CreateServiceRequestRequest {
   apartment_id: number;
   booking_id?: number;
   requester_id: number;
-  date_action?: string;
+  date_action: string;
   status?: 'Created' | 'In Progress' | 'Done';
   who_pays: 'owner' | 'renter' | 'company';
   notes?: string;

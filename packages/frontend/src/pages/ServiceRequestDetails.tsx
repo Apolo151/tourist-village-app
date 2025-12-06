@@ -242,7 +242,7 @@ export default function ServiceRequestDetails() {
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not scheduled';
+    if (!dateString) return 'Not set';
     return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
   };
 

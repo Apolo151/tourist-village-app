@@ -106,7 +106,7 @@ router.get(
             db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_service_requests_gbp")
           )
           .where('sr.apartment_id', apt.apartment_id);
-        const srDateFilter = buildDateFilter('sr.date_created');
+        const srDateFilter = buildDateFilter('COALESCE(sr.date_action, sr.date_created)');
         if (Array.isArray(srDateFilter)) {
           srDateFilter.forEach(f => serviceRequestsQuery = serviceRequestsQuery.where(f));
         } else if (srDateFilter) {
@@ -330,13 +330,13 @@ router.get(
         .where('sr.apartment_id', apartmentId)
         .modify(function(qb: any) {
           if (year) {
-            qb.whereRaw("EXTRACT(YEAR FROM sr.date_created) = ?", [year]);
+            qb.whereRaw("EXTRACT(YEAR FROM COALESCE(sr.date_action, sr.date_created)) = ?", [year]);
           } else if (date_from || date_to) {
-            if (date_from) qb.where('sr.date_created', '>=', date_from);
-            if (date_to) qb.where('sr.date_created', '<=', date_to);
+            if (date_from) qb.whereRaw('COALESCE(sr.date_action, sr.date_created) >= ?', [date_from]);
+            if (date_to) qb.whereRaw('COALESCE(sr.date_action, sr.date_created) <= ?', [date_to]);
           }
         })
-        .orderBy('sr.date_created', 'desc');
+        .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
 
       // Get all utility readings for this apartment
       const utilityReadings = await db('utility_readings as ur')
@@ -390,7 +390,7 @@ router.get(
             : sr.service_name || `Service Request of ${sr.cost} ${sr.currency}`,
           amount: parseFloat(sr.cost),
           currency: sr.currency,
-          date: sr.date_created,
+          date: sr.date_action || sr.date_created, // Use action date, fallback to created date
           booking_id: sr.booking_id,
           booking_arrival_date: sr.booking_arrival_date,
           person_name: sr.person_name,
@@ -564,7 +564,7 @@ router.get(
             'booking_user.name as person_name'
           )
           .where('a.owner_id', userId)
-          .orderBy('sr.date_created', 'desc');
+          .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
       } else {
         // For renters, get payments and service requests they created
         payments = await db('payments as p')
@@ -593,7 +593,7 @@ router.get(
             'b.arrival_date as booking_arrival_date'
           )
           .where('sr.requester_id', userId)
-          .orderBy('sr.date_created', 'desc');
+          .orderBy(db.raw('COALESCE(sr.date_action, sr.date_created)'), 'desc');
       }
 
       // Combine and format invoices
@@ -617,7 +617,7 @@ router.get(
           description: sr.notes || sr.service_name,
           amount: parseFloat(sr.cost),
           currency: sr.currency,
-          date: sr.date_created,
+          date: sr.date_action || sr.date_created, // Use action date, fallback to created date
           apartment_name: sr.apartment_name,
           booking_id: sr.booking_id,
           booking_arrival_date: sr.booking_arrival_date,
@@ -726,7 +726,7 @@ router.get(
           db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END), 0) as total_egp"),
           db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_gbp")
         )
-        .whereRaw("EXTRACT(YEAR FROM sr.date_created) < ?", [year]);
+        .whereRaw("EXTRACT(YEAR FROM COALESCE(sr.date_action, sr.date_created)) < ?", [year]);
 
       // Apply role-based filtering
       if (user.role === 'owner') {
@@ -843,7 +843,7 @@ router.get(
         })
         .groupBy('u.id', 'u.name');
 
-      // Get all service requests for this apartment where the requester is a renter
+      // Get all service requests for this apartment where the requester is a renter (using action date for consistency)
       const renterServiceRequests = await db('service_requests as sr')
         .leftJoin('service_types as st', 'sr.type_id', 'st.id')
         .leftJoin('users as u', 'sr.requester_id', 'u.id')
@@ -1007,7 +1007,7 @@ router.get(
           db.raw("COALESCE(sr.notes, st.name) as description"),
           'sr.cost as amount',
           'sr.currency',
-          'sr.date_created as date',
+          db.raw('COALESCE(sr.date_action, sr.date_created) as date'),
           'sr.who_pays as user_type',
           'sr.created_by',
           'sr.created_at'
