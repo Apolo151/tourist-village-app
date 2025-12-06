@@ -665,7 +665,7 @@ export default function ServiceRequestDetails() {
               </Grid>
               
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="subtitle2" color="text.secondary">Request Date</Typography>
+                <Typography variant="subtitle2" color="text.secondary">Created At</Typography>
                 <Typography variant="body1">{formatDate(serviceRequest.date_created)}</Typography>
               </Grid>
               

@@ -1042,7 +1042,7 @@ export default function CreateServiceRequest({
                         <Grid container spacing={3}>
                             <Grid size={{ xs: 12, sm: 6 }}>
                                 <DateTimePicker
-                                    label="Service Date (When should the service be done?)"
+                                    label="Action Date (When should the service be done?)"
                                     value={
                                         formData.date_action
                                             ? new Date(formData.date_action)
