@@ -17,6 +17,10 @@ import {
 } from '../types';
 import { payingStatusTypeService } from './payingStatusTypeService';
 import { salesStatusTypeService } from './salesStatusTypeService';
+import { createLogger } from '../utils/logger';
+
+// Create logger instance for this service
+const logger = createLogger('ApartmentService');
 
 export class ApartmentService {
   
@@ -528,61 +532,78 @@ export class ApartmentService {
 
   /**
    * Get apartment financial summary
+   * 
+   * Calculates total money spent (payments), total money requested (service requests + utilities),
+   * and net balance for an apartment using optimized single SQL query with aggregation.
+   * 
+   * @param id - Apartment ID
+   * @returns Financial summary with breakdown of payments, requests, and utilities
+   * @throws Error if apartment not found
    */
   async getApartmentFinancialSummary(id: number): Promise<ApartmentFinancialSummary> {
-    // Check if apartment exists
-    const apartment = await this.getApartmentById(id);
-    if (!apartment) {
-      throw new Error('Apartment not found');
+    logger.debug('Calculating financial summary', { apartmentId: id });
+
+    try {
+      // Single optimized query with aggregations for all financial data
+      // This replaces 4-5 separate queries with one efficient query
+      const financialData = await this.getApartmentFinancialData(id);
+
+      if (!financialData) {
+        logger.warn('Apartment not found for financial summary', { apartmentId: id });
+        throw new Error('Apartment not found');
+      }
+
+      // Parse and aggregate payments by currency
+      const totalMoneySpent = this.parseCurrencyTotals(
+        financialData.payments_egp,
+        financialData.payments_gbp
+      );
+
+      // Parse and aggregate service requests by currency
+      const serviceRequestTotals = this.parseCurrencyTotals(
+        financialData.requests_egp,
+        financialData.requests_gbp
+      );
+
+      // Parse and aggregate utility costs (water + electricity in EGP)
+      const utilityCostEGP = this.calculateUtilityCosts(
+        financialData.water_cost,
+        financialData.electricity_cost,
+        id
+      );
+
+      // Combine service requests and utilities for total money requested
+      const totalMoneyRequested = {
+        EGP: serviceRequestTotals.EGP + utilityCostEGP,
+        GBP: serviceRequestTotals.GBP
+      };
+
+      // Calculate net balance
+      const netMoney = {
+        EGP: totalMoneyRequested.EGP - totalMoneySpent.EGP,
+        GBP: totalMoneyRequested.GBP - totalMoneySpent.GBP
+      };
+
+      logger.info('Financial summary calculated successfully', {
+        apartmentId: id,
+        totalSpent: totalMoneySpent,
+        totalRequested: totalMoneyRequested,
+        netBalance: netMoney
+      });
+
+      return {
+        apartment_id: id,
+        total_money_spent: totalMoneySpent,
+        total_money_requested: totalMoneyRequested,
+        net_money: netMoney
+      };
+    } catch (error) {
+      logger.error('Failed to calculate financial summary', {
+        apartmentId: id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
     }
-
-    // Calculate total money spent (payments)
-    const payments = await db('payments')
-      .where('apartment_id', id)
-      .select('amount', 'currency');
-
-    const totalMoneySpent = payments.reduce(
-      (acc, payment) => {
-        const amount = parseFloat(payment.amount);
-        if (payment.currency === 'EGP') {
-          acc.EGP += amount;
-        } else if (payment.currency === 'GBP') {
-          acc.GBP += amount;
-        }
-        return acc;
-      },
-      { EGP: 0, GBP: 0 }
-    );
-
-    // Calculate total money requested (service requests)
-    const totalMoneyRequested = { EGP: 0, GBP: 0 };
-    // Get service requests cost estimate
-    const serviceRequestsCost = await db('service_requests as sr')
-      .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-      .where('sr.apartment_id', id)
-      .select('sr.cost', 'sr.currency');
-
-    serviceRequestsCost.forEach(request => {
-        const cost = parseFloat(request.cost);
-        if (request.currency === 'EGP') {
-        totalMoneyRequested.EGP += cost;
-        } else if (request.currency === 'GBP') {
-        totalMoneyRequested.GBP += cost;
-        }
-    });
-
-    // Calculate net money
-    const netMoney = {
-      EGP: totalMoneyRequested.EGP - totalMoneySpent.EGP,
-      GBP: totalMoneyRequested.GBP - totalMoneySpent.GBP
-    };
-
-    return {
-      apartment_id: id,
-      total_money_spent: totalMoneySpent,
-      total_money_requested: totalMoneyRequested,
-      net_money: netMoney
-    };
   }
 
   /**
@@ -883,5 +904,241 @@ export class ApartmentService {
     if (phase < 1 || phase > village.phases) {
       throw new Error(`Phase must be between 1 and ${village.phases} for this village`);
     }
+  }
+
+  // ============================================================
+  // FINANCIAL SUMMARY HELPER METHODS
+  // ============================================================
+  // These helper methods support the optimized financial summary calculation
+  // using a single SQL query with aggregations
+  // ============================================================
+
+  /**
+   * Fetch all financial data for an apartment in a single optimized query
+   * 
+   * This method uses SQL subqueries to correctly calculate:
+   * - Total payments by currency (EGP, GBP)
+   * - Total service request costs by currency (EGP, GBP)
+   * - Total utility costs (water + electricity in EGP)
+   * 
+   * Uses subqueries to avoid cartesian product issues that occur when
+   * multiple LEFT JOINs are used with aggregation.
+   * 
+   * CONFIGURATION: To change which utilities are included, modify the
+   * WHERE clause in the utilities subquery (search for 'ur.who_pays')
+   * 
+   * Options:
+   *   - All utilities: Remove "WHERE ur.who_pays = 'owner'" entirely
+   *   - Renter only: Change to "WHERE ur.who_pays = 'renter'"
+   *   - Owner + Renter: Change to "WHERE ur.who_pays IN ('owner', 'renter')"
+   * 
+   * @param apartmentId - The apartment ID to get financial data for
+   * @returns Aggregated financial data or null if apartment doesn't exist
+   */
+  private async getApartmentFinancialData(apartmentId: number): Promise<{
+    apartment_id: number;
+    payments_egp: string;
+    payments_gbp: string;
+    requests_egp: string;
+    requests_gbp: string;
+    water_cost: string;
+    electricity_cost: string;
+  } | null> {
+    try {
+      // Using subqueries to correctly aggregate data from multiple tables
+      // This prevents the cartesian product problem that occurs with multiple LEFT JOINs
+      const result = await db('apartments as a')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
+        .where('a.id', apartmentId)
+        .select(
+          'a.id as apartment_id',
+          
+          // Subquery for payments aggregated by currency (EGP)
+          db.raw(`
+            COALESCE((
+              SELECT SUM(CAST(p.amount AS DECIMAL))
+              FROM payments p
+              WHERE p.apartment_id = a.id
+                AND p.currency = ?
+            ), 0) as payments_egp
+          `, ['EGP']),
+          
+          // Subquery for payments aggregated by currency (GBP)
+          db.raw(`
+            COALESCE((
+              SELECT SUM(CAST(p.amount AS DECIMAL))
+              FROM payments p
+              WHERE p.apartment_id = a.id
+                AND p.currency = ?
+            ), 0) as payments_gbp
+          `, ['GBP']),
+          
+          // Subquery for service requests aggregated by currency (EGP)
+          db.raw(`
+            COALESCE((
+              SELECT SUM(CAST(sr.cost AS DECIMAL))
+              FROM service_requests sr
+              WHERE sr.apartment_id = a.id
+                AND sr.currency = ?
+            ), 0) as requests_egp
+          `, ['EGP']),
+          
+          // Subquery for service requests aggregated by currency (GBP)
+          db.raw(`
+            COALESCE((
+              SELECT SUM(CAST(sr.cost AS DECIMAL))
+              FROM service_requests sr
+              WHERE sr.apartment_id = a.id
+                AND sr.currency = ?
+            ), 0) as requests_gbp
+          `, ['GBP']),
+          
+          // Subquery for utility costs - water
+          // Only includes valid readings (end >= start) and positive pricing
+          // CONFIGURATION: Change the WHERE clause to modify which utilities are included
+          db.raw(`
+            COALESCE((
+              SELECT SUM(
+                CASE 
+                  WHEN ur.water_end_reading IS NOT NULL 
+                    AND ur.water_start_reading IS NOT NULL
+                    AND ur.water_end_reading >= ur.water_start_reading 
+                    AND v.water_price > 0
+                  THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
+                  ELSE 0 
+                END
+              )
+              FROM utility_readings ur
+              WHERE ur.apartment_id = a.id
+                AND ur.who_pays = 'owner'
+            ), 0) as water_cost
+          `),
+          
+          // Subquery for utility costs - electricity
+          // Only includes valid readings (end >= start) and positive pricing
+          // CONFIGURATION: Change the WHERE clause to modify which utilities are included
+          db.raw(`
+            COALESCE((
+              SELECT SUM(
+                CASE 
+                  WHEN ur.electricity_end_reading IS NOT NULL
+                    AND ur.electricity_start_reading IS NOT NULL
+                    AND ur.electricity_end_reading >= ur.electricity_start_reading 
+                    AND v.electricity_price > 0
+                  THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price 
+                  ELSE 0 
+                END
+              )
+              FROM utility_readings ur
+              WHERE ur.apartment_id = a.id
+                AND ur.who_pays = 'owner'
+            ), 0) as electricity_cost
+          `)
+        )
+        .first();
+
+      return result || null;
+    } catch (error) {
+      logger.error('Error fetching financial data from database', {
+        apartmentId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Parse and validate currency totals from database aggregation results
+   * 
+   * Converts string values from database to numbers and ensures valid values
+   * 
+   * @param egpValue - EGP amount as string from database
+   * @param gbpValue - GBP amount as string from database
+   * @returns Object with validated EGP and GBP amounts as numbers
+   */
+  private parseCurrencyTotals(egpValue: string, gbpValue: string): { EGP: number; GBP: number } {
+    const egp = parseFloat(egpValue) || 0;
+    const gbp = parseFloat(gbpValue) || 0;
+
+    // Validate parsed values
+    if (!isFinite(egp) || egp < 0) {
+      logger.warn('Invalid EGP value in currency totals', { egpValue, parsed: egp });
+      return { EGP: 0, GBP: isFinite(gbp) && gbp >= 0 ? gbp : 0 };
+    }
+
+    if (!isFinite(gbp) || gbp < 0) {
+      logger.warn('Invalid GBP value in currency totals', { gbpValue, parsed: gbp });
+      return { EGP: egp, GBP: 0 };
+    }
+
+    return { EGP: egp, GBP: gbp };
+  }
+
+  /**
+   * Calculate and validate total utility costs from water and electricity
+   * 
+   * Combines water and electricity costs, validates the result, and logs
+   * any invalid readings that were skipped by the database aggregation
+   * 
+   * NOTE: Invalid readings (negative consumption, NULL values) are automatically
+   * excluded by the SQL query aggregation logic. This method validates the
+   * final result and provides logging for transparency.
+   * 
+   * @param waterCost - Total water cost as string from database
+   * @param electricityCost - Total electricity cost as string from database
+   * @param apartmentId - Apartment ID for logging purposes
+   * @returns Total utility cost in EGP as number
+   */
+  private calculateUtilityCosts(
+    waterCost: string,
+    electricityCost: string,
+    apartmentId: number
+  ): number {
+    const water = parseFloat(waterCost) || 0;
+    const electricity = parseFloat(electricityCost) || 0;
+
+    // Validate individual utility costs
+    if (!isFinite(water) || water < 0) {
+      logger.warn('Invalid water cost calculated', {
+        apartmentId,
+        waterCost,
+        parsed: water
+      });
+      return isFinite(electricity) && electricity >= 0 ? electricity : 0;
+    }
+
+    if (!isFinite(electricity) || electricity < 0) {
+      logger.warn('Invalid electricity cost calculated', {
+        apartmentId,
+        electricityCost,
+        parsed: electricity
+      });
+      return water;
+    }
+
+    const totalUtilityCost = water + electricity;
+
+    // Final safety check
+    if (!isFinite(totalUtilityCost) || totalUtilityCost < 0) {
+      logger.warn('Invalid total utility cost', {
+        apartmentId,
+        water,
+        electricity,
+        total: totalUtilityCost
+      });
+      return 0;
+    }
+
+    // Log utility cost breakdown for audit trail
+    if (totalUtilityCost > 0) {
+      logger.debug('Utility costs calculated', {
+        apartmentId,
+        waterCost: water,
+        electricityCost: electricity,
+        totalCost: totalUtilityCost
+      });
+    }
+
+    return totalUtilityCost;
   }
 }
