@@ -38,6 +38,12 @@ export interface InvoiceSummaryResponse {
     total_money_requested: InvoiceTotals;
     net_money: InvoiceTotals;
   };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    total_pages: number;
+  };
 }
 
 export interface InvoiceDetailItem {
@@ -61,6 +67,9 @@ export interface InvoicesFilters {
   year?: number;
   date_from?: string;
   date_to?: string;
+  page?: number;
+  limit?: number;
+  search?: string;
 }
 
 class InvoiceService {
@@ -75,6 +84,9 @@ class InvoiceService {
     if (filters?.year) params.year = filters.year;
     if (filters?.date_from) params.date_from = filters.date_from;
     if (filters?.date_to) params.date_to = filters.date_to;
+    if (filters?.page) params.page = filters.page;
+    if (filters?.limit) params.limit = filters.limit;
+    if (filters?.search) params.search = filters.search;
 
     const response = await apiClient.get<ApiResponse<InvoiceSummaryResponse>>('/invoices/summary', params);
     return response.data!;

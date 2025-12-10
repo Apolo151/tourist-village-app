@@ -96,9 +96,7 @@ export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
-  // Track all invoice data from API (unfiltered)
-  const [allInvoiceData, setAllInvoiceData] = useState<InvoiceSummaryItem[]>([]);
-  // Filtered invoice data displayed in the UI
+  // Invoices returned from API (server filtered & paginated)
   const [invoiceDisplayData, setInvoiceDisplayData] = useState<InvoiceSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
   const [previousYearTotals, setPreviousYearTotals] = useState<{
@@ -113,16 +111,13 @@ export default function Invoices() {
   const [highlightedInvoiceSummary, setHighlightedInvoiceSummary] = useState<HighlightedInvoiceSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 20;
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   
   const { currentUser } = useAuth();
   const navigate = useNavigate();
-
-  // Effect to apply search filter whenever search term changes
-  useEffect(() => {
-    if (allInvoiceData.length > 0 && !loading) {
-      filterInvoiceData();
-    }
-  }, [searchTerm, allInvoiceData, loading]);
 
   // Handle URL parameters on component mount
   useEffect(() => {
@@ -148,10 +143,23 @@ export default function Invoices() {
     handleUrlParams();
   }, [searchParams]);
 
+  // Reset to first page when key filters change
+  useEffect(() => {
+    setPage(1);
+  }, [villageFilter, startDate, endDate, currentYear, searchTerm]);
+
+  // Debounce search term to avoid refetch on every keystroke
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm.trim());
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchTerm]);
+
   // Define handleHighlightInvoice function
   const handleHighlightInvoice = async (apartmentId: number) => {
     // Find the invoice for this apartment
-    const invoice = allInvoiceData.find(i => i.apartment_id === apartmentId);
+    const invoice = invoiceDisplayData.find(i => i.apartment_id === apartmentId);
     if (!invoice) return;
     
     setHighlightedInvoice(apartmentId);
@@ -218,15 +226,23 @@ export default function Invoices() {
         } else {
           filters.year = currentYear; // Default to current year
         }
+        filters.page = page;
+        filters.limit = PAGE_SIZE;
+        if (debouncedSearchTerm) {
+          filters.search = debouncedSearchTerm;
+        }
         
         // Load invoice summary data
         const invoicesResponse = await invoiceService.getInvoicesSummary(filters);
         
-        // Store the full data set
-        setAllInvoiceData(invoicesResponse.summary);
-        
-        // Apply current search filter to the new data
-        filterInvoiceData(searchTerm, invoicesResponse.summary);
+        setInvoiceDisplayData(invoicesResponse.summary);
+
+        if (invoicesResponse.pagination) {
+          setTotalPages(invoicesResponse.pagination.total_pages || 1);
+          setPage(invoicesResponse.pagination.page || 1);
+        } else {
+          setTotalPages(1);
+        }
         
         // Load previous years totals
         const prevTotals = await invoiceService.getPreviousYearsTotals(currentYear);
@@ -241,31 +257,11 @@ export default function Invoices() {
     };
     
     loadData();
-  }, [villageFilter, startDate, endDate, currentYear]);
+  }, [villageFilter, startDate, endDate, currentYear, page, debouncedSearchTerm]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
     setSearchTerm(value);
-  };
-  
-  // Function to filter invoice data based on search term
-  const filterInvoiceData = (term = searchTerm, data = allInvoiceData) => {
-    // Make sure we have data to filter
-    if (!data.length) return;
-    
-    // Apply search filter on frontend
-    const filteredData = data.filter(invoice => {
-      if (!term) return true;
-      
-      const searchLower = term.toLowerCase();
-      return (
-        invoice.apartment_name.toLowerCase().includes(searchLower) ||
-        invoice.owner_name.toLowerCase().includes(searchLower) ||
-        invoice.village_name.toLowerCase().includes(searchLower)
-      );
-    });
-    
-    setInvoiceDisplayData(filteredData);
   };
   
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
@@ -285,6 +281,7 @@ export default function Invoices() {
     setVillageFilter('');
     setStartDate(new Date(currentYear, 0, 1));
     setEndDate(new Date(currentYear, 11, 31));
+    setPage(1);
   };
   
   const handleAddPayment = () => {
@@ -322,14 +319,6 @@ export default function Invoices() {
     }));
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
       <Container maxWidth="xl">
@@ -338,6 +327,12 @@ export default function Invoices() {
             <Typography variant="h4" sx={{ mt: 3 }}>
               Financial Reports
             </Typography>
+          {loading && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={18} />
+              <Typography variant="body2" color="text.secondary">Loading...</Typography>
+            </Box>
+          )}
           </Box>
 
           {/* Error Display */}
@@ -638,6 +633,20 @@ export default function Invoices() {
               </TableBody>
             </Table>
           </TableContainer>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+            <Pagination
+              count={totalPages}
+              page={page}
+              onChange={(_e, value) => setPage(value)}
+              color="primary"
+              shape="rounded"
+              siblingCount={1}
+              boundaryCount={1}
+            />
+          </Box>
+        )}
         </Box>
       </Container>
     </LocalizationProvider>

@@ -16,6 +16,20 @@ router.get(
     try {
       const user = (req as any).user;
       const { village_id, user_type, year, date_from, date_to } = req.query;
+      const search = (req.query.search as string | undefined)?.trim();
+
+      // Pagination (safe defaults)
+      const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
+      const limit = Math.min(
+        Math.max(parseInt((req.query.limit as string) || '50', 10), 1),
+        200
+      );
+      const offset = (page - 1) * limit;
+
+      // Normalize filters
+      const parsedVillageId = village_id ? parseInt(village_id as string, 10) : undefined;
+      const parsedYear = year ? parseInt(year as string, 10) : undefined;
+      const hasDateRange = date_from || date_to;
 
       // Get all apartments (with filters)
       let apartmentsQuery = db('apartments as a')
@@ -42,11 +56,19 @@ router.get(
               .where('b.user_id', user.id);
         });
       }
-      if (village_id) {
-        apartmentsQuery = apartmentsQuery.where('a.village_id', village_id);
+      if (parsedVillageId) {
+        apartmentsQuery = apartmentsQuery.where('a.village_id', parsedVillageId);
       }
       if (req.villageFilter) {
         apartmentsQuery = apartmentsQuery.where('a.village_id', req.villageFilter);
+      }
+      if (search) {
+        const like = `%${search}%`;
+        apartmentsQuery = apartmentsQuery.andWhere(function() {
+          this.whereILike('a.name', like)
+            .orWhereILike('owner.name', like)
+            .orWhereILike('v.name', like);
+        });
       }
       if (user_type) {
         if (user_type === 'owner') {
@@ -65,97 +87,110 @@ router.get(
           });
         }
       }
-      const apartments = await apartmentsQuery;
-
-      // Helper to build date filter
-      function buildDateFilter(table: string) {
-        if (year) {
-          return db.raw(`EXTRACT(YEAR FROM ${table}) = ?`, [year]);
-        } else if (date_from || date_to) {
-          const conditions = [];
-          if (date_from) conditions.push(db.raw(`${table} >= ?`, [date_from]));
-          if (date_to) conditions.push(db.raw(`${table} <= ?`, [date_to]));
-          return conditions;
+      // Helper to add date filters to a query for a given expression
+      const applyDateFilter = (qb: any, columnExpr: string) => {
+        if (parsedYear) {
+          qb.whereRaw(`EXTRACT(YEAR FROM ${columnExpr}) = ?`, [parsedYear]);
+        } else if (hasDateRange) {
+          if (date_from) qb.whereRaw(`${columnExpr} >= ?`, [date_from]);
+          if (date_to) qb.whereRaw(`${columnExpr} <= ?`, [date_to]);
         }
-        return [];
-      }
+        return qb;
+      };
 
-      // For each apartment, aggregate payments, service requests, and utility readings separately
-      const summary = [];
-      for (const apt of apartments) {
-        // Payments
-        let paymentsQuery = db('payments as p')
-          .select(
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END), 0) as total_payments_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END), 0) as total_payments_gbp")
-          )
-          .where('p.apartment_id', apt.apartment_id);
-        const paymentDateFilter = buildDateFilter('p.date');
-        if (Array.isArray(paymentDateFilter)) {
-          paymentDateFilter.forEach(f => paymentsQuery = paymentsQuery.where(f));
-        } else if (paymentDateFilter) {
-          paymentsQuery = paymentsQuery.where(paymentDateFilter);
-        }
-        const payments = await paymentsQuery.first();
+      // Aggregations
+      let paymentsAgg = db('payments as p')
+        .select('p.apartment_id')
+        .sum({ total_payments_egp: db.raw("CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END") })
+        .sum({ total_payments_gbp: db.raw("CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END") })
+        .groupBy('p.apartment_id');
+      paymentsAgg = applyDateFilter(paymentsAgg, 'p.date');
 
-        // Service Requests
-        let serviceRequestsQuery = db('service_requests as sr')
-          .leftJoin('service_types as st', 'sr.type_id', 'st.id')
-          .select(
-            db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END), 0) as total_service_requests_egp"),
-            db.raw("COALESCE(SUM(CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END), 0) as total_service_requests_gbp")
-          )
-          .where('sr.apartment_id', apt.apartment_id);
-        const srDateFilter = buildDateFilter('COALESCE(sr.date_action, sr.date_created)');
-        if (Array.isArray(srDateFilter)) {
-          srDateFilter.forEach(f => serviceRequestsQuery = serviceRequestsQuery.where(f));
-        } else if (srDateFilter) {
-          serviceRequestsQuery = serviceRequestsQuery.where(srDateFilter);
-        }
-        const serviceRequests = await serviceRequestsQuery.first();
+      let serviceRequestsAgg = db('service_requests as sr')
+        .select('sr.apartment_id')
+        .sum({ total_service_requests_egp: db.raw("CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END") })
+        .sum({ total_service_requests_gbp: db.raw("CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END") })
+        .groupBy('sr.apartment_id');
+      serviceRequestsAgg = applyDateFilter(serviceRequestsAgg, 'COALESCE(sr.date_action, sr.date_created)');
 
-        // Utility Readings
-        let utilityQuery = db('utility_readings as ur')
-          .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
-          .leftJoin('villages as v', 'a.village_id', 'v.id')
-          .select(
-            db.raw(`COALESCE(SUM(
-              CASE 
-                WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL 
-                THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
-                ELSE 0 
-              END +
-              CASE 
-                WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
-                THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
-                ELSE 0 
-              END
-            ), 0) as total_utility_readings_egp`)
-          )
-          .where('ur.apartment_id', apt.apartment_id);
-        const urDateFilter = buildDateFilter('ur.created_at');
-        if (Array.isArray(urDateFilter)) {
-          urDateFilter.forEach(f => utilityQuery = utilityQuery.where(f));
-        } else if (urDateFilter) {
-          utilityQuery = utilityQuery.where(urDateFilter);
-        }
-        const utility = await utilityQuery.first();
+      let utilityAgg = db('utility_readings as ur')
+        .leftJoin('apartments as a2', 'ur.apartment_id', 'a2.id')
+        .leftJoin('villages as v2', 'a2.village_id', 'v2.id')
+        .select('ur.apartment_id')
+        .sum({
+          total_utility_readings_egp: db.raw(`
+            COALESCE(
+              (COALESCE(ur.water_end_reading,0) - COALESCE(ur.water_start_reading,0)) * COALESCE(v2.water_price,0) +
+              (COALESCE(ur.electricity_end_reading,0) - COALESCE(ur.electricity_start_reading,0)) * COALESCE(v2.electricity_price,0),
+              0
+            )
+          `)
+        })
+        .groupBy('ur.apartment_id');
+      utilityAgg = applyDateFilter(utilityAgg, 'ur.created_at');
 
-        // Compose summary row
-        const paymentsEGP = parseFloat(payments?.total_payments_egp || 0);
-        const paymentsGBP = parseFloat(payments?.total_payments_gbp || 0);
-        const requestsEGP = parseFloat(serviceRequests?.total_service_requests_egp || 0);
-        const requestsGBP = parseFloat(serviceRequests?.total_service_requests_gbp || 0);
-        const utilityEGP = parseFloat(utility?.total_utility_readings_egp || 0);
+      // Count before pagination (avoid select columns)
+      const totalResult = await apartmentsQuery
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .countDistinct<{ count: string }>('a.id as count')
+        .first();
+      const total = parseInt(totalResult?.count || '0', 10);
+
+      // Totals across full filtered set (not paginated)
+      const totalsRow = await apartmentsQuery
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .leftJoin(paymentsAgg.as('pagg'), 'pagg.apartment_id', 'a.id')
+        .leftJoin(serviceRequestsAgg.as('sragg'), 'sragg.apartment_id', 'a.id')
+        .leftJoin(utilityAgg.as('uagg'), 'uagg.apartment_id', 'a.id')
+        .select(
+          db.raw('COALESCE(SUM(COALESCE(pagg.total_payments_egp, 0)), 0) as total_spent_egp'),
+          db.raw('COALESCE(SUM(COALESCE(pagg.total_payments_gbp, 0)), 0) as total_spent_gbp'),
+          db.raw('COALESCE(SUM(COALESCE(sragg.total_service_requests_egp, 0) + COALESCE(uagg.total_utility_readings_egp, 0)), 0) as total_requested_egp'),
+          db.raw('COALESCE(SUM(COALESCE(sragg.total_service_requests_gbp, 0)), 0) as total_requested_gbp')
+        )
+        .first();
+
+      // Apply pagination to base apartments query
+      const apartmentsPage = apartmentsQuery.clone().limit(limit).offset(offset);
+
+      // Join aggregated data in one query (eliminates N+1)
+      const rows = await apartmentsPage
+        .leftJoin(paymentsAgg.as('pagg'), 'pagg.apartment_id', 'a.id')
+        .leftJoin(serviceRequestsAgg.as('sragg'), 'sragg.apartment_id', 'a.id')
+        .leftJoin(utilityAgg.as('uagg'), 'uagg.apartment_id', 'a.id')
+        .select(
+          'a.id as apartment_id',
+          'a.name as apartment_name',
+          'v.name as village_name',
+          'owner.name as owner_name',
+          'owner.id as owner_id',
+          'a.phase as apartment_phase',
+          db.raw('COALESCE(pagg.total_payments_egp, 0) as total_payments_egp'),
+          db.raw('COALESCE(pagg.total_payments_gbp, 0) as total_payments_gbp'),
+          db.raw('COALESCE(sragg.total_service_requests_egp, 0) as total_service_requests_egp'),
+          db.raw('COALESCE(sragg.total_service_requests_gbp, 0) as total_service_requests_gbp'),
+          db.raw('COALESCE(uagg.total_utility_readings_egp, 0) as total_utility_readings_egp')
+        );
+
+      const summary = rows.map((row: any) => {
+        const paymentsEGP = parseFloat(row.total_payments_egp || 0);
+        const paymentsGBP = parseFloat(row.total_payments_gbp || 0);
+        const requestsEGP = parseFloat(row.total_service_requests_egp || 0);
+        const requestsGBP = parseFloat(row.total_service_requests_gbp || 0);
+        const utilityEGP = parseFloat(row.total_utility_readings_egp || 0);
         const utilityGBP = 0; // No utility readings in GBP
 
-        summary.push({
-          apartment_id: apt.apartment_id,
-          apartment_name: apt.apartment_name,
-          village_name: apt.village_name,
-          owner_name: apt.owner_name,
-          owner_id: apt.owner_id,
-          phase: apt.apartment_phase, // ADD PHASE
+        return {
+          apartment_id: row.apartment_id,
+          apartment_name: row.apartment_name,
+          village_name: row.village_name,
+          owner_name: row.owner_name,
+          owner_id: row.owner_id,
+          phase: row.apartment_phase, // ADD PHASE
           total_money_spent: {
             EGP: paymentsEGP,
             GBP: paymentsGBP
@@ -168,25 +203,7 @@ router.get(
             EGP: (requestsEGP + utilityEGP) - paymentsEGP,
             GBP: (requestsGBP + utilityGBP) - paymentsGBP
           }
-        });
-      }
-
-      // Calculate totals
-      const totals = summary.reduce((acc, item) => {
-        acc.total_spent_egp += item.total_money_spent.EGP;
-        acc.total_spent_gbp += item.total_money_spent.GBP;
-        acc.total_requested_egp += item.total_money_requested.EGP;
-        acc.total_requested_gbp += item.total_money_requested.GBP;
-        acc.net_egp += item.net_money.EGP;
-        acc.net_gbp += item.net_money.GBP;
-        return acc;
-      }, {
-        total_spent_egp: 0,
-        total_spent_gbp: 0,
-        total_requested_egp: 0,
-        total_requested_gbp: 0,
-        net_egp: 0,
-        net_gbp: 0
+        };
       });
 
       res.json({
@@ -195,17 +212,23 @@ router.get(
           summary,
           totals: {
             total_money_spent: {
-              EGP: totals.total_spent_egp,
-              GBP: totals.total_spent_gbp
+              EGP: parseFloat(totalsRow?.total_spent_egp || 0),
+              GBP: parseFloat(totalsRow?.total_spent_gbp || 0)
             },
             total_money_requested: {
-              EGP: totals.total_requested_egp,
-              GBP: totals.total_requested_gbp
+              EGP: parseFloat(totalsRow?.total_requested_egp || 0),
+              GBP: parseFloat(totalsRow?.total_requested_gbp || 0)
             },
             net_money: {
-              EGP: totals.net_egp,
-              GBP: totals.net_gbp
+              EGP: parseFloat(totalsRow?.total_requested_egp || 0) - parseFloat(totalsRow?.total_spent_egp || 0),
+              GBP: parseFloat(totalsRow?.total_requested_gbp || 0) - parseFloat(totalsRow?.total_spent_gbp || 0)
             }
+          },
+          pagination: {
+            page,
+            limit,
+            total,
+            total_pages: Math.ceil(total / limit)
           }
         }
       });
