@@ -174,9 +174,12 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       if (roleFilter) filters.role = roleFilter;
       if (statusFilter === 'active') filters.is_active = true;
       if (statusFilter === 'inactive') filters.is_active = false;
-      
-      // Village filter needs special handling since it's not directly supported by the API
-      // We'll handle it client-side after getting the results
+      if (villageFilter) {
+        const villageId = parseInt(villageFilter);
+        if (!isNaN(villageId)) {
+          filters.village_id = villageId;
+        }
+      }
       
       // Load users and villages in parallel
       const [usersResult, villagesResult] = await Promise.all([
@@ -199,23 +202,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         return user;
       });
       
-      // Apply village filter client-side if needed
-      let filteredUsers = processedUsers;
-      if (villageFilter) {
-        const villageId = parseInt(villageFilter);
-        if (!isNaN(villageId)) {
-          filteredUsers = filteredUsers.filter(user => {
-            // Check in villages array first
-            if (user.villages && user.villages.length > 0) {
-              return user.villages.some(v => v.id === villageId);
-            }
-            // Fallback to responsible_village for backward compatibility
-            return user.responsible_village === villageId;
-          });
-        }
-      }
-      
-      setUsers(filteredUsers);
+      // Village filtering is now done server-side, so we can directly use the results
+      setUsers(processedUsers);
       setTotalUsers(usersResult.pagination?.total || 0);
       setVillages(villagesResult.data);
       

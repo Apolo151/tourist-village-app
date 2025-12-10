@@ -15,8 +15,10 @@ This document describes the Users API endpoints for the Tourist Village Manageme
 Get all users with filtering, sorting, and pagination.
 
 #### Query Parameters
-- `search` (string, optional): Search by name or email
+- `search` (string, optional): Search by name, email, or phone number
 - `role` (string, optional): Filter by role (`super_admin`, `admin`, `owner`, `renter`)
+- `is_active` (boolean, optional): Filter by active status (`true`, `false`)
+- `village_id` (number, optional): Filter users by village (checks both responsible_village and user_villages table)
 - `page` (number, optional): Page number (default: 1)
 - `limit` (number, optional): Items per page (default: 10, max: 100)
 - `sort_by` (string, optional): Sort field (`name`, `email`, `role`, `created_at`) (default: `name`)
@@ -24,7 +26,7 @@ Get all users with filtering, sorting, and pagination.
 
 #### Example Request
 ```http
-GET /api/users?search=john&role=owner&page=1&limit=10&sort_by=name&sort_order=asc
+GET /api/users?search=john&role=owner&is_active=true&village_id=5&page=1&limit=10&sort_by=name&sort_order=asc
 ```
 
 #### Example Response

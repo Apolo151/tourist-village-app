@@ -457,6 +457,16 @@ export class ValidationMiddleware {
       errors.push({ field: 'role', message: 'Role must be one of: super_admin, admin, owner, renter' });
     }
 
+    // Validate is_active
+    if (query.is_active !== undefined && query.is_active !== 'true' && query.is_active !== 'false') {
+      errors.push({ field: 'is_active', message: 'is_active must be either true or false' });
+    }
+
+    // Validate village_id
+    if (query.village_id && !ValidationMiddleware.isPositiveInteger(query.village_id as string)) {
+      errors.push({ field: 'village_id', message: 'village_id must be a positive integer' });
+    }
+
     // Validate sort_order
     if (query.sort_order && !['asc', 'desc'].includes(query.sort_order as string)) {
       errors.push({ field: 'sort_order', message: 'Sort order must be either asc or desc' });

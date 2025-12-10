@@ -19,6 +19,8 @@ export class UserService {
     const {
       search,
       role,
+      is_active,
+      village_id,
       page = 1,
       limit = 10,
       sort_by = 'name',
@@ -30,19 +32,38 @@ export class UserService {
     const validatedLimit = Math.min(Math.max(1, limit), 100); // Cap at 100
 
     // Start with base query (no select yet)
-    let baseQuery = db('users').where('is_active', true); // Only return active users by default
+    let baseQuery = db('users');
 
-    // Apply village filter if provided (for admin users with responsible_village)
-    if (villageFilter) {
-      baseQuery = baseQuery.where('responsible_village', villageFilter);
+    // Apply is_active filter - only if explicitly specified
+    // If not specified, show all users (admins may need to see inactive users)
+    if (is_active !== undefined) {
+      baseQuery = baseQuery.where('is_active', is_active);
     }
 
-    // Apply search filter (search in name and email)
+    // Apply village filter if provided (for admin users with responsible_village)
+    // Support both the new village_id filter and the legacy villageFilter parameter
+    const effectiveVillageFilter = village_id !== undefined ? village_id : villageFilter;
+    if (effectiveVillageFilter !== undefined) {
+      baseQuery = baseQuery.where(function() {
+        // Check responsible_village for backward compatibility
+        this.where('responsible_village', effectiveVillageFilter)
+          // Also check user_villages junction table for admin users with multiple villages
+          .orWhereExists(function() {
+            this.select('*')
+              .from('user_villages')
+              .whereRaw('user_villages.user_id = users.id')
+              .where('user_villages.village_id', effectiveVillageFilter);
+          });
+      });
+    }
+
+    // Apply search filter (search in name, email, and phone_number)
     if (search && search.trim()) {
       const searchTerm = search.trim();
       baseQuery = baseQuery.where(function() {
         this.where('name', 'ilike', `%${searchTerm}%`)
-            .orWhere('email', 'ilike', `%${searchTerm}%`);
+            .orWhere('email', 'ilike', `%${searchTerm}%`)
+            .orWhere('phone_number', 'ilike', `%${searchTerm}%`);
       });
     }
 

@@ -63,6 +63,10 @@ usersRouter.get(
       const filters: UserFilters = {
         search: req.query.search as string,
         role: req.query.role as 'super_admin' | 'admin' | 'owner' | 'renter',
+        is_active: req.query.is_active !== undefined 
+          ? req.query.is_active === 'true' 
+          : undefined,
+        village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
         page: req.query.page ? parseInt(req.query.page as string) : 1,
         limit: req.query.limit ? parseInt(req.query.limit as string) : 10,
         sort_by: req.query.sort_by as string || 'name',

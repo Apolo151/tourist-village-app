@@ -367,6 +367,8 @@ export interface ApiResponse<T> {
 export interface UserFilters {
   search?: string;
   role?: 'super_admin' | 'admin' | 'owner' | 'renter';
+  is_active?: boolean;
+  village_id?: number;
   page?: number;
   limit?: number;
   sort_by?: string;
