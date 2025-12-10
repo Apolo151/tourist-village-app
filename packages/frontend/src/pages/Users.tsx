@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePreserveFocus } from '../hooks/usePreserveFocus';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -62,6 +61,13 @@ import ExcelImport from '../components/ExcelImport';
 import { excelService } from '../services/excelService';
 
 export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boolean }) {
+  // UI State - Controls input fields (immediate updates for responsive UX)
+  const [searchInput, setSearchInput] = useState('');
+  const [roleInput, setRoleInput] = useState<string>('');
+  const [villageInput, setVillageInput] = useState<string>('');
+  const [statusInput, setStatusInput] = useState<string>('');
+  
+  // Server State - Triggers API calls (debounced for performance)
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('');
   const [villageFilter, setVillageFilter] = useState<string>('');
@@ -122,9 +128,6 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   
-  // Create a ref to store the current search term
-  const searchTermRef = useRef(searchTerm);
-  
   // Function to fetch global user stats
   const fetchUserStats = useCallback(async () => {
     try {
@@ -153,12 +156,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   }, []);
   
-  // Update the loadData function to ensure we get complete user data with villages
+  // Load data function - simplified without focus restoration
   const loadData = useCallback(async () => {
-    // Store the active element before setting loading state
-    const activeElement = document.activeElement;
-    const isSearchFieldFocused = activeElement && activeElement.id === 'search-users-field';
-    
     setLoading(true);
     setError(null);
     
@@ -206,37 +205,20 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       setUsers(processedUsers);
       setTotalUsers(usersResult.pagination?.total || 0);
       setVillages(villagesResult.data);
-      
-      // Fetch global stats in the background if needed
-      fetchUserStats();
     } catch (err: any) {
       console.error('Error loading users data:', err);
       setError(err.message || 'Failed to load users data');
     } finally {
       setLoading(false);
-      
-      // Restore focus to search field after a short delay to ensure the DOM has updated
-      if (isSearchFieldFocused) {
-        setTimeout(() => {
-          const searchField = document.getElementById('search-users-field');
-          if (searchField) {
-            (searchField as HTMLElement).focus();
-          }
-        }, 0);
-      }
     }
-    
-    return Promise.resolve(); // Return a resolved promise for chaining
-  }, [page, pageSize, searchTerm, roleFilter, statusFilter, villageFilter, fetchUserStats]);
+  }, [page, pageSize, searchTerm, roleFilter, statusFilter, villageFilter]);
 
-  // Update the applyFilters function to apply client-side filters
-  const applyFilters = useCallback(() => {
-    // Apply client-side filters only
-    // This is needed because we're doing server-side pagination, but we still want to apply some filters client-side
-    // like date filtering and hiding super_admin users
+  // Consolidated filtering: Apply all client-side filters in a single effect
+  // This includes date filtering and hiding super_admin users
+  useEffect(() => {
     let filtered = [...users];
 
-    // Date filter (this is applied client-side since it's not part of the backend API)
+    // Apply date filter (client-side since it's not part of the backend API)
     if (startDate || endDate) {
       filtered = filtered.filter(user => {
         const userDate = new Date(user.created_at);
@@ -246,8 +228,13 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       });
     }
 
+    // Filter out super_admin users for admin role
+    if (hideSuperAdmin) {
+      filtered = filtered.filter(user => user.role !== 'super_admin');
+    }
+
     setFilteredUsers(filtered);
-  }, [users, startDate, endDate]);
+  }, [users, startDate, endDate, hideSuperAdmin]);
 
   // Allow both admin and super_admin to access this page
   useEffect(() => {
@@ -261,71 +248,58 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     fetchUserStats();
   }, [fetchUserStats]);
   
-  // Update the ref whenever searchTerm changes
+  // Debounce: Sync UI state to Server state (after 500ms of no typing)
+  // This separates immediate UI updates from delayed API calls
   useEffect(() => {
-    searchTermRef.current = searchTerm;
-  }, [searchTerm]);
+    const timeoutId = setTimeout(() => {
+      setSearchTerm(searchInput);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setRoleFilter(roleInput);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [roleInput]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setVillageFilter(villageInput);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [villageInput]);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setStatusFilter(statusInput);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [statusInput]);
   
-  // Use custom hook to preserve focus on the search field during re-renders
-  usePreserveFocus(!!searchTerm, 'search-users-field');
-  
-  // Load data on component mount and when page changes
+  // Load data when server state changes (debouncing happens in effects above)
   useEffect(() => {
     loadData();
-  }, [loadData]);
-
-  // Handle search term changes with debouncing
-  useEffect(() => {
-    // Skip the initial render
-    if (searchTermRef.current === '' && searchTerm === '') return;
-    
-    const timeoutId = setTimeout(() => {
-      // Save the currently focused element before loading data
-      const activeElement = document.activeElement;
-      
-      // Load data
-      loadData().then(() => {
-        // Restore focus after data is loaded
-        if (activeElement && activeElement.id === 'search-users-field') {
-          (activeElement as HTMLElement).focus();
-        }
-      });
-    }, 500); // 500ms debounce delay
-    
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, roleFilter, villageFilter, statusFilter, loadData]);
-
-  // Apply filters whenever filter values change
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
-
-  // Filter out super_admin users for admin
-  useEffect(() => {
-    let filtered = [...users];
-    if (hideSuperAdmin) {
-      filtered = filtered.filter(user => user.role !== 'super_admin');
-    }
-    setFilteredUsers(filtered);
-  }, [users, hideSuperAdmin]);
+  }, [searchTerm, roleFilter, villageFilter, statusFilter, page, loadData]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(event.target.value);
+    setSearchInput(event.target.value); // Update UI state (immediate)
     setPage(1); // Reset to first page when filter changes
   };
 
   const handleRoleFilterChange = (event: SelectChangeEvent) => {
-    setRoleFilter(event.target.value);
+    setRoleInput(event.target.value); // Update UI state (immediate)
     setPage(1); // Reset to first page when filter changes
   };
 
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
-    setVillageFilter(event.target.value);
+    setVillageInput(event.target.value); // Update UI state (immediate)
     setPage(1); // Reset to first page when filter changes
   };
 
   const handleStatusFilterChange = (event: SelectChangeEvent) => {
-    setStatusFilter(event.target.value);
+    setStatusInput(event.target.value); // Update UI state (immediate)
     setPage(1); // Reset to first page when filter changes
   };
 
@@ -565,10 +539,19 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   }
 
   function clearFilters(_event: React.MouseEvent<HTMLButtonElement, MouseEvent>): void {
+    // Clear UI state (input fields)
+    setSearchInput('');
+    setRoleInput('');
+    setVillageInput('');
+    setStatusInput('');
+    
+    // Clear server state (triggers data load)
     setSearchTerm('');
     setRoleFilter('');
     setVillageFilter('');
     setStatusFilter('');
+    
+    // Clear date filters
     setStartDate(null);
     setEndDate(null);
   }
@@ -692,7 +675,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
                 variant="outlined"
                 size="small"
                 fullWidth
-                value={searchTerm}
+                value={searchInput}
                 onChange={handleSearchChange}
                 InputProps={{
                   startAdornment: (
@@ -709,7 +692,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
               <FormControl fullWidth size="small">
                 <InputLabel>Role</InputLabel>
                 <Select
-                  value={roleFilter}
+                  value={roleInput}
                   label="Role"
                   onChange={handleRoleFilterChange}
                 >
@@ -726,7 +709,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
               <FormControl fullWidth size="small">
                 <InputLabel>Project</InputLabel>
                 <Select
-                  value={villageFilter}
+                  value={villageInput}
                   label="Project"
                   onChange={handleVillageFilterChange}
                 >
@@ -742,7 +725,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
               <FormControl fullWidth size="small">
                 <InputLabel>Status</InputLabel>
                 <Select
-                  value={statusFilter}
+                  value={statusInput}
                   label="Status"
                   onChange={handleStatusFilterChange}
                 >

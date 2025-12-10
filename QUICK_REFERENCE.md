@@ -101,9 +101,24 @@ See `DATABASE_INDEXES_GUIDE.md` for details.
 
 ## 📚 Documentation
 
+### Search Implementation
 - **Detailed Analysis**: `SEARCH_IMPROVEMENTS.md`
 - **Visual Summary**: `SEARCH_FIXES_SUMMARY.md`
-- **Database Indexes**: `DATABASE_INDEXES_GUIDE.md` ⭐ NEW
-- **This Reference**: `QUICK_REFERENCE.md`
+- **Database Indexes**: `DATABASE_INDEXES_GUIDE.md`
 - **API Docs**: `packages/backend/docs/USERS_API.md`
+
+### Focus Issue Fix 🔥
+- **Analysis**: `SEARCH_FOCUS_SUMMARY.md` - Complete problem analysis
+- **All Solutions**: `SEARCH_FOCUS_FIXES.md` - 7 robust fixes with references
+- **Visual Guide**: `SEARCH_FOCUS_VISUAL_GUIDE.md` - Diagrams and flowcharts
+
+### Phase 2 Implementation ✅ COMPLETE
+- **Implementation Complete**: `PHASE2_IMPLEMENTATION_COMPLETE.md` ⭐ **What was done**
+- **Start Guide**: `START_HERE_PHASE2.md` - Quick start guide
+- **Implementation Plan**: `PHASE2_IMPLEMENTATION_PLAN.md` - Step-by-step instructions
+- **Visual Plan**: `PHASE2_VISUAL_PLAN.md` - Visual diagrams
+- **Phase 1 Complete**: `PHASE1_CHANGES_COMPLETE.md` - Previous optimizations
+
+### Quick Reference
+- **This Reference**: `QUICK_REFERENCE.md`
 
