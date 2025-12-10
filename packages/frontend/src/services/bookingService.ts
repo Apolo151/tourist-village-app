@@ -27,7 +27,7 @@ export interface CreateBookingRequest {
   apartment_id: number;
   user_id?: number;
   user_name?: string;
-  user_type?: 'renter' | 'renter';
+  user_type?: 'owner' | 'renter';
   number_of_people?: number;
   arrival_date: string;
   leaving_date: string;

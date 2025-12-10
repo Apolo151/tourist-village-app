@@ -41,7 +41,17 @@ export interface BookingStats {
   };
 }
 
-// Helper to compute booking status
+/**
+ * @deprecated This function is no longer used. Status is now stored directly 
+ * in the database and not computed from dates. Kept for historical reference.
+ * 
+ * Previously computed booking status based on current time and booking dates:
+ * - If cancelled: return 'Cancelled'
+ * - If before arrival: return 'Booked'  
+ * - If during stay: return 'Checked In'
+ * - If after leaving: return 'Checked Out'
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function computeStatus(booking: { status: string; arrival_date: Date; leaving_date: Date }): string {
   if (booking.status === 'Cancelled') return 'Cancelled';
   const now = new Date();
@@ -102,14 +112,9 @@ export class BookingService {
         'a.village_id as apartment_village_id',
         'a.phase as apartment_phase',
         'a.paying_status_id as apartment_paying_status_id',
-        'v.name as village_name',
-        db.raw(`CASE
-          WHEN b.status = 'Cancelled' THEN 'Cancelled'
-          WHEN NOW() < b.arrival_date THEN 'Booked'
-          WHEN NOW() >= b.arrival_date AND NOW() < b.leaving_date THEN 'Checked In'
-          WHEN NOW() >= b.leaving_date THEN 'Checked Out'
-          ELSE b.status
-        END AS computed_status`)
+        'v.name as village_name'
+        // NOTE: Previously used computed_status via CASE expression based on dates.
+        // Status is now stored directly. See deprecated computeStatus function.
       );
 
     // Apply filters
@@ -133,16 +138,10 @@ export class BookingService {
       query = query.whereRaw('a.phase = ?', [Number(filters.phase)]);
     }
 
+    // NOTE: Previously filtered on computed status using CASE expression.
+    // Now filtering directly on stored status value.
     if (filters.status) {
-      query = query.whereRaw(`
-        CASE
-          WHEN b.status = 'Cancelled' THEN 'Cancelled'
-          WHEN NOW() < b.arrival_date THEN 'Booked'
-          WHEN NOW() >= b.arrival_date AND NOW() < b.leaving_date THEN 'Checked In'
-          WHEN NOW() >= b.leaving_date THEN 'Checked Out'
-          ELSE b.status
-        END = ?
-      `, [filters.status]);
+      query = query.where('b.status', filters.status);
     }
 
     if (filters.arrival_date_start) {
@@ -205,7 +204,7 @@ export class BookingService {
       number_of_people: row.number_of_people,
       arrival_date: new Date(row.arrival_date),
       leaving_date: new Date(row.leaving_date),
-      status: row.computed_status,
+      status: row.status, // Previously used row.computed_status - now using stored value directly
       notes: row.notes || undefined,
       created_by: row.created_by,
       created_at: new Date(row.created_at),
@@ -311,7 +310,7 @@ export class BookingService {
       number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
-      status: computeStatus({ status: result.status, arrival_date: new Date(result.arrival_date), leaving_date: new Date(result.leaving_date) }),
+      status: result.status, // Previously used computeStatus() - now using stored value directly
       notes: result.notes || undefined,
       created_by: result.created_by,
       created_at: new Date(result.created_at),
@@ -715,7 +714,7 @@ export class BookingService {
       number_of_people: result.number_of_people,
       arrival_date: new Date(result.arrival_date),
       leaving_date: new Date(result.leaving_date),
-      status: computeStatus({ status: result.status, arrival_date: new Date(result.arrival_date), leaving_date: new Date(result.leaving_date) }),
+      status: result.status, // Previously used computeStatus() - now using stored value directly
       notes: result.notes || undefined,
       created_by: result.created_by,
       created_at: new Date(result.created_at),

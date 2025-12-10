@@ -920,9 +920,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 <Select
                   value={formData.status}
                   label="Status"
-                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Booked' | 'Cancelled' }))}
+                  onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled' }))}
                 >
                   <MenuItem value="Booked">Booked</MenuItem>
+                  <MenuItem value="Checked In">Checked In</MenuItem>
+                  <MenuItem value="Checked Out">Checked Out</MenuItem>
                   <MenuItem value="Cancelled">Cancelled</MenuItem>
                 </Select>
               </FormControl>

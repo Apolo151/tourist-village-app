@@ -1060,6 +1060,8 @@ const BookingDetails: React.FC = () => {
                       onChange={(e) => handleSelectChange(e, 'status')}
                     >
                       <MenuItem value="Booked">Booked</MenuItem>
+                      <MenuItem value="Checked In">Checked In</MenuItem>
+                      <MenuItem value="Checked Out">Checked Out</MenuItem>
                       <MenuItem value="Cancelled">Cancelled</MenuItem>
                     </Select>
                   </FormControl>
