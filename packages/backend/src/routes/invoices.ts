@@ -15,7 +15,7 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const { village_id, user_type, year, date_from, date_to } = req.query;
+      const { village_id, user_type, year, date_from, date_to, phase } = req.query;
       const search = (req.query.search as string | undefined)?.trim();
 
       // Pagination (safe defaults)
@@ -30,6 +30,7 @@ router.get(
       const parsedVillageId = village_id ? parseInt(village_id as string, 10) : undefined;
       const parsedYear = year ? parseInt(year as string, 10) : undefined;
       const hasDateRange = date_from || date_to;
+      const parsedPhase = phase ? parseInt(phase as string, 10) : undefined;
 
       // Get all apartments (with filters)
       let apartmentsQuery = db('apartments as a')
@@ -58,6 +59,9 @@ router.get(
       }
       if (parsedVillageId) {
         apartmentsQuery = apartmentsQuery.where('a.village_id', parsedVillageId);
+      }
+      if (parsedPhase) {
+        apartmentsQuery = apartmentsQuery.where('a.phase', parsedPhase);
       }
       if (req.villageFilter) {
         apartmentsQuery = apartmentsQuery.where('a.village_id', req.villageFilter);

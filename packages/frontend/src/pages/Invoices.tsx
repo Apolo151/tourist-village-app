@@ -96,6 +96,7 @@ export default function Invoices() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('');
   // Invoices returned from API (server filtered & paginated)
   const [invoiceDisplayData, setInvoiceDisplayData] = useState<InvoiceSummaryItem[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
@@ -146,7 +147,7 @@ export default function Invoices() {
   // Reset to first page when key filters change
   useEffect(() => {
     setPage(1);
-  }, [villageFilter, startDate, endDate, currentYear, searchTerm]);
+  }, [villageFilter, phaseFilter, startDate, endDate, currentYear, searchTerm]);
 
   // Debounce search term to avoid refetch on every keystroke
   useEffect(() => {
@@ -219,6 +220,12 @@ export default function Invoices() {
         if (villageFilter) {
           const selectedVillage = villagesData.data.find(v => v.name === villageFilter);
           if (selectedVillage) filters.village_id = selectedVillage.id;
+          if (selectedVillage && phaseFilter) {
+            filters.phase = parseInt(phaseFilter, 10);
+          }
+        } else if (phaseFilter) {
+          // If no village selected, ignore phase filter
+          filters.phase = undefined;
         }
         if (startDate && endDate) {
           filters.date_from = format(startDate, 'yyyy-MM-dd');
@@ -257,7 +264,7 @@ export default function Invoices() {
     };
     
     loadData();
-  }, [villageFilter, startDate, endDate, currentYear, page, debouncedSearchTerm]);
+  }, [villageFilter, phaseFilter, startDate, endDate, currentYear, page, debouncedSearchTerm]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -266,6 +273,11 @@ export default function Invoices() {
   
   const handleVillageFilterChange = (event: SelectChangeEvent) => {
     setVillageFilter(event.target.value);
+    setPhaseFilter('');
+  };
+
+  const handlePhaseFilterChange = (event: SelectChangeEvent) => {
+    setPhaseFilter(event.target.value);
   };
   
   const handleStartDateChange = (date: Date | null) => {
@@ -279,6 +291,7 @@ export default function Invoices() {
   const clearFilters = () => {
     setSearchTerm('');
     setVillageFilter('');
+    setPhaseFilter('');
     setStartDate(new Date(currentYear, 0, 1));
     setEndDate(new Date(currentYear, 11, 31));
     setPage(1);
@@ -317,6 +330,12 @@ export default function Invoices() {
       net_money_EGP: invoice.net_money?.EGP ?? 0,
       net_money_GBP: invoice.net_money?.GBP ?? 0
     }));
+  };
+
+  const getPhases = (villageName: string) => {
+    const village = villages.find(v => v.name === villageName);
+    if (!village || !village.phases) return [];
+    return Array.from({ length: village.phases }, (_, i) => i + 1);
   };
 
   return (
@@ -439,6 +458,26 @@ export default function Invoices() {
                   </Select>
                 </FormControl>
               </Box>
+
+              {villageFilter && (
+                <Box sx={{ flex: '1 1 150px', minWidth: '120px' }}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Phase</InputLabel>
+                    <Select
+                      value={phaseFilter}
+                      label="Phase"
+                      onChange={handlePhaseFilterChange}
+                    >
+                      <MenuItem value="">All Phases</MenuItem>
+                      {getPhases(villageFilter).map(phase => (
+                        <MenuItem key={phase} value={phase.toString()}>
+                          Phase {phase}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                </Box>
+              )}
               
               <Box sx={{ flex: '1 1 300px', minWidth: '260px' }}>
                 <Box sx={{ display: 'flex', gap: 1 }}>

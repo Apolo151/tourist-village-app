@@ -70,6 +70,7 @@ export interface InvoicesFilters {
   page?: number;
   limit?: number;
   search?: string;
+  phase?: number;
 }
 
 class InvoiceService {
@@ -87,6 +88,7 @@ class InvoiceService {
     if (filters?.page) params.page = filters.page;
     if (filters?.limit) params.limit = filters.limit;
     if (filters?.search) params.search = filters.search;
+    if (filters?.phase) params.phase = filters.phase;
 
     const response = await apiClient.get<ApiResponse<InvoiceSummaryResponse>>('/invoices/summary', params);
     return response.data!;
