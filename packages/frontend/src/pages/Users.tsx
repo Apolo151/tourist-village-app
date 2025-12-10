@@ -79,7 +79,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [villages, setVillages] = useState<Village[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true); // Only for first mount
+  const [dataLoading, setDataLoading] = useState(false); // For subsequent data refreshes
   const [error, setError] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
   
@@ -156,9 +157,51 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
     }
   }, []);
   
-  // Load data function - simplified without focus restoration
+  // Initial data load - only runs once on mount
+  const loadInitialData = useCallback(async () => {
+    setInitialLoading(true);
+    setError(null);
+    
+    try {
+      // Load initial data with default filters
+      const filters: any = {
+        page: 1,
+        limit: pageSize
+      };
+      
+      const [usersResult, villagesResult] = await Promise.all([
+        userService.getUsers(filters),
+        villageService.getVillages()
+      ]);
+      
+      // Process users to ensure villages are properly set
+      const processedUsers = usersResult.data.map(user => {
+        if (!user.villages && user.responsible_village) {
+          const village = villagesResult.data.find(v => v.id === user.responsible_village);
+          if (village) {
+            return {
+              ...user,
+              villages: [village]
+            };
+          }
+        }
+        return user;
+      });
+      
+      setUsers(processedUsers);
+      setTotalUsers(usersResult.pagination?.total || 0);
+      setVillages(villagesResult.data);
+    } catch (err: any) {
+      console.error('Error loading initial data:', err);
+      setError(err.message || 'Failed to load initial data');
+    } finally {
+      setInitialLoading(false);
+    }
+  }, [pageSize]);
+
+  // Load data function - for filter changes and pagination (no loading state to prevent unmount)
   const loadData = useCallback(async () => {
-    setLoading(true);
+    setDataLoading(true); // Use separate loading state that doesn't unmount UI
     setError(null);
     
     try {
@@ -180,17 +223,14 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
         }
       }
       
-      // Load users and villages in parallel
-      const [usersResult, villagesResult] = await Promise.all([
-        userService.getUsers(filters),
-        villageService.getVillages()
-      ]);
+      // Load users (villages already loaded from initial load)
+      const usersResult = await userService.getUsers(filters);
       
       // Process users to ensure villages are properly set
       const processedUsers = usersResult.data.map(user => {
         // If user has no villages but has responsible_village, create a villages array
         if (!user.villages && user.responsible_village) {
-          const village = villagesResult.data.find(v => v.id === user.responsible_village);
+          const village = villages.find(v => v.id === user.responsible_village);
           if (village) {
             return {
               ...user,
@@ -204,14 +244,13 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       // Village filtering is now done server-side, so we can directly use the results
       setUsers(processedUsers);
       setTotalUsers(usersResult.pagination?.total || 0);
-      setVillages(villagesResult.data);
     } catch (err: any) {
       console.error('Error loading users data:', err);
       setError(err.message || 'Failed to load users data');
     } finally {
-      setLoading(false);
+      setDataLoading(false);
     }
-  }, [page, pageSize, searchTerm, roleFilter, statusFilter, villageFilter]);
+  }, [page, pageSize, searchTerm, roleFilter, statusFilter, villageFilter, villages]);
 
   // Consolidated filtering: Apply all client-side filters in a single effect
   // This includes date filtering and hiding super_admin users
@@ -247,6 +286,11 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   useEffect(() => {
     fetchUserStats();
   }, [fetchUserStats]);
+
+  // Initial data load - only runs once on component mount
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
   
   // Debounce: Sync UI state to Server state (after 500ms of no typing)
   // This separates immediate UI updates from delayed API calls
@@ -279,9 +323,12 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   }, [statusInput]);
   
   // Load data when server state changes (debouncing happens in effects above)
+  // Skip initial load since loadInitialData handles it
   useEffect(() => {
-    loadData();
-  }, [searchTerm, roleFilter, villageFilter, statusFilter, page, loadData]);
+    if (!initialLoading) {
+      loadData();
+    }
+  }, [searchTerm, roleFilter, villageFilter, statusFilter, page, loadData, initialLoading]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchInput(event.target.value); // Update UI state (immediate)
@@ -530,7 +577,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const paginatedUsers = filteredUsers;
   const totalPages = Math.ceil(totalUsers / pageSize);
 
-  if (loading) {
+  // Only show full loading screen on initial mount, not during filter changes
+  if (initialLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
         <CircularProgress />
@@ -597,6 +645,16 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
           <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
             {error}
           </Alert>
+        )}
+
+        {/* Inline Loading Indicator - doesn't unmount UI */}
+        {dataLoading && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+            <CircularProgress size={20} />
+            <Typography variant="body2" color="text.secondary">
+              Loading users...
+            </Typography>
+          </Box>
         )}
 
         {/* Summary Cards */}
