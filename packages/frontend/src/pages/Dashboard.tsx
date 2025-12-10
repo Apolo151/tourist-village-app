@@ -89,6 +89,7 @@ export default function Dashboard() {
     serviceRequests: { count: 0, totalEGP: 0, totalGBP: 0 },
     utilityReadings: { count: 0, totalEGP: 0, totalGBP: 0 }
   });
+  const [totalApartments, setTotalApartments] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
@@ -204,8 +205,10 @@ export default function Dashboard() {
           })
         ]);
         
-        // Transform invoices data for dashboard
-        const transformedData: DashboardInvoiceData[] = invoicesResult.summary.map((invoice: InvoiceSummaryItem) => ({
+        const { summary, totals, pagination } = invoicesResult;
+
+        // Transform invoices data for dashboard (table/detail view)
+        const transformedData: DashboardInvoiceData[] = summary.map((invoice: InvoiceSummaryItem) => ({
           id: invoice.apartment_id,
           village: invoice.village_name,
           apartment: invoice.apartment_name,
@@ -220,20 +223,22 @@ export default function Dashboard() {
         }));
         
         setInvoiceData(transformedData);
+        setTotalApartments(pagination?.total ?? transformedData.length);
         
-        // Calculate invoice type statistics
+        // Use backend totals to avoid pagination-driven undercounts
         const stats: InvoiceTypeStats = {
-          payments: { count: 0, totalEGP: 0, totalGBP: 0 },
-          serviceRequests: { count: 0, totalEGP: 0, totalGBP: 0 },
+          payments: { 
+            count: 0, 
+            totalEGP: totals?.total_money_spent?.EGP || 0, 
+            totalGBP: totals?.total_money_spent?.GBP || 0 
+          },
+          serviceRequests: { 
+            count: 0, 
+            totalEGP: totals?.total_money_requested?.EGP || 0, 
+            totalGBP: totals?.total_money_requested?.GBP || 0 
+          },
           utilityReadings: { count: 0, totalEGP: 0, totalGBP: 0 }
         };
-        
-        transformedData.forEach(item => {
-          stats.payments.totalEGP += item.totalSpentEGP;
-          stats.payments.totalGBP += item.totalSpentGBP;
-          stats.serviceRequests.totalEGP += item.totalRequestedEGP;
-          stats.serviceRequests.totalGBP += item.totalRequestedGBP;
-        });
         
         setInvoiceTypeStats(stats);
         
@@ -425,7 +430,7 @@ export default function Dashboard() {
                 </Typography>
                   </Box>
                   <Typography variant="h3" color="primary" sx={{ fontWeight: 'bold' }}>
-                    {filteredData.length}
+                    {totalApartments}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
                     Active properties
