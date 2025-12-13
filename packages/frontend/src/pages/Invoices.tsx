@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Typography,
@@ -116,6 +116,7 @@ export default function Invoices() {
   const [totalPages, setTotalPages] = useState(1);
   const PAGE_SIZE = 20;
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const requestIdRef = useRef(0);
   
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -209,11 +210,11 @@ export default function Invoices() {
     const loadData = async () => {
       setLoading(true);
       setError(null);
+      const requestId = ++requestIdRef.current;
       
       try {
         // Load villages for filter
         const villagesData = await villageService.getVillages();
-        setVillages(villagesData.data);
         
         // Build filters for API call
         const filters: any = {};
@@ -241,25 +242,36 @@ export default function Invoices() {
         
         // Load invoice summary data
         const invoicesResponse = await invoiceService.getInvoicesSummary(filters);
+        const prevTotals = await invoiceService.getPreviousYearsTotals(currentYear);
         
+        if (requestId !== requestIdRef.current) return;
+
+        setVillages(villagesData.data);
         setInvoiceDisplayData(invoicesResponse.summary);
 
         if (invoicesResponse.pagination) {
-          setTotalPages(invoicesResponse.pagination.total_pages || 1);
-          setPage(invoicesResponse.pagination.page || 1);
+          const totalPagesValue = invoicesResponse.pagination.total_pages || 1;
+          setTotalPages(totalPagesValue);
+
+          const serverPage = invoicesResponse.pagination.page || 1;
+          const clampedPage = Math.min(Math.max(serverPage, 1), totalPagesValue);
+          if (clampedPage !== page) {
+            setPage(clampedPage);
+          }
         } else {
           setTotalPages(1);
         }
-        
-        // Load previous years totals
-        const prevTotals = await invoiceService.getPreviousYearsTotals(currentYear);
+
         setPreviousYearTotals(prevTotals);
         
       } catch (err: any) {
+        if (requestId !== requestIdRef.current) return;
         console.error('Error loading invoices data:', err);
         setError(err.message || 'Failed to load invoices data');
       } finally {
-        setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     };
     
