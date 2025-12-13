@@ -20,6 +20,18 @@ The Tourist Village Management System is a sophisticated property management sol
 
 ## 🏗️ Architecture
 
+### Monorepo Structure
+
+```
+tourist-village/
+├── packages/
+│   ├── backend/          # Express.js + TypeScript API
+│   └── frontend/         # React 19 + Vite SPA
+├── docs/                 # Documentation (ERD, UI specs)
+├── Dockerfile            # Unified production build
+└── docker-compose.yaml   # Container orchestration
+```
+
 ### Backend Components
 
 - **🔗 API Layer**: Express.js REST API with TypeScript
@@ -64,7 +76,7 @@ The Tourist Village Management System is a sophisticated property management sol
 - **Email Management**: Communication logging with apartment and booking associations
 - **Utility Readings**: Water and electricity monitoring with automated billing calculations
 
-## 🚀 Local Setup
+## 🚀 Getting Started
 
 ### Prerequisites
 
@@ -72,15 +84,17 @@ The Tourist Village Management System is a sophisticated property management sol
 - **PostgreSQL**: Version 12 or higher
 - **npm** or **yarn**: Package manager
 
-### 📦 Direct Installation Setup
+---
 
-#### 1. Clone the Repository
+## 📦 Local Development Setup
+
+### 1. Clone the Repository
 ```bash
 git clone https://github.com/Apolo151/tourist-village-app.git
 cd tourist-village-app
 ```
 
-#### 2. Backend Setup
+### 2. Backend Setup
 ```bash
 cd packages/backend
 
@@ -106,7 +120,7 @@ PORT=3000
 FRONTEND_URL=http://localhost:5173
 ```
 
-#### 3. Database Setup
+### 3. Database Setup
 ```bash
 # Create database
 createdb tourist_village_db
@@ -118,9 +132,9 @@ npm run migrate
 npm run seed:run
 ```
 
-#### 4. Start Backend Server
+### 4. Start Backend Server
 ```bash
-# Development mode
+# Development mode (with hot reload)
 npm run dev
 
 # Production mode
@@ -128,7 +142,7 @@ npm run build
 npm start
 ```
 
-#### 5. Frontend Setup
+### 5. Frontend Setup
 ```bash
 cd ../frontend
 
@@ -143,85 +157,122 @@ The application will be available at:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:3000
 
-### 🐳 Docker Setup
+---
 
-#### Prerequisites for Docker
+## 🐳 Docker Setup
+
+The application uses a unified Docker image that serves both the frontend (statically) and backend API from a single container.
+
+### Prerequisites for Docker
 - **Docker**: Version 20.10 or higher
 - **Docker Compose**: Version 2.0 or higher
 
-#### 1. Clone Repository
+### Quick Start (Production Mode)
+
 ```bash
+# Clone repository
 git clone https://github.com/Apolo151/tourist-village-app.git
 cd tourist-village-app
-```
 
-#### 2. Environment Configuration
-```bash
-# Backend environment
-cp packages/backend/env.example packages/backend/.env
-```
-
-Update the backend `.env` file for Docker:
-```bash
-# Database Configuration (Docker)
-DATABASE_URL=postgresql://postgres:password@db:5432/tourist_village_db
-DB_HOST=db
-DB_PORT=5432
-DB_NAME=tourist_village_db
-DB_USER=postgres
-DB_PASSWORD=password
-
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_REFRESH_SECRET=your-super-secret-refresh-key-change-this-in-production
-
-# Server Configuration
-NODE_ENV=development
-PORT=3000
-FRONTEND_URL=http://localhost:3000
-```
-
-#### 3. Build and Run with Docker Compose
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Run in background
-docker-compose up -d --build
-```
-
-#### 4. Initialize Database
-```bash
-# Run migrations
-docker-compose exec backend npm run migrate
-
-# Seed initial data
-docker-compose exec backend npm run seed:run
-```
-
-#### 5. Access Application
-- **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:3001
-- **Database**: localhost:5432
-
-#### Docker Management Commands
-```bash
-# Stop all services
-docker-compose down
+# Start all services (database + app)
+docker compose up -d --build
 
 # View logs
-docker-compose logs -f
-
-# Rebuild specific service
-docker-compose up --build backend
-
-# Access backend container
-docker-compose exec backend bash
+docker compose logs -f app
 ```
 
-### 🧪 Testing
+**Access the application at**: http://localhost:3000
 
-#### Backend Tests
+### Environment Configuration
+
+Create a `.env` file in the project root for production settings:
+
+```bash
+# Database
+DB_PASSWORD=your-secure-password
+
+# JWT Configuration (CHANGE THESE IN PRODUCTION!)
+JWT_SECRET=your-production-jwt-secret
+JWT_REFRESH_SECRET=your-production-refresh-secret
+
+# Optional
+NODE_ENV=production
+BCRYPT_ROUNDS=12
+```
+
+### Development Mode with Hot Reload
+
+For development with hot reload on both frontend and backend:
+
+```bash
+# Start development services
+docker compose --profile dev up -d
+
+# View logs
+docker compose --profile dev logs -f
+```
+
+**Development access points:**
+- **Frontend (Vite HMR)**: http://localhost:5173
+- **Backend API**: http://localhost:3001
+- **PgAdmin**: http://localhost:5050
+
+### Docker Services Overview
+
+| Service | Port | Description | Profile |
+|---------|------|-------------|---------|
+| `db` | 5432 | PostgreSQL database | default |
+| `app` | 3000 | Unified app (API + static frontend) | default |
+| `pgadmin` | 5050 | Database admin UI | dev, tools |
+| `backend-dev` | 3001 | Backend with hot reload | dev |
+| `frontend-dev` | 5173 | Vite dev server with HMR | dev |
+
+### Docker Commands Reference
+
+```bash
+# Production
+docker compose up -d              # Start in background
+docker compose down               # Stop all services
+docker compose logs -f app        # View app logs
+docker compose restart app        # Restart app service
+
+# Development
+docker compose --profile dev up -d           # Start dev environment
+docker compose --profile dev down            # Stop dev environment
+docker compose --profile tools up -d pgadmin # Start only pgadmin
+
+# Database operations
+docker compose exec app npm run migrate      # Run migrations
+docker compose exec app npm run seed:run     # Seed database
+
+# Rebuild
+docker compose build --no-cache app          # Rebuild app image
+docker compose up -d --build                 # Rebuild and start
+```
+
+### Database Management with PgAdmin
+
+```bash
+# Start pgadmin
+docker compose --profile tools up -d pgadmin
+```
+
+Access at http://localhost:5050 with:
+- **Email**: admin@touristvillage.com
+- **Password**: admin123
+
+Connect to database:
+- **Host**: db
+- **Port**: 5432
+- **Database**: tourist_village_db
+- **User**: postgres
+- **Password**: password (or your `DB_PASSWORD`)
+
+---
+
+## 🧪 Testing
+
+### Backend Tests
 ```bash
 cd packages/backend
 
@@ -237,7 +288,7 @@ npm run test:routes
 npm run test:middleware
 ```
 
-#### Frontend Tests
+### Frontend Tests
 ```bash
 cd packages/frontend
 
@@ -248,18 +299,24 @@ npm test
 npm run test:coverage
 ```
 
-### 📝 Development Notes
+---
 
-#### Default Admin Account
+## 📝 Development Notes
+
+### Default Admin Account
 After seeding the database, use these credentials to log in:
 - **Email**: `admin@example.com`
 - **Password**: `admin123`
 
-#### API Documentation
-The backend includes comprehensive API documentation available at `http://localhost:3000/api-docs` when running in development mode.
+### API Documentation
+The backend API is available at `/api` with endpoints documented at:
+- **Health Check**: `GET /api/health`
+- **API Info**: `GET /api`
 
-#### Database Migrations
+### Database Migrations
 ```bash
+cd packages/backend
+
 # Create new migration
 npm run migrate:make migration_name
 
@@ -270,24 +327,37 @@ npm run migrate
 npm run migrate:rollback
 ```
 
-#### Environment Variables
-Critical environment variables that must be configured:
-- `DATABASE_URL`: PostgreSQL connection string
-- `JWT_SECRET`: JWT signing secret
-- `JWT_REFRESH_SECRET`: Refresh token secret
-- `FRONTEND_URL`: Frontend URL for CORS configuration
+### Environment Variables Reference
 
-### 🔒 Security Considerations
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | - |
+| `DB_PASSWORD` | Database password | password |
+| `JWT_SECRET` | JWT signing secret | - |
+| `JWT_REFRESH_SECRET` | Refresh token secret | - |
+| `JWT_EXPIRES_IN` | Access token expiry | 60m |
+| `JWT_REFRESH_EXPIRES_IN` | Refresh token expiry | 7d |
+| `NODE_ENV` | Environment mode | development |
+| `PORT` | Server port | 3000 |
+| `FRONTEND_URL` | Frontend URL for CORS | - |
+| `BCRYPT_ROUNDS` | Password hashing rounds | 12 |
 
-- Change default JWT secrets in production
-- Use environment-specific database credentials
-- Enable HTTPS in production environments
-- Regularly update dependencies for security patches
-- Follow proper backup procedures for production data
+---
 
-### 📚 Additional Resources
+## 🔒 Security Considerations
+
+- **Change default JWT secrets** in production
+- **Use strong database passwords** with environment-specific credentials
+- **Enable HTTPS** in production environments
+- **Regularly update dependencies** for security patches
+- **Follow proper backup procedures** for production data
+- **Never commit `.env` files** to version control
+
+---
+
+## 📚 Additional Resources
 
 - **Backend Documentation**: `/packages/backend/docs/`
-- **API Reference**: Available at runtime via Swagger UI
 - **Database Schema**: `/docs/ERD.md`
-- **UI Specifications**: `/docs/UI-Pages.md` 
+- **UI Specifications**: `/docs/UI-Pages.md`
+- **Docker Guide**: `/DOCKER.md`
