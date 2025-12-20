@@ -296,6 +296,7 @@ export default function ApartmentDetails() {
       return arrival <= now && leaving >= now && ['Booked', 'Checked In'].includes(b.status);
     });
     if (!current) return 'Available';
+    if (current.status === 'Booked') return 'Booked';
     return current.user_type === 'owner' ? 'Occupied by Owner' : 'Occupied by Tenant';
   };
 
@@ -549,7 +550,8 @@ export default function ApartmentDetails() {
                           label={getAutomatedApartmentStatus()} 
                           size="small"
                           color={
-                            getAutomatedApartmentStatus() === 'Available' ? 'success' : 'warning'
+                            getAutomatedApartmentStatus() === 'Available' ? 'success' : 
+                            getAutomatedApartmentStatus() === 'Booked' ? 'info' : 'warning'
                           }
                           sx={{ mt: 1 }}
                         />

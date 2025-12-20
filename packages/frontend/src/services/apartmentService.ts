@@ -83,7 +83,7 @@ export interface Apartment {
   created_by_user?: User;
   paying_status_type?: PayingStatusType;
   sales_status_type?: SalesStatusType;
-  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter';
+  status?: 'Available' | 'Occupied by Owner' | 'Occupied By Renter' | 'Booked';
   current_booking?: Booking;
 }
 

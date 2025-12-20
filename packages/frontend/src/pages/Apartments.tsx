@@ -324,6 +324,7 @@ export default function Apartments() {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'Available': return 'success';
+      case 'Booked': return 'info';
       case 'Occupied by Owner': return 'primary';
       case 'Occupied by Tenant': return 'warning';
       default: return 'default';
@@ -485,6 +486,7 @@ export default function Apartments() {
                   <em>All Statuses</em>
                 </MenuItem>
                 <MenuItem value="Available">Available</MenuItem>
+                <MenuItem value="Booked">Booked</MenuItem>
                 <MenuItem value="Occupied by Owner">Occupied by Owner</MenuItem>
                 <MenuItem value="Occupied by Tenant">Occupied by Tenant</MenuItem>
               </Select>

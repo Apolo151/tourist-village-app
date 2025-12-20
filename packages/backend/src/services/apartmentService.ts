@@ -812,18 +812,22 @@ export class ApartmentService {
     };
   }
 
-  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Occupied by Owner' | 'Occupied by Tenant'> {
+  private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Occupied by Owner' | 'Occupied by Tenant' | 'Booked'> {
     const now = new Date();
     
     const currentBooking = await db('bookings')
       .where('apartment_id', apartmentId)
       .where('arrival_date', '<=', now)
-      .where('leaving_date', '>=', now)
+      .where('leaving_date', '>', now)
       .whereIn('status', ['Booked', 'Checked In'])
       .first();
 
     if (!currentBooking) {
       return 'Available';
+    }
+
+    if(currentBooking.status === 'Booked'){
+      return 'Booked';
     }
 
     return currentBooking.user_type === 'owner' ? 'Occupied by Owner' : 'Occupied by Tenant';
