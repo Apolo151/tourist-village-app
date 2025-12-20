@@ -42,8 +42,14 @@ export interface CreateBookingProps {
 export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockApartment, bookingId: propBookingId, isEditMode: propIsEditMode }: CreateBookingProps) {
   // Get ID from URL params for edit mode
   const { id: urlId } = useParams<{ id: string }>();
-  const bookingId = propBookingId || (urlId ? parseInt(urlId) : undefined);
-  const isEditMode = propIsEditMode || !!urlId;
+  
+  // Determine if component is being used in dialog mode (has callback props)
+  const isDialogMode = !!(onSuccess || onCancel);
+  
+  // Only use URL params when NOT in dialog mode to avoid picking up parent route params
+  const bookingId = propBookingId || (!isDialogMode && urlId ? parseInt(urlId) : undefined);
+  const isEditMode = propIsEditMode || (!isDialogMode && !!urlId);
+  
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [loading, setLoading] = useState(true);
