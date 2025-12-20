@@ -63,6 +63,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
   const [ownerCache, setOwnerCache] = useState<Record<number, User>>({});
   const pendingOwnerFetchRef = useRef<Record<number, boolean>>({});
   
+  // Flag to prevent filter reset effects from running during initial booking data load
+  const isInitialLoadRef = useRef(true);
+  
   // Villages and phase filter state
   const [villages, setVillages] = useState<Village[]>([]);
   const [selectedVillageId, setSelectedVillageId] = useState<string>('');
@@ -203,6 +206,12 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 [bookingData.apartment_id]: bookingData.user!
               }));
             }
+            
+            // Clear initial load flag after a short delay to allow effects to settle
+            // This ensures the filter effects don't reset the prefilled values
+            setTimeout(() => {
+              isInitialLoadRef.current = false;
+            }, 100);
           } catch (err) {
             console.error('Error loading booking data:', err);
             setError('Failed to load booking data for editing');
@@ -210,6 +219,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         } else if (apartmentId && formData.user_type === 'owner') {
           // If not in edit mode but apartmentId is provided and user type is owner, prefill owner data
           prefillOwnerData(apartmentId);
+          // Not in edit mode, allow filter resets immediately
+          isInitialLoadRef.current = false;
+        } else {
+          // Not in edit mode and no locked apartment, allow filter resets immediately
+          isInitialLoadRef.current = false;
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -243,28 +257,37 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       } else {
         setAvailablePhases([]);
       }
-      setSelectedPhase('');
-      setFormData(prev => ({ ...prev, apartment_id: 0 }));
       
-      // Trigger apartment search with new village filter
-      handleApartmentSearch('');
+      // Only reset phase and apartment when user changes village filter (not during initial load)
+      if (!isInitialLoadRef.current) {
+        setSelectedPhase('');
+        setFormData(prev => ({ ...prev, apartment_id: 0 }));
+        // Trigger apartment search with new village filter
+        handleApartmentSearch('');
+      }
     } else {
       setAvailablePhases([]);
-      setSelectedPhase('');
-      setFormData(prev => ({ ...prev, apartment_id: 0 }));
       
-      // Reset apartment search without filters
-      handleApartmentSearch('');
+      // Only reset when user changes village filter (not during initial load)
+      if (!isInitialLoadRef.current) {
+        setSelectedPhase('');
+        setFormData(prev => ({ ...prev, apartment_id: 0 }));
+        // Reset apartment search without filters
+        handleApartmentSearch('');
+      }
     }
   }, [selectedVillageId, villages]);
 
   // Reset apartment when phase changes and trigger search
   useEffect(() => {
-    setFormData(prev => ({ ...prev, apartment_id: 0 }));
-    
-    // Trigger apartment search with updated phase filter
-    if (selectedVillageId) {
-      handleApartmentSearch('');
+    // Only reset apartment when user changes phase filter (not during initial load)
+    if (!isInitialLoadRef.current) {
+      setFormData(prev => ({ ...prev, apartment_id: 0 }));
+      
+      // Trigger apartment search with updated phase filter
+      if (selectedVillageId) {
+        handleApartmentSearch('');
+      }
     }
   }, [selectedPhase]);
 
@@ -662,7 +685,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   value={selectedVillageId}
                   label="Project"
                   onChange={e => setSelectedVillageId(String(e.target.value))}
-                  disabled={!!lockApartment}
+                  disabled={!!lockApartment || isEditMode}
                 >
                   <MenuItem value=""><em>All Projects</em></MenuItem>
                   {villages.map(village => (
@@ -673,13 +696,13 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
             </Grid>
             {/* Phase Selection */}
             <Grid size = {{xs:12, md:6}}>
-              <FormControl fullWidth disabled={!selectedVillageId || !!lockApartment}>
+              <FormControl fullWidth disabled={!selectedVillageId || !!lockApartment || isEditMode}>
                 <InputLabel>Phase</InputLabel>
                 <Select
                   value={selectedPhase}
                   label="Phase"
                   onChange={e => setSelectedPhase(String(e.target.value))}
-                  disabled={!selectedVillageId || !!lockApartment}
+                  disabled={!selectedVillageId || !!lockApartment || isEditMode}
                 >
                   <MenuItem value=""><em>All Phases</em></MenuItem>
                   {availablePhases.map(phase => (
@@ -718,7 +741,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                 label="Related Apartment"
                 placeholder="Type to search apartments by name..."
                 required
-                disabled={lockApartment}
+                disabled={lockApartment || isEditMode}
                 loading={searchingApartments}
                 serverSideSearch={true}
                 onInputChange={handleApartmentInputChange}

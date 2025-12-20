@@ -528,49 +528,57 @@ export default function ServiceRequestDetails() {
                 )}
               </Grid>
               
+              {/* Project (Village) - Read-only in edit mode */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="subtitle2" color="text.secondary">Project</Typography>
+                {isEditing ? (
+                  <TextField
+                    value={serviceRequest.apartment?.village?.name || 'Unknown'}
+                    disabled
+                    size="small"
+                    fullWidth
+                    helperText="Project cannot be changed when editing a service request"
+                  />
+                ) : (
+                  <Typography variant="body1">{serviceRequest.apartment?.village?.name || 'Unknown'}</Typography>
+                )}
+              </Grid>
+
+              {/* Phase - Read-only in edit mode */}
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Typography variant="subtitle2" color="text.secondary">Phase</Typography>
+                {isEditing ? (
+                  <TextField
+                    value={serviceRequest.apartment?.phase ? `Phase ${serviceRequest.apartment.phase}` : 'Unknown'}
+                    disabled
+                    size="small"
+                    fullWidth
+                    helperText="Phase cannot be changed when editing a service request"
+                  />
+                ) : (
+                  <Typography variant="body1">
+                    {serviceRequest.apartment?.phase ? `Phase ${serviceRequest.apartment.phase}` : 'Unknown'}
+                  </Typography>
+                )}
+              </Grid>
+
+              {/* Apartment - Locked in edit mode */}
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
                 {isEditing ? (
-                  <SearchableDropdown
-                    options={apartments.map(apartment => ({
-                      id: apartment.id,
-                      label: `${apartment.name} - ${apartment.village?.name} (Phase ${apartment.phase})`,
-                      name: apartment.name,
-                      village: apartment.village,
-                      phase: apartment.phase
-                    }))}
-                    value={(formData.apartment_id != null && !isNaN(formData.apartment_id)) ? formData.apartment_id : null}
-                    onChange={(value) => setFormData(prev => ({ ...prev, apartment_id: value as number || undefined }))}
-                    label="Apartment"
-                    placeholder="Type to search apartments by name or village..."
-                    required
-                    loading={searchingApartments}
-                    serverSideSearch={false}
-                    onInputChange={handleApartmentInputChange}
-                    inputValue={apartmentSearchTerm}
-                    helperText="Type at least one character to see search results"
-                    getOptionLabel={(option) => option.label}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body1">{option.name}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {option.village?.name} (Phase {option.phase})
-                          </Typography>
-                        </Box>
-                      </li>
-                    )}
+                  <TextField
+                    value={serviceRequest.apartment?.name || 'Unknown'}
+                    disabled
                     size="small"
+                    fullWidth
+                    helperText="Apartment cannot be changed when editing a service request"
                   />
                 ) : (
-                <Typography variant="body1">{serviceRequest.apartment?.name || 'Unknown'}</Typography>
+                  <Typography variant="body1">{serviceRequest.apartment?.name || 'Unknown'}</Typography>
                 )}
               </Grid>
               
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Typography variant="subtitle2" color="text.secondary">Village</Typography>
-                <Typography variant="body1">{serviceRequest.apartment?.village?.name || 'Unknown'}</Typography>
-              </Grid>
+              {/* Village label removed since we now show Project instead */}
               
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Typography variant="subtitle2" color="text.secondary">Requester</Typography>

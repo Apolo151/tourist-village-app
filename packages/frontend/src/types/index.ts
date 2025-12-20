@@ -315,6 +315,7 @@ export interface ServiceRequest {
   apartment?: {
     id: number;
     name: string;
+    phase?: number;
     village?: {
       id: number;
       name: string;

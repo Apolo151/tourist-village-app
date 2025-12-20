@@ -151,19 +151,23 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       } else {
         setAvailablePhases([]);
       }
-      setPhaseFilter('');
       
-      // Only reset apartment ID if not in edit mode and not locked
-      if (!lockApartment && !isEditMode) setApartmentId(0);
+      // Only reset phase and apartment if not in edit mode and not locked
+      if (!lockApartment && !isEditMode) {
+        setPhaseFilter('');
+        setApartmentId(0);
+      }
       
       // Load apartments for the selected project
       loadFilteredApartments();
     } else {
       setAvailablePhases([]);
-      setPhaseFilter('');
       
-      // Only reset apartment ID if not in edit mode and not locked
-      if (!lockApartment && !isEditMode) setApartmentId(0);
+      // Only reset phase and apartment if not in edit mode and not locked
+      if (!lockApartment && !isEditMode) {
+        setPhaseFilter('');
+        setApartmentId(0);
+      }
       
       // Load a limited set of apartments when no project is selected
       loadFilteredApartments();

@@ -885,24 +885,42 @@ const BookingDetails: React.FC = () => {
               <form onSubmit={handleSubmit}>
               <Grid container spacing={3}>
                 <Grid size={{xs: 12, md: 6}}>
-                  <FormControl fullWidth error={!!errors.apartment_id}>
-                    <InputLabel>Apartment</InputLabel>
-                    <Select
-                      value={formData.apartment_id.toString()}
-                      label="Apartment"
-                      onChange={(e) => handleSelectChange(e, 'apartment_id')}
-                    >
-                      <MenuItem value="">
-                        <em>Select an apartment</em>
-                      </MenuItem>
-                      {apartments.map(apartment => (
-                        <MenuItem key={apartment.id} value={apartment.id.toString()}>
-                          {apartment.name} - {apartment.village?.name}
+                  {isNew ? (
+                    <FormControl fullWidth error={!!errors.apartment_id}>
+                      <InputLabel>Apartment</InputLabel>
+                      <Select
+                        value={formData.apartment_id.toString()}
+                        label="Apartment"
+                        onChange={(e) => handleSelectChange(e, 'apartment_id')}
+                      >
+                        <MenuItem value="">
+                          <em>Select an apartment</em>
                         </MenuItem>
-                      ))}
-                    </Select>
-                    {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
-                  </FormControl>
+                        {apartments.map(apartment => (
+                          <MenuItem key={apartment.id} value={apartment.id.toString()}>
+                            {apartment.name} - {apartment.village?.name} (Phase {apartment.phase})
+                          </MenuItem>
+                        ))}
+                      </Select>
+                      {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
+                    </FormControl>
+                  ) : (
+                    <Box>
+                      <Typography variant="subtitle2" color="text.secondary" gutterBottom>Apartment</Typography>
+                      <Typography variant="body1">
+                        {booking?.apartment
+                          ? `${booking.apartment.name} - ${booking.apartment.village?.name} (Phase ${booking.apartment.phase})`
+                          : (() => {
+                              const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+                              return selectedApartment 
+                                ? `${selectedApartment.name} - ${selectedApartment.village?.name} (Phase ${selectedApartment.phase})`
+                                : 'Loading...';
+                            })()
+                        }
+                      </Typography>
+                      <FormHelperText>Apartment cannot be changed when editing an existing booking</FormHelperText>
+                    </Box>
+                  )}
                 </Grid>
 
                 {/* User Type */}
@@ -1135,7 +1153,9 @@ const BookingDetails: React.FC = () => {
                             <HomeIcon color="primary" />
                             <Box>
                               <Typography variant="subtitle2" color="text.secondary">Apartment</Typography>
-                              <Typography variant="body1">{booking.apartment?.name} - {booking.apartment?.village?.name}</Typography>
+                              <Typography variant="body1">
+                                {booking.apartment?.name} - {booking.apartment?.village?.name} (Phase {booking.apartment?.phase})
+                              </Typography>
                             </Box>
                           </Box>
                         </Grid>

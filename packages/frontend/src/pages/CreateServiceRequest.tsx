@@ -876,7 +876,7 @@ export default function CreateServiceRequest({
                                         value={projectFilter}
                                         label="Project"
                                         onChange={handleProjectFilterChange}
-                                        disabled={!!lockApartment || !!lockProject}
+                                        disabled={!!lockApartment || !!lockProject || !!editId}
                                     >
                                         <MenuItem value="">
                                             <em>Select a project</em>
@@ -897,7 +897,7 @@ export default function CreateServiceRequest({
                                         value={phaseFilter}
                                         label="Phase"
                                         onChange={handlePhaseFilterChange}
-                                        disabled={!projectFilter || !!lockApartment || !!lockPhase}
+                                        disabled={!projectFilter || !!lockApartment || !!lockPhase || !!editId}
                                     >
                                         <MenuItem value="">
                                             <em>All Phases</em>
@@ -927,8 +927,7 @@ export default function CreateServiceRequest({
                                     placeholder="Type to search apartments by name or village..."
                                     required
                                     disabled={
-                                        lockApartment &&
-                                        apartmentId !== undefined
+                                        (lockApartment && apartmentId !== undefined) || !!editId
                                     }
                                     loading={searchingApartments}
                                     serverSideSearch={false}

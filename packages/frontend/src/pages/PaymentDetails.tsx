@@ -447,6 +447,7 @@ export default function PaymentDetails() {
                       value={formData.apartment_id.toString()}
                       label="Apartment *"
                       onChange={handleSelectChange}
+                      disabled={!isNew}
                     >
                       <MenuItem value="">
                         <em>Select Apartment</em>
@@ -458,6 +459,7 @@ export default function PaymentDetails() {
                       ))}
                     </Select>
                     {errors.apartment_id && <FormHelperText>{errors.apartment_id}</FormHelperText>}
+                    {!isNew && <FormHelperText>Apartment cannot be changed when editing a payment</FormHelperText>}
                   </FormControl>
                 </Grid>
                 

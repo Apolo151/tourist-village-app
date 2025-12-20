@@ -221,6 +221,17 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     }
   }, [lockApartment, apartmentId, apartments, isEdit]);
   
+  // When editing, set project and phase filters based on the loaded payment's apartment
+  useEffect(() => {
+    if (isEdit && formData.apartment_id && apartments.length > 0) {
+      const apt = apartments.find(a => a.id === parseInt(formData.apartment_id));
+      if (apt && apt.village) {
+        setProjectFilter(apt.village_id.toString());
+        setPhaseFilter(apt.phase.toString());
+      }
+    }
+  }, [isEdit, formData.apartment_id, apartments]);
+  
   // Load apartments when filters change
   useEffect(() => {
     // Don't reload if we're in a locked apartment state
@@ -642,7 +653,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                       setPhaseFilter('');
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
-                    disabled={!!lockApartment || !!lockProject}
+                    disabled={!!lockApartment || !!lockProject || isEdit}
                   >
                     <MenuItem value="">
                       <em>All Projects</em>
@@ -664,7 +675,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                       setPhaseFilter(e.target.value);
                       setFormData(prev => ({ ...prev, apartment_id: '' }));
                     }}
-                    disabled={!projectFilter || !!lockApartment || !!lockPhase}
+                    disabled={!projectFilter || !!lockApartment || !!lockPhase || isEdit}
                   >
                     <MenuItem value="">
                       <em>All Phases</em>
@@ -693,9 +704,9 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
                   label="Apartment"
                   placeholder="Type to search apartments by name or village..."
                   required
-                  disabled={lockApartment && apartmentId !== undefined}
+                  disabled={!!lockApartment || isEdit}
                   error={Boolean(errors.apartment_id)}
-                  helperText={errors.apartment_id || "Showing apartments based on selected filters"}
+                  helperText={errors.apartment_id || (isEdit ? "Apartment cannot be changed when editing" : "Showing apartments based on selected filters")}
                   loading={searchingApartments}
                   serverSideSearch={false}
                   onInputChange={handleApartmentInputChange}
