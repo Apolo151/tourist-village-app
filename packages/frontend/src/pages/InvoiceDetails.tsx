@@ -30,16 +30,16 @@ const InvoiceDetails: React.FC = () => {
   const navigate = useNavigate();
   const apartmentId = id ? Number(id) : undefined;
 
-  // Default date range: current month
+  // Default date range: current year
   const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const firstDayOfYear = new Date(now.getFullYear(), 0, 1);
+  const lastDayOfYear = new Date(now.getFullYear(), 11, 31);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<any>(null);
-  const [fromDate, setFromDate] = useState<Date | null>(firstDayOfMonth);
-  const [toDate, setToDate] = useState<Date | null>(lastDayOfMonth);
+  const [fromDate, setFromDate] = useState<Date | null>(firstDayOfYear);
+  const [toDate, setToDate] = useState<Date | null>(lastDayOfYear);
   const [beforeTotals, setBeforeTotals] = useState<any | null>(null);
 
   // Fetch invoice details
@@ -292,7 +292,7 @@ const InvoiceDetails: React.FC = () => {
                     return (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
             <Box>
-                          <Typography variant="subtitle2" color="success.main">Money Spent</Typography>
+                          <Typography variant="subtitle2" color="error.main">Money Spent</Typography>
                           <Typography>
                             {totals.total_spent_egp > 0 && `${totals.total_spent_egp.toLocaleString()} EGP`}
                             {totals.total_spent_egp > 0 && totals.total_spent_gbp > 0 && ' / '}
@@ -301,7 +301,7 @@ const InvoiceDetails: React.FC = () => {
               </Typography>
             </Box>
             <Box>
-                          <Typography variant="subtitle2" color="error.main">Total Outstanding</Typography>
+                          <Typography variant="subtitle2" color="success.main">Total Outstanding</Typography>
                           <Typography>
                             {totals.total_requested_egp > 0 && `${totals.total_requested_egp.toLocaleString()} EGP`}
                             {totals.total_requested_egp > 0 && totals.total_requested_gbp > 0 && ' / '}
@@ -331,7 +331,7 @@ const InvoiceDetails: React.FC = () => {
                 {/* Export Buttons */}
                 {getOwnerTransactions(details.invoices).length > 0 && (
                   <ExportButtons
-                    data={getOwnerTransactions(details.invoices)}
+                    data={getOwnerTransactions(details.invoices).reverse()}
                     columns={["Transaction Type","Description","EGP Debit","EGP Credit","GBP Debit","GBP Credit","Date","Arrival","Departure","Customer Name"]}
                     excelFileName={`invoice_apartment_${details.apartment.id}.xlsx`}
                     pdfFileName={`invoice_apartment_${details.apartment.id}.pdf`}
@@ -365,8 +365,8 @@ const InvoiceDetails: React.FC = () => {
                       const totalEgpCredit = sum(rows, 'EGP Credit');
                       const totalGbpDebit = sum(rows, 'GBP Debit');
                       const totalGbpCredit = sum(rows, 'GBP Credit');
-                      const egpOutstanding = totalEgpCredit - totalEgpDebit;
-                      const gbpOutstanding = totalGbpCredit - totalGbpDebit;
+                      const egpOutstanding = totalEgpDebit - totalEgpCredit;
+                      const gbpOutstanding = totalGbpDebit - totalGbpCredit;
                       // Add totals and outstanding rows
                       rows.push({
                         'Transaction Type': '',
@@ -400,24 +400,24 @@ const InvoiceDetails: React.FC = () => {
                   />
                 )}
                 {getOwnerTransactions(details.invoices).length > 0 ? (
-                  <TableContainer component={Paper}>
-                    <Table size="small">
+                  <TableContainer component={Paper} sx={{ mt: 2, border: 1, borderColor: 'divider' }}>
+                    <Table size="small" sx={{ '& .MuiTableCell-root': { px: 2, py: 1.5, borderRight: 1, borderColor: 'divider' }, '& .MuiTableCell-root:last-child': { borderRight: 0 } }}>
                       <TableHead>
-                        <TableRow>
-                          <TableCell>Transaction Type</TableCell>
-                          <TableCell>Description</TableCell>
-                          <TableCell align="right">EGP Debit</TableCell>
-                          <TableCell align="right">EGP Credit</TableCell>
-                          <TableCell align="right">GBP Debit</TableCell>
-                          <TableCell align="right">GBP Credit</TableCell>
-                          <TableCell>Date</TableCell>
-                          <TableCell>Arrival</TableCell>
-                          <TableCell>Departure</TableCell>
-                          <TableCell>Customer Name</TableCell>
+                        <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 120, borderBottom: 2, borderColor: 'primary.main' }}>Transaction Type</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 200, borderBottom: 2, borderColor: 'primary.main' }}>Description</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>EGP Debit</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>EGP Credit</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>GBP Debit</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>GBP Credit</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>Date</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>Arrival</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 100, borderBottom: 2, borderColor: 'primary.main' }}>Departure</TableCell>
+                          <TableCell sx={{ fontWeight: 'bold', minWidth: 150, borderBottom: 2, borderColor: 'primary.main' }}>Customer Name</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {getOwnerTransactions(details.invoices).map((invoice: any) => {
+                        {getOwnerTransactions(details.invoices).reverse().map((invoice: any) => {
                           let egpDebit = '', egpCredit = '', gbpDebit = '', gbpCredit = '';
                           if (invoice.currency === 'EGP') {
                             if (invoice.type === 'Payment') egpCredit = invoice.amount;
@@ -429,16 +429,30 @@ const InvoiceDetails: React.FC = () => {
                           // Customer name logic
                           const customerName = getCustomerName(invoice, details);
                           return (
-                            <TableRow key={invoice.id}>
-                              <TableCell>{invoice.type}</TableCell>
+                            <TableRow 
+                              key={invoice.id}
+                              sx={{ 
+                                '&:hover': { backgroundColor: '#fafafa' },
+                                '&:nth-of-type(even)': { backgroundColor: '#f9f9f9' }
+                              }}
+                            >
+                              <TableCell sx={{ whiteSpace: 'nowrap' }}>{invoice.type}</TableCell>
                               <TableCell>{invoice.description || '-'}</TableCell>
-                              <TableCell align="right">{egpDebit ? egpDebit.toLocaleString() : ''}</TableCell>
-                              <TableCell align="right">{egpCredit ? egpCredit.toLocaleString() : ''}</TableCell>
-                              <TableCell align="right">{gbpDebit ? gbpDebit.toLocaleString() : ''}</TableCell>
-                              <TableCell align="right">{gbpCredit ? gbpCredit.toLocaleString() : ''}</TableCell>
-                              <TableCell>{formatDate(invoice.date)}</TableCell>
-                              <TableCell>{invoice.booking_arrival_date ? formatDate(invoice.booking_arrival_date) : ''}</TableCell>
-                              <TableCell>{invoice.booking_departure_date ? formatDate(invoice.booking_departure_date) : ''}</TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace', color: egpDebit ? 'success.main' : 'inherit' }}>
+                                {egpDebit ? egpDebit.toLocaleString() : ''}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace', color: egpCredit ? 'error.main' : 'inherit' }}>
+                                {egpCredit ? egpCredit.toLocaleString() : ''}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace', color: gbpDebit ? 'success.main' : 'inherit' }}>
+                                {gbpDebit ? gbpDebit.toLocaleString() : ''}
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace', color: gbpCredit ? 'error.main' : 'inherit' }}>
+                                {gbpCredit ? gbpCredit.toLocaleString() : ''}
+                              </TableCell>
+                              <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(invoice.date)}</TableCell>
+                              <TableCell sx={{ whiteSpace: 'nowrap' }}>{invoice.booking_arrival_date ? formatDate(invoice.booking_arrival_date) : ''}</TableCell>
+                              <TableCell sx={{ whiteSpace: 'nowrap' }}>{invoice.booking_departure_date ? formatDate(invoice.booking_departure_date) : ''}</TableCell>
                               <TableCell>{customerName}</TableCell>
                             </TableRow>
                           );
@@ -460,26 +474,38 @@ const InvoiceDetails: React.FC = () => {
                           const totalEgpCredit = rows.reduce((sum, r) => sum + (r.egpCredit || 0), 0);
                           const totalGbpDebit = rows.reduce((sum, r) => sum + (r.gbpDebit || 0), 0);
                           const totalGbpCredit = rows.reduce((sum, r) => sum + (r.gbpCredit || 0), 0);
-                          const egpOutstanding = totalEgpCredit - totalEgpDebit;
-                          const gbpOutstanding = totalGbpCredit - totalGbpDebit;
+                          const egpOutstanding = totalEgpDebit - totalEgpCredit;
+                          const gbpOutstanding = totalGbpDebit - totalGbpCredit;
                           return <>
-                            <TableRow sx={{ backgroundColor: '#f0f4ff', fontWeight: 'bold' }}>
-                              <TableCell><strong>Total</strong></TableCell>
-                              <TableCell align="right"><strong>{totalEgpDebit ? totalEgpDebit.toLocaleString() : ''}</strong></TableCell>
-                              <TableCell align="right"><strong>{totalEgpCredit ? totalEgpCredit.toLocaleString() : ''}</strong></TableCell>
-                              <TableCell align="right"><strong>{totalGbpDebit ? totalGbpDebit.toLocaleString() : ''}</strong></TableCell>
-                              <TableCell align="right"><strong>{totalGbpCredit ? totalGbpCredit.toLocaleString() : ''}</strong></TableCell>
+                            <TableRow sx={{ backgroundColor: '#e3f2fd', fontWeight: 'bold', borderTop: 2, borderColor: 'primary.main' }}>
+                              <TableCell colSpan={2}><strong>Total</strong></TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                <strong>{totalEgpDebit ? totalEgpDebit.toLocaleString() : ''}</strong>
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                <strong>{totalEgpCredit ? totalEgpCredit.toLocaleString() : ''}</strong>
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                <strong>{totalGbpDebit ? totalGbpDebit.toLocaleString() : ''}</strong>
+                              </TableCell>
+                              <TableCell align="right" sx={{ fontFamily: 'monospace' }}>
+                                <strong>{totalGbpCredit ? totalGbpCredit.toLocaleString() : ''}</strong>
+                              </TableCell>
                               <TableCell colSpan={4}></TableCell>
                             </TableRow>
-                            <TableRow>
+                            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                               <TableCell><strong>EGP Outstanding</strong></TableCell>
-                              <TableCell colSpan={4} align="left"><strong>{egpOutstanding.toLocaleString()}</strong></TableCell>
-                              <TableCell colSpan={4}></TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace', color: egpOutstanding >= 0 ? 'success.main' : 'error.main' }}>
+                                <strong>{egpOutstanding.toLocaleString()}</strong>
+                              </TableCell>
+                              <TableCell colSpan={8}></TableCell>
                             </TableRow>
-                            <TableRow>
+                            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
                               <TableCell><strong>GBP Outstanding</strong></TableCell>
-                              <TableCell colSpan={4} align="left"><strong>{gbpOutstanding.toLocaleString()}</strong></TableCell>
-                              <TableCell colSpan={4}></TableCell>
+                              <TableCell sx={{ fontFamily: 'monospace', color: gbpOutstanding >= 0 ? 'success.main' : 'error.main' }}>
+                                <strong>{gbpOutstanding.toLocaleString()}</strong>
+                              </TableCell>
+                              <TableCell colSpan={8}></TableCell>
                             </TableRow>
                           </>;
                         })()}
