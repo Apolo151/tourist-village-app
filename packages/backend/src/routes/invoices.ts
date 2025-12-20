@@ -174,6 +174,7 @@ router.get(
 
       // Calculate utility costs with meter rollover handling
       // When end < start, assume meter rolled over: usage = (max_meter - start) + end
+      // Only calculate when both readings are present (NOT NULL) - matches JavaScript logic
       const maxMeter = DEFAULT_MAX_METER_VALUE;
       let utilityAgg = db('utility_readings as ur')
         .leftJoin('apartments as a2', 'ur.apartment_id', 'a2.id')
@@ -183,14 +184,22 @@ router.get(
           total_utility_readings_egp: db.raw(`
             COALESCE(
               CASE 
-                WHEN COALESCE(ur.water_end_reading, 0) >= COALESCE(ur.water_start_reading, 0)
-                THEN (COALESCE(ur.water_end_reading, 0) - COALESCE(ur.water_start_reading, 0)) * COALESCE(v2.water_price, 0)
-                ELSE (${maxMeter} - COALESCE(ur.water_start_reading, 0) + COALESCE(ur.water_end_reading, 0)) * COALESCE(v2.water_price, 0)
+                WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL
+                THEN CASE
+                  WHEN ur.water_end_reading >= ur.water_start_reading
+                  THEN (ur.water_end_reading - ur.water_start_reading) * COALESCE(v2.water_price, 0)
+                  ELSE (${maxMeter} - ur.water_start_reading + ur.water_end_reading) * COALESCE(v2.water_price, 0)
+                END
+                ELSE 0
               END +
               CASE 
-                WHEN COALESCE(ur.electricity_end_reading, 0) >= COALESCE(ur.electricity_start_reading, 0)
-                THEN (COALESCE(ur.electricity_end_reading, 0) - COALESCE(ur.electricity_start_reading, 0)) * COALESCE(v2.electricity_price, 0)
-                ELSE (${maxMeter} - COALESCE(ur.electricity_start_reading, 0) + COALESCE(ur.electricity_end_reading, 0)) * COALESCE(v2.electricity_price, 0)
+                WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+                THEN CASE
+                  WHEN ur.electricity_end_reading >= ur.electricity_start_reading
+                  THEN (ur.electricity_end_reading - ur.electricity_start_reading) * COALESCE(v2.electricity_price, 0)
+                  ELSE (${maxMeter} - ur.electricity_start_reading + ur.electricity_end_reading) * COALESCE(v2.electricity_price, 0)
+                END
+                ELSE 0
               END,
               0
             )
@@ -526,12 +535,12 @@ router.get(
         ...utilityReadings.map((ur: any) => {
           // Calculate utility costs with meter rollover handling
           const waterUsage = calculateMeterUsage(
-            ur.water_start_reading ? parseFloat(ur.water_start_reading) : null,
-            ur.water_end_reading ? parseFloat(ur.water_end_reading) : null
+            ur.water_start_reading != null ? parseFloat(ur.water_start_reading) : null,
+            ur.water_end_reading != null ? parseFloat(ur.water_end_reading) : null,
           );
           const electricityUsage = calculateMeterUsage(
-            ur.electricity_start_reading ? parseFloat(ur.electricity_start_reading) : null,
-            ur.electricity_end_reading ? parseFloat(ur.electricity_end_reading) : null
+            ur.electricity_start_reading != null ? parseFloat(ur.electricity_start_reading) : null,
+            ur.electricity_end_reading != null ? parseFloat(ur.electricity_end_reading) : null,
           );
           const waterCost = waterUsage * (parseFloat(ur.water_price) || 0);
           const electricityCost = electricityUsage * (parseFloat(ur.electricity_price) || 0);
