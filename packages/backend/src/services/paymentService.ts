@@ -86,6 +86,7 @@ export class PaymentService {
         'b.leaving_date as booking_leaving_date',
         'b.status as booking_status',
         'b.notes as booking_notes',
+        'b.number_of_people as booking_number_of_people',
         'b.created_by as booking_created_by',
         'b.created_at as booking_created_at',
         'b.updated_at as booking_updated_at',
@@ -337,6 +338,185 @@ export class PaymentService {
   }
 
   /**
+   * Get payment by ID using a transaction context
+   * Private helper method for use within transactions
+   */
+  private async getPaymentByIdWithTransaction(
+    trx: any,
+    id: number
+  ): Promise<(Payment & { 
+    apartment?: Apartment; 
+    booking?: Booking;
+    payment_method?: PaymentMethod;
+    created_by_user?: PublicUser;
+  }) | null> {
+    if (!id || id <= 0) {
+      return null;
+    }
+
+    const payment = await trx('payments as p')
+      .leftJoin('apartments as a', 'p.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('bookings as b', 'p.booking_id', 'b.id')
+      .leftJoin('payment_methods as pm', 'p.method_id', 'pm.id')
+      .leftJoin('users as creator', 'p.created_by', 'creator.id')
+      .leftJoin('users as owner', 'a.owner_id', 'owner.id')
+      .leftJoin('users as booking_user', 'b.user_id', 'booking_user.id')
+      .select(
+        'p.*',
+        // Apartment details
+        'a.name as apartment_name',
+        'a.village_id as apartment_village_id',
+        'a.phase as apartment_phase',
+        'a.owner_id as apartment_owner_id',
+        'a.paying_status_id as apartment_paying_status_id',
+        'a.created_by as apartment_created_by',
+        'a.created_at as apartment_created_at',
+        'a.updated_at as apartment_updated_at',
+        // Village details
+        'v.name as village_name',
+        'v.electricity_price as village_electricity_price',
+        'v.water_price as village_water_price',
+        'v.phases as village_phases',
+        'v.created_at as village_created_at',
+        'v.updated_at as village_updated_at',
+        // Apartment owner details
+        'owner.name as owner_name',
+        'owner.email as owner_email',
+        'owner.phone_number as owner_phone',
+        'owner.role as owner_role',
+        'owner.is_active as owner_is_active',
+        'owner.created_at as owner_created_at',
+        'owner.updated_at as owner_updated_at',
+        // Booking details (if exists)
+        'b.user_id as booking_user_id',
+        'b.user_type as booking_user_type',
+        'b.arrival_date as booking_arrival_date',
+        'b.leaving_date as booking_leaving_date',
+        'b.status as booking_status',
+        'b.notes as booking_notes',
+        'b.number_of_people as booking_number_of_people',
+        'b.created_by as booking_created_by',
+        'b.created_at as booking_created_at',
+        'b.updated_at as booking_updated_at',
+        // Booking user details
+        'booking_user.name as booking_user_name',
+        'booking_user.email as booking_user_email',
+        'booking_user.phone_number as booking_user_phone',
+        'booking_user.role as booking_user_role',
+        'booking_user.is_active as booking_user_is_active',
+        // Payment method details
+        'pm.name as payment_method_name',
+        'pm.created_by as payment_method_created_by',
+        'pm.created_at as payment_method_created_at',
+        'pm.updated_at as payment_method_updated_at',
+        // Creator details
+        'creator.name as creator_name',
+        'creator.email as creator_email',
+        'creator.phone_number as creator_phone',
+        'creator.role as creator_role',
+        'creator.is_active as creator_is_active',
+        'creator.created_at as creator_created_at',
+        'creator.updated_at as creator_updated_at'
+      )
+      .where('p.id', id)
+      .first();
+
+    if (!payment) {
+      return null;
+    }
+
+    return {
+      id: payment.id,
+      apartment_id: payment.apartment_id,
+      booking_id: payment.booking_id || undefined,
+      created_by: payment.created_by,
+      amount: parseFloat(payment.amount),
+      currency: payment.currency,
+      method_id: payment.method_id,
+      user_type: payment.user_type,
+      date: new Date(payment.date),
+      description: payment.description || undefined,
+      created_at: new Date(payment.created_at),
+      updated_at: new Date(payment.updated_at),
+      apartment: {
+        id: payment.apartment_id,
+        name: payment.apartment_name,
+        village_id: payment.apartment_village_id,
+        phase: payment.apartment_phase,
+        owner_id: payment.apartment_owner_id,
+        paying_status: payment.apartment_paying_status,
+        paying_status_id: 1, // Default value
+        sales_status_id: 1, // Default value
+        created_by: payment.apartment_created_by,
+        created_at: new Date(payment.apartment_created_at),
+        updated_at: new Date(payment.apartment_updated_at),
+        sales_status: 'for sale' as 'for sale' | 'not for sale',
+        village: {
+          id: payment.apartment_village_id,
+          name: payment.village_name,
+          electricity_price: parseFloat(payment.village_electricity_price || '0'),
+          water_price: parseFloat(payment.village_water_price || '0'),
+          phases: payment.village_phases,
+          created_at: new Date(payment.village_created_at),
+          updated_at: new Date(payment.village_updated_at)
+        },
+        owner: payment.owner_name ? {
+          id: payment.apartment_owner_id,
+          name: payment.owner_name,
+          email: payment.owner_email,
+          phone_number: payment.owner_phone || undefined,
+          role: payment.owner_role,
+          is_active: Boolean(payment.owner_is_active),
+          created_at: new Date(payment.owner_created_at),
+          updated_at: new Date(payment.owner_updated_at)
+        } : undefined
+      },
+      booking: payment.booking_arrival_date ? {
+        id: payment.booking_id,
+        apartment_id: payment.apartment_id,
+        user_id: payment.booking_user_id,
+        user_type: payment.booking_user_type,
+        arrival_date: new Date(payment.booking_arrival_date),
+        leaving_date: new Date(payment.booking_leaving_date),
+        status: payment.booking_status,
+        notes: payment.booking_notes || undefined,
+        created_by: payment.booking_created_by,
+        created_at: new Date(payment.booking_created_at),
+        updated_at: new Date(payment.booking_updated_at),
+        number_of_people: payment.booking_number_of_people || 0,
+        user: payment.booking_user_name ? {
+          id: payment.booking_user_id,
+          name: payment.booking_user_name,
+          email: payment.booking_user_email,
+          phone_number: payment.booking_user_phone || undefined,
+          role: payment.booking_user_role,
+          is_active: Boolean(payment.booking_user_is_active),
+          created_at: payment.booking_user_created_at ? new Date(payment.booking_user_created_at) : new Date(0),
+          updated_at: payment.booking_user_updated_at ? new Date(payment.booking_user_updated_at) : new Date(0)
+        } : undefined
+      } : undefined,
+      payment_method: {
+        id: payment.method_id,
+        name: payment.payment_method_name,
+        created_by: payment.payment_method_created_by,
+        created_at: new Date(payment.payment_method_created_at),
+        updated_at: new Date(payment.payment_method_updated_at)
+      },
+      created_by_user: payment.creator_name ? {
+        id: payment.created_by,
+        name: payment.creator_name,
+        email: payment.creator_email,
+        phone_number: payment.creator_phone || undefined,
+        role: payment.creator_role,
+        is_active: Boolean(payment.creator_is_active),
+        created_at: payment.creator_created_at ? new Date(payment.creator_created_at) : new Date(0),
+        updated_at: payment.creator_updated_at ? new Date(payment.creator_updated_at) : new Date(0)
+      } : undefined
+    };
+  }
+
+  /**
    * Get payment by ID
    */
   async getPaymentById(id: number): Promise<(Payment & { 
@@ -390,6 +570,7 @@ export class PaymentService {
         'b.leaving_date as booking_leaving_date',
         'b.status as booking_status',
         'b.notes as booking_notes',
+        'b.number_of_people as booking_number_of_people',
         'b.created_by as booking_created_by',
         'b.created_at as booking_created_at',
         'b.updated_at as booking_updated_at',
@@ -609,7 +790,8 @@ export class PaymentService {
 
         const id = typeof paymentId === 'object' ? paymentId.id : paymentId;
         
-        const payment = await this.getPaymentById(id);
+        // Fetch payment using transaction context to ensure we can see the inserted row
+        const payment = await this.getPaymentByIdWithTransaction(trx, id);
         if (!payment) {
           throw new Error('Failed to create payment');
         }
@@ -725,7 +907,8 @@ export class PaymentService {
       try {
         await trx('payments').where('id', id).update(updateData);
 
-        const updatedPayment = await this.getPaymentById(id);
+        // Fetch payment using transaction context to ensure we can see the updated row
+        const updatedPayment = await this.getPaymentByIdWithTransaction(trx, id);
         if (!updatedPayment) {
           throw new Error('Failed to update payment');
         }
