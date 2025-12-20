@@ -69,13 +69,19 @@ const InvoiceDetails: React.FC = () => {
     // date_to is the day before fromDate
     const beforeDate = new Date(fromDate);
     beforeDate.setDate(beforeDate.getDate() - 1);
-    const filters: any = { date_to: format(beforeDate, 'yyyy-MM-dd') };
+    const filters: any = { 
+      date_to: format(beforeDate, 'yyyy-MM-dd'),
+      include_renter: false  // Only owner transactions
+    };
     try {
       const data = await invoiceService.getApartmentDetails(apartmentId, filters);
-      // Only sum owner transactions
-      const ownerTx = getOwnerTransactions(data.invoices);
-      const totals = getOwnerSummaryTotals(ownerTx);
-      setBeforeTotals(totals);
+      // Server already filters to owner transactions, use totals directly
+      setBeforeTotals({
+        total_spent_egp: data.totals.total_money_spent.EGP,
+        total_spent_gbp: data.totals.total_money_spent.GBP,
+        total_requested_egp: data.totals.total_money_requested.EGP,
+        total_requested_gbp: data.totals.total_money_requested.GBP
+      });
     } catch {
       setBeforeTotals(null);
     }
@@ -99,82 +105,26 @@ const InvoiceDetails: React.FC = () => {
     }
   };
 
-  // Filter to only owner transactions (robust, only check user_type for payments, who_pays for others)
-  const getOwnerTransactions = (invoices: any[]) => {
-    if (!Array.isArray(invoices) || invoices.length === 0) return [];
-    // If at least one invoice has user_type or who_pays, filter, else return all
-    const hasOwnerFields = invoices.some(inv => inv.user_type || inv.who_pays);
-    if (!hasOwnerFields) return invoices; // fallback: show all
-    return invoices.filter((invoice) => {
-      if (invoice.type === 'Payment') {
-        if (typeof invoice.user_type === 'string') {
-          return invoice.user_type.toLowerCase() === 'owner';
-        }
-        return false;
-      }
-      if (invoice.type === 'Service Request' || invoice.type === 'Utility Reading') {
-        if (typeof invoice.who_pays === 'string') {
-          return invoice.who_pays.toLowerCase() === 'owner';
-        }
-        return false;
-      }
-      return false;
-    });
-  };
-
-  // Calculate owner-only financial summary
-  const getOwnerSummaryTotals = (invoices: any[]) => {
-    const ownerTx = getOwnerTransactions(invoices);
-    return ownerTx.reduce((acc, invoice) => {
-      if (invoice.type === 'Payment') {
-        if (invoice.currency === 'EGP') acc.total_spent_egp += invoice.amount;
-        else if (invoice.currency === 'GBP') acc.total_spent_gbp += invoice.amount;
-      } else {
-        if (invoice.currency === 'EGP') acc.total_requested_egp += invoice.amount;
-        else if (invoice.currency === 'GBP') acc.total_requested_gbp += invoice.amount;
-      }
-      return acc;
-    }, {
+  // Helper to convert server totals to the local format used in display
+  const getServerTotals = () => {
+    if (!details?.totals) return {
       total_spent_egp: 0,
       total_spent_gbp: 0,
       total_requested_egp: 0,
       total_requested_gbp: 0
-    });
-  };
-
-  // Calculate totals for owner transactions before the selected date range
-  const getOwnerTotalsBeforeRange = (invoices: any[], fromDate: Date | null) => {
-    if (!fromDate) return null;
-    const ownerTx = getOwnerTransactions(invoices);
-    const beforeTx = ownerTx.filter(inv => {
-      if (!inv.date) return false;
-      try {
-        return new Date(inv.date) < fromDate;
-      } catch {
-        return false;
-      }
-    });
-    return getOwnerSummaryTotals(beforeTx);
+    };
+    return {
+      total_spent_egp: details.totals.total_money_spent.EGP,
+      total_spent_gbp: details.totals.total_money_spent.GBP,
+      total_requested_egp: details.totals.total_money_requested.EGP,
+      total_requested_gbp: details.totals.total_money_requested.GBP
+    };
   };
 
   // Helper function for customer name logic
   function getCustomerName(invoice: any, details: any) {
-    // Owner-paid: show person_name (payer/requester)
-    if (
-      (invoice.type === 'Payment' && invoice.user_type && invoice.user_type.toLowerCase() === 'owner') ||
-      ((invoice.type === 'Service Request' || invoice.type === 'Utility Reading') && invoice.who_pays && invoice.who_pays.toLowerCase() === 'owner')
-    ) {
-      return invoice.person_name || invoice.owner_name || details.apartment.owner_name || '-';
-    }
-    // Renter-paid: show owner_name
-    if (
-      (invoice.type === 'Payment' && invoice.user_type && invoice.user_type.toLowerCase() === 'renter') ||
-      ((invoice.type === 'Service Request' || invoice.type === 'Utility Reading') && invoice.who_pays && invoice.who_pays.toLowerCase() === 'renter')
-    ) {
-      return invoice.owner_name || details.apartment.owner_name || '-';
-    }
-    // Fallback
-    return invoice.owner_name || details.apartment.owner_name || invoice.person_name || '-';
+    // For owner transactions, show person_name or owner_name
+    return invoice.person_name || invoice.owner_name || details.apartment.owner_name || '-';
   }
 
   if (!apartmentId) {
@@ -234,7 +184,7 @@ const InvoiceDetails: React.FC = () => {
           <>
             {/* Highlight for totals before selected date range and full total */}
             {details && (() => {
-              const currentTotals = getOwnerSummaryTotals(details.invoices);
+              const currentTotals = getServerTotals();
               const hasCurrent = currentTotals.total_spent_egp > 0 || currentTotals.total_spent_gbp > 0 || currentTotals.total_requested_egp > 0 || currentTotals.total_requested_gbp > 0;
               const hasBefore = beforeTotals && (beforeTotals.total_spent_egp > 0 || beforeTotals.total_spent_gbp > 0 || beforeTotals.total_requested_egp > 0 || beforeTotals.total_requested_gbp > 0);
               const fullTotals = beforeTotals ? {
@@ -288,7 +238,7 @@ const InvoiceDetails: React.FC = () => {
                 <Typography variant="h6" gutterBottom>Financial Summary (Owner Transactions Only)</Typography>
                 {details && (
                   (() => {
-                    const totals = getOwnerSummaryTotals(details.invoices);
+                    const totals = getServerTotals();
                     return (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2 }}>
             <Box>
@@ -329,9 +279,9 @@ const InvoiceDetails: React.FC = () => {
         <CardContent>
                 <Typography variant="h6" gutterBottom>Owner Transactions</Typography>
                 {/* Export Buttons */}
-                {getOwnerTransactions(details.invoices).length > 0 && (
+                {details.invoices.length > 0 && (
                   <ExportButtons
-                    data={getOwnerTransactions(details.invoices).reverse()}
+                    data={[...details.invoices].reverse()}
                     columns={["Transaction Type","Description","EGP Debit","EGP Credit","GBP Debit","GBP Credit","Date","Arrival","Departure","Customer Name"]}
                     excelFileName={`invoice_apartment_${details.apartment.id}.xlsx`}
                     pdfFileName={`invoice_apartment_${details.apartment.id}.pdf`}
@@ -399,7 +349,7 @@ const InvoiceDetails: React.FC = () => {
                     }}
                   />
                 )}
-                {getOwnerTransactions(details.invoices).length > 0 ? (
+                {details.invoices.length > 0 ? (
                   <TableContainer component={Paper} sx={{ mt: 2, border: 1, borderColor: 'divider' }}>
                     <Table size="small" sx={{ '& .MuiTableCell-root': { px: 2, py: 1.5, borderRight: 1, borderColor: 'divider' }, '& .MuiTableCell-root:last-child': { borderRight: 0 } }}>
                       <TableHead>
@@ -417,7 +367,7 @@ const InvoiceDetails: React.FC = () => {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {getOwnerTransactions(details.invoices).reverse().map((invoice: any) => {
+                        {[...details.invoices].reverse().map((invoice: any) => {
                           let egpDebit = '', egpCredit = '', gbpDebit = '', gbpCredit = '';
                           if (invoice.currency === 'EGP') {
                             if (invoice.type === 'Payment') egpCredit = invoice.amount;
@@ -459,7 +409,7 @@ const InvoiceDetails: React.FC = () => {
                         })}
                         {/* Totals Row */}
                         {(() => {
-                          const rows = getOwnerTransactions(details.invoices).map((invoice: any) => {
+                          const rows = details.invoices.map((invoice: any) => {
                             let egpDebit = 0, egpCredit = 0, gbpDebit = 0, gbpCredit = 0;
                             if (invoice.currency === 'EGP') {
                               if (invoice.type === 'Payment') egpCredit = invoice.amount;
@@ -470,10 +420,10 @@ const InvoiceDetails: React.FC = () => {
                             }
                             return { egpDebit, egpCredit, gbpDebit, gbpCredit };
                           });
-                          const totalEgpDebit = rows.reduce((sum, r) => sum + (r.egpDebit || 0), 0);
-                          const totalEgpCredit = rows.reduce((sum, r) => sum + (r.egpCredit || 0), 0);
-                          const totalGbpDebit = rows.reduce((sum, r) => sum + (r.gbpDebit || 0), 0);
-                          const totalGbpCredit = rows.reduce((sum, r) => sum + (r.gbpCredit || 0), 0);
+                          const totalEgpDebit = rows.reduce((sum: number, r: any) => sum + (r.egpDebit || 0), 0);
+                          const totalEgpCredit = rows.reduce((sum: number, r: any) => sum + (r.egpCredit || 0), 0);
+                          const totalGbpDebit = rows.reduce((sum: number, r: any) => sum + (r.gbpDebit || 0), 0);
+                          const totalGbpCredit = rows.reduce((sum: number, r: any) => sum + (r.gbpCredit || 0), 0);
                           const egpOutstanding = totalEgpDebit - totalEgpCredit;
                           const gbpOutstanding = totalGbpDebit - totalGbpCredit;
                           return <>
@@ -515,9 +465,7 @@ const InvoiceDetails: React.FC = () => {
                 ) : (
                   <Paper sx={{ p: 3, textAlign: 'center' }}>
                     <Typography color="text.secondary">
-                      {details.invoices.length > 0
-                        ? 'No owner transactions found for this apartment. Showing all transactions.'
-                        : 'No transactions found for this apartment.'}
+                      No owner transactions found for this apartment.
               </Typography>
                   </Paper>
                 )}

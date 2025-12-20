@@ -5,6 +5,44 @@ import { db } from '../database/connection';
 const router = Router();
 
 /**
+ * Maximum value for utility meters before they roll over to 0.
+ * Most utility meters are 5-6 digit displays (99999 or 999999).
+ * Using 999999 as the default max meter value for safety.
+ */
+const DEFAULT_MAX_METER_VALUE = 999999;
+
+/**
+ * Calculate utility usage accounting for meter rollover.
+ * 
+ * When a meter reaches its maximum value, it rolls over to 0.
+ * This function correctly calculates usage in both normal and rollover scenarios.
+ * 
+ * @param startReading - The starting meter reading
+ * @param endReading - The ending meter reading  
+ * @param maxMeterValue - Maximum value before meter rolls over (default: 999999)
+ * @returns The calculated usage (always positive or zero)
+ */
+function calculateMeterUsage(
+  startReading: number | null | undefined,
+  endReading: number | null | undefined,
+  maxMeterValue: number = DEFAULT_MAX_METER_VALUE
+): number {
+  // If either reading is missing, return 0
+  if (startReading === null || startReading === undefined || 
+      endReading === null || endReading === undefined) {
+    return 0;
+  }
+
+  // Normal case: end reading is greater than or equal to start reading
+  if (endReading >= startReading) {
+    return endReading - startReading;
+  }
+
+  // Rollover case: meter rolled over from max to 0
+  return (maxMeterValue - startReading) + endReading;
+}
+
+/**
  * GET /api/invoices/summary
  * Get financial summary for invoices page with apartment-level aggregations
  */
@@ -15,8 +53,12 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user;
-      const { village_id, user_type, year, date_from, date_to, phase } = req.query;
+      const { village_id, user_type, year, date_from, date_to, phase, include_renter } = req.query;
       const search = (req.query.search as string | undefined)?.trim();
+      
+      // include_renter: if false (default), only include owner transactions
+      // if true, include both owner and renter transactions
+      const includeRenter = include_renter === 'true';
 
       // Pagination (safe defaults)
       const page = Math.max(parseInt((req.query.page as string) || '1', 10), 1);
@@ -103,12 +145,19 @@ router.get(
       };
 
       // Aggregations
+      // Filter by user_type/who_pays based on include_renter flag
       let paymentsAgg = db('payments as p')
         .select('p.apartment_id')
         .sum({ total_payments_egp: db.raw("CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END") })
         .sum({ total_payments_gbp: db.raw("CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END") })
         .groupBy('p.apartment_id');
       paymentsAgg = applyDateFilter(paymentsAgg, 'p.date');
+      // Filter payments by user_type if not including renter transactions
+      if (!includeRenter) {
+        paymentsAgg = paymentsAgg.where(function() {
+          this.where('p.user_type', 'owner').orWhereNull('p.user_type');
+        });
+      }
 
       let serviceRequestsAgg = db('service_requests as sr')
         .select('sr.apartment_id')
@@ -116,7 +165,16 @@ router.get(
         .sum({ total_service_requests_gbp: db.raw("CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END") })
         .groupBy('sr.apartment_id');
       serviceRequestsAgg = applyDateFilter(serviceRequestsAgg, 'COALESCE(sr.date_action, sr.date_created)');
+      // Filter service requests by who_pays if not including renter transactions
+      if (!includeRenter) {
+        serviceRequestsAgg = serviceRequestsAgg.where(function() {
+          this.whereRaw("LOWER(sr.who_pays) = 'owner'").orWhereNull('sr.who_pays');
+        });
+      }
 
+      // Calculate utility costs with meter rollover handling
+      // When end < start, assume meter rolled over: usage = (max_meter - start) + end
+      const maxMeter = DEFAULT_MAX_METER_VALUE;
       let utilityAgg = db('utility_readings as ur')
         .leftJoin('apartments as a2', 'ur.apartment_id', 'a2.id')
         .leftJoin('villages as v2', 'a2.village_id', 'v2.id')
@@ -124,14 +182,28 @@ router.get(
         .sum({
           total_utility_readings_egp: db.raw(`
             COALESCE(
-              (COALESCE(ur.water_end_reading,0) - COALESCE(ur.water_start_reading,0)) * COALESCE(v2.water_price,0) +
-              (COALESCE(ur.electricity_end_reading,0) - COALESCE(ur.electricity_start_reading,0)) * COALESCE(v2.electricity_price,0),
+              CASE 
+                WHEN COALESCE(ur.water_end_reading, 0) >= COALESCE(ur.water_start_reading, 0)
+                THEN (COALESCE(ur.water_end_reading, 0) - COALESCE(ur.water_start_reading, 0)) * COALESCE(v2.water_price, 0)
+                ELSE (${maxMeter} - COALESCE(ur.water_start_reading, 0) + COALESCE(ur.water_end_reading, 0)) * COALESCE(v2.water_price, 0)
+              END +
+              CASE 
+                WHEN COALESCE(ur.electricity_end_reading, 0) >= COALESCE(ur.electricity_start_reading, 0)
+                THEN (COALESCE(ur.electricity_end_reading, 0) - COALESCE(ur.electricity_start_reading, 0)) * COALESCE(v2.electricity_price, 0)
+                ELSE (${maxMeter} - COALESCE(ur.electricity_start_reading, 0) + COALESCE(ur.electricity_end_reading, 0)) * COALESCE(v2.electricity_price, 0)
+              END,
               0
             )
           `)
         })
         .groupBy('ur.apartment_id');
       utilityAgg = applyDateFilter(utilityAgg, 'ur.created_at');
+      // Filter utility readings by who_pays if not including renter transactions
+      if (!includeRenter) {
+        utilityAgg = utilityAgg.where(function() {
+          this.whereRaw("LOWER(ur.who_pays) = 'owner'").orWhereNull('ur.who_pays');
+        });
+      }
 
       // Count before pagination (avoid select columns)
       const totalResult = await apartmentsQuery
@@ -315,7 +387,11 @@ router.get(
       }
 
       // Get date filters from query parameters
-      const { year, date_from, date_to } = req.query;
+      const { year, date_from, date_to, include_renter } = req.query;
+      
+      // include_renter: if false (default), only include owner transactions
+      // if true, include both owner and renter transactions
+      const includeRenter = include_renter === 'true';
 
       // Get all payments for this apartment
       const payments = await db('payments as p')
@@ -325,6 +401,7 @@ router.get(
         .select(
           'p.*',
           'b.arrival_date as booking_arrival_date',
+          'b.leaving_date as booking_departure_date',
           'u.name as person_name',
           'pm.name as payment_method_name',
           'p.user_type'
@@ -336,6 +413,12 @@ router.get(
           } else if (date_from || date_to) {
             if (date_from) qb.where('p.date', '>=', date_from);
             if (date_to) qb.where('p.date', '<=', date_to);
+          }
+          // Filter by user_type if not including renter transactions
+          if (!includeRenter) {
+            qb.where(function(this: any) {
+              this.where('p.user_type', 'owner').orWhereNull('p.user_type');
+            });
           }
         })
         .orderBy('p.date', 'desc');
@@ -351,6 +434,7 @@ router.get(
           'sr.cost',
           'sr.currency',
           'b.arrival_date as booking_arrival_date',
+          'b.leaving_date as booking_departure_date',
           'u.name as person_name',
           'sr.who_pays'
         )
@@ -361,6 +445,12 @@ router.get(
           } else if (date_from || date_to) {
             if (date_from) qb.whereRaw('COALESCE(sr.date_action, sr.date_created) >= ?', [date_from]);
             if (date_to) qb.whereRaw('COALESCE(sr.date_action, sr.date_created) <= ?', [date_to]);
+          }
+          // Filter by who_pays if not including renter transactions
+          if (!includeRenter) {
+            qb.where(function(this: any) {
+              this.whereRaw("LOWER(sr.who_pays) = 'owner'").orWhereNull('sr.who_pays');
+            });
           }
         })
         .orderByRaw('COALESCE(sr.date_action, sr.date_created) DESC');
@@ -374,6 +464,7 @@ router.get(
         .select(
           'ur.*',
           'b.arrival_date as booking_arrival_date',
+          'b.leaving_date as booking_departure_date',
           'u.name as person_name',
           'v.electricity_price',
           'v.water_price',
@@ -386,6 +477,12 @@ router.get(
           } else if (date_from || date_to) {
             if (date_from) qb.where('ur.created_at', '>=', date_from);
             if (date_to) qb.where('ur.created_at', '<=', date_to);
+          }
+          // Filter by who_pays if not including renter transactions
+          if (!includeRenter) {
+            qb.where(function(this: any) {
+              this.whereRaw("LOWER(ur.who_pays) = 'owner'").orWhereNull('ur.who_pays');
+            });
           }
         })
         .orderBy('ur.created_at', 'desc');
@@ -427,11 +524,15 @@ router.get(
           apartment_phase: apartment.apartment_phase // ADD PHASE
         })),
         ...utilityReadings.map((ur: any) => {
-          // Calculate utility costs
-          const waterUsage = (ur.water_end_reading && ur.water_start_reading) ? 
-            parseFloat(ur.water_end_reading) - parseFloat(ur.water_start_reading) : 0;
-          const electricityUsage = (ur.electricity_end_reading && ur.electricity_start_reading) ?
-            parseFloat(ur.electricity_end_reading) - parseFloat(ur.electricity_start_reading) : 0;
+          // Calculate utility costs with meter rollover handling
+          const waterUsage = calculateMeterUsage(
+            ur.water_start_reading ? parseFloat(ur.water_start_reading) : null,
+            ur.water_end_reading ? parseFloat(ur.water_end_reading) : null
+          );
+          const electricityUsage = calculateMeterUsage(
+            ur.electricity_start_reading ? parseFloat(ur.electricity_start_reading) : null,
+            ur.electricity_end_reading ? parseFloat(ur.electricity_end_reading) : null
+          );
           const waterCost = waterUsage * (parseFloat(ur.water_price) || 0);
           const electricityCost = electricityUsage * (parseFloat(ur.electricity_price) || 0);
           const totalCost = waterCost + electricityCost;
@@ -885,6 +986,7 @@ router.get(
         .groupBy('u.id', 'u.name');
 
       // Get all utility readings for this apartment where who_pays is renter
+      // Includes meter rollover handling: when end < start, calculate (max - start) + end
       const renterUtilityReadings = await db('utility_readings as ur')
         .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
         .leftJoin('villages as v', 'a.village_id', 'v.id')
@@ -892,12 +994,20 @@ router.get(
           db.raw(`COALESCE(SUM(
             CASE 
               WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL AND ur.who_pays = 'renter'
-              THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
+              THEN CASE
+                WHEN ur.water_end_reading >= ur.water_start_reading
+                THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price
+                ELSE (${DEFAULT_MAX_METER_VALUE} - ur.water_start_reading + ur.water_end_reading) * v.water_price
+              END
               ELSE 0 
             END +
             CASE 
               WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL AND ur.who_pays = 'renter'
-              THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price 
+              THEN CASE
+                WHEN ur.electricity_end_reading >= ur.electricity_start_reading
+                THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price
+                ELSE (${DEFAULT_MAX_METER_VALUE} - ur.electricity_start_reading + ur.electricity_end_reading) * v.electricity_price
+              END
               ELSE 0 
             END
           ), 0) as total_egp`)
@@ -1041,7 +1151,7 @@ router.get(
         )
         .where('sr.booking_id', bookingId);
 
-      // Utility readings for this booking
+      // Utility readings for this booking (with meter rollover handling)
       const utilityReadings = await db('utility_readings as ur')
         .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
         .leftJoin('villages as v', 'a.village_id', 'v.id')
@@ -1053,8 +1163,16 @@ router.get(
           `),
           db.raw(`
             COALESCE(
-              (COALESCE(ur.water_end_reading,0) - COALESCE(ur.water_start_reading,0)) * COALESCE(v.water_price,0) +
-              (COALESCE(ur.electricity_end_reading,0) - COALESCE(ur.electricity_start_reading,0)) * COALESCE(v.electricity_price,0),
+              CASE 
+                WHEN COALESCE(ur.water_end_reading, 0) >= COALESCE(ur.water_start_reading, 0)
+                THEN (COALESCE(ur.water_end_reading, 0) - COALESCE(ur.water_start_reading, 0)) * COALESCE(v.water_price, 0)
+                ELSE (${DEFAULT_MAX_METER_VALUE} - COALESCE(ur.water_start_reading, 0) + COALESCE(ur.water_end_reading, 0)) * COALESCE(v.water_price, 0)
+              END +
+              CASE 
+                WHEN COALESCE(ur.electricity_end_reading, 0) >= COALESCE(ur.electricity_start_reading, 0)
+                THEN (COALESCE(ur.electricity_end_reading, 0) - COALESCE(ur.electricity_start_reading, 0)) * COALESCE(v.electricity_price, 0)
+                ELSE (${DEFAULT_MAX_METER_VALUE} - COALESCE(ur.electricity_start_reading, 0) + COALESCE(ur.electricity_end_reading, 0)) * COALESCE(v.electricity_price, 0)
+              END,
               0
             ) as amount
           `),

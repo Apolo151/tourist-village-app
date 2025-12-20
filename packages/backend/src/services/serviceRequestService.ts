@@ -568,10 +568,19 @@ export class ServiceRequestService {
   }
 
   /**
+   * Maximum cost allowed for service requests.
+   * Aligned with DB schema: DECIMAL(15,2) = max 9,999,999,999,999.99 (nearly 10 trillion)
+   */
+  private static readonly MAX_SERVICE_REQUEST_COST = 9999999999999.99;
+
+  /**
    * Create new service request
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
+   * If no village pricing exists, user must provide cost and currency explicitly.
    */
   async createServiceRequest(data: CreateServiceRequestRequest, createdBy: number): Promise<ServiceRequest> {
-    // Input validation
+    // Input validation (outside transaction for fast fail)
     if (!data.type_id || !data.apartment_id || !data.requester_id) {
       throw new Error('Service type, apartment, and requester are required');
     }
@@ -584,231 +593,276 @@ export class ServiceRequestService {
       throw new Error('Valid who_pays value is required (owner, renter, or company)');
     }
 
-    // Validate service type exists
-    const serviceType = await db('service_types').where('id', data.type_id).first();
-    if (!serviceType) {
-      throw new Error('Service type not found');
-    }
-
-    // Validate apartment exists and get its village
-    const apartment = await db('apartments')
-      .join('villages', 'apartments.village_id', 'villages.id')
-      .select('apartments.*', 'villages.id as village_id')
-      .where('apartments.id', data.apartment_id)
-      .first();
-    if (!apartment) {
-      throw new Error('Apartment not found');
-    }
-
-    // Get default cost from village-specific pricing if not provided
-    let cost: number = data.cost ?? 0;
-    let currency: 'EGP' | 'GBP' = data.currency ?? 'EGP';
-    
-    if (data.cost === undefined || data.currency === undefined) {
-      const villagePricing = await db('service_type_village_prices')
-        .where('service_type_id', data.type_id)
-        .where('village_id', apartment.village_id)
-        .first();
-      
-      if (!villagePricing) {
-        throw new Error('No pricing available for this service type in the apartment\'s village');
-      }
-      
-      cost = data.cost ?? parseFloat(villagePricing.cost);
-      currency = data.currency ?? villagePricing.currency;
-    }
-
-    // Validate cost and currency
-    if (cost <= 0) {
-      throw new Error('Cost must be greater than 0');
-    }
-    
-    if (!['EGP', 'GBP'].includes(currency)) {
-      throw new Error('Currency must be EGP or GBP');
-    }
-
-    // Validate requester exists
-    const requester = await db('users').where('id', data.requester_id).first();
-    if (!requester) {
-      throw new Error('Requester not found');
-    }
-
-    // Validate booking if provided
-    if (data.booking_id) {
-      const booking = await db('bookings')
-        .where('id', data.booking_id)
-        .where('apartment_id', data.apartment_id)
-        .first();
-      if (!booking) {
-        throw new Error('Booking not found or does not belong to the specified apartment');
-      }
-    }
-
-    // Validate assignee if provided
-    if (data.assignee_id) {
-      const assignee = await db('users').where('id', data.assignee_id).first();
-      if (!assignee) {
-        throw new Error('Assignee not found');
-      }
-      if (!['admin', 'super_admin'].includes(assignee.role)) {
-        throw new Error('Assignee must be an admin or super admin');
-      }
-    }
-
     // Validate and parse date_action (required)
     const dateAction = new Date(data.date_action);
     if (isNaN(dateAction.getTime())) {
       throw new Error('Invalid date_action format');
     }
 
-    try {
-      const [serviceRequestId] = await db('service_requests')
-        .insert({
-          type_id: data.type_id,
-          apartment_id: data.apartment_id,
-          booking_id: data.booking_id || null,
-          requester_id: data.requester_id,
-          date_action: dateAction,
-          date_created: new Date(),
-          status: data.status || 'Created',
-          who_pays: data.who_pays,
-          notes: data.notes?.trim() || null,
-          assignee_id: data.assignee_id || null,
-          created_by: createdBy,
-          cost: cost,
-          currency: currency,
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .returning('id');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate service type exists
+      const serviceType = await trx('service_types').where('id', data.type_id).first();
+      if (!serviceType) {
+        throw new Error('Service type not found');
+      }
 
-      const id = typeof serviceRequestId === 'object' ? serviceRequestId.id : serviceRequestId;
+      // Validate apartment exists and get its village (with row lock)
+      const apartment = await trx('apartments')
+        .join('villages', 'apartments.village_id', 'villages.id')
+        .select('apartments.*', 'villages.id as village_id')
+        .where('apartments.id', data.apartment_id)
+        .forUpdate()
+        .first();
+      if (!apartment) {
+        throw new Error('Apartment not found');
+      }
+
+      // Get default cost from village-specific pricing if not provided
+      let cost: number = data.cost ?? 0;
+      let currency: 'EGP' | 'GBP' = data.currency ?? 'EGP';
       
-      const serviceRequest = await this.getServiceRequestById(id);
-      if (!serviceRequest) {
-        throw new Error('Failed to create service request');
+      if (data.cost === undefined || data.currency === undefined) {
+        const villagePricing = await trx('service_type_village_prices')
+          .where('service_type_id', data.type_id)
+          .where('village_id', apartment.village_id)
+          .first();
+        
+        if (!villagePricing) {
+          // Graceful fallback: require explicit cost when no village pricing exists
+          if (data.cost === undefined) {
+            throw new Error(
+              `No default pricing available for service type "${serviceType.name}" in this village. ` +
+              `Please provide cost and currency explicitly.`
+            );
+          }
+        } else {
+          cost = data.cost ?? parseFloat(villagePricing.cost);
+          currency = data.currency ?? villagePricing.currency;
+        }
       }
 
-      return serviceRequest;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to service type, apartment, booking, or user');
+      // Validate cost and currency
+      if (cost <= 0) {
+        throw new Error('Cost must be greater than 0');
       }
-      throw new Error(`Failed to create service request: ${error.message}`);
-    }
+      
+      if (cost > ServiceRequestService.MAX_SERVICE_REQUEST_COST) {
+        throw new Error(`Cost exceeds maximum allowed (${ServiceRequestService.MAX_SERVICE_REQUEST_COST.toLocaleString()})`);
+      }
+
+      // Validate 2 decimal places precision
+      if (!Number.isFinite(cost) || Math.round(cost * 100) !== cost * 100) {
+        throw new Error('Cost must have at most 2 decimal places');
+      }
+      
+      if (!['EGP', 'GBP'].includes(currency)) {
+        throw new Error('Currency must be EGP or GBP');
+      }
+
+      // Validate requester exists
+      const requester = await trx('users').where('id', data.requester_id).first();
+      if (!requester) {
+        throw new Error('Requester not found');
+      }
+
+      // Validate booking if provided
+      if (data.booking_id) {
+        const booking = await trx('bookings')
+          .where('id', data.booking_id)
+          .where('apartment_id', data.apartment_id)
+          .first();
+        if (!booking) {
+          throw new Error('Booking not found or does not belong to the specified apartment');
+        }
+      }
+
+      // Validate assignee if provided
+      if (data.assignee_id) {
+        const assignee = await trx('users').where('id', data.assignee_id).first();
+        if (!assignee) {
+          throw new Error('Assignee not found');
+        }
+        if (!['admin', 'super_admin'].includes(assignee.role)) {
+          throw new Error('Assignee must be an admin or super admin');
+        }
+      }
+
+      try {
+        const [serviceRequestId] = await trx('service_requests')
+          .insert({
+            type_id: data.type_id,
+            apartment_id: data.apartment_id,
+            booking_id: data.booking_id || null,
+            requester_id: data.requester_id,
+            date_action: dateAction,
+            date_created: new Date(),
+            status: data.status || 'Created',
+            who_pays: data.who_pays,
+            notes: data.notes?.trim() || null,
+            assignee_id: data.assignee_id || null,
+            created_by: createdBy,
+            cost: cost,
+            currency: currency,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
+
+        const id = typeof serviceRequestId === 'object' ? serviceRequestId.id : serviceRequestId;
+        
+        const serviceRequest = await this.getServiceRequestById(id);
+        if (!serviceRequest) {
+          throw new Error('Failed to create service request');
+        }
+
+        return serviceRequest;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to service type, apartment, booking, or user');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: cost must be positive');
+        }
+        throw new Error(`Failed to create service request: ${error.message}`);
+      }
+    });
   }
 
   /**
    * Update service request
+   */
+  /**
+   * Update service request
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
    */
   async updateServiceRequest(id: number, data: UpdateServiceRequestRequest): Promise<ServiceRequest> {
     if (!id || id <= 0) {
       throw new Error('Invalid service request ID');
     }
 
-    // Check if service request exists
+    // Check if service request exists (outside transaction for fast fail)
     const existingServiceRequest = await this.getServiceRequestById(id);
     if (!existingServiceRequest) {
       throw new Error('Service request not found');
     }
 
-    // Validate updates
-    if (data.type_id !== undefined) {
-      const serviceType = await db('service_types').where('id', data.type_id).first();
-      if (!serviceType) {
-        throw new Error('Service type not found');
-      }
-    }
-
-    if (data.apartment_id !== undefined) {
-      const apartment = await db('apartments').where('id', data.apartment_id).first();
-      if (!apartment) {
-        throw new Error('Apartment not found');
-      }
-    }
-
-    if (data.requester_id !== undefined) {
-      const requester = await db('users').where('id', data.requester_id).first();
-      if (!requester) {
-        throw new Error('Requester not found');
-      }
-    }
-
-    if (data.booking_id !== undefined && data.booking_id !== null) {
-      const apartmentId = data.apartment_id || existingServiceRequest.apartment_id;
-      const booking = await db('bookings')
-        .where('id', data.booking_id)
-        .where('apartment_id', apartmentId)
-        .first();
-      if (!booking) {
-        throw new Error('Booking not found or does not belong to the specified apartment');
-      }
-    }
-
-    if (data.assignee_id !== undefined && data.assignee_id !== null) {
-      const assignee = await db('users').where('id', data.assignee_id).first();
-      if (!assignee) {
-        throw new Error('Assignee not found');
-      }
-      if (!['admin', 'super_admin'].includes(assignee.role)) {
-        throw new Error('Assignee must be an admin or super admin');
-      }
-    }
-
+    // Validate simple fields outside transaction
     if (data.who_pays !== undefined && !['owner', 'renter', 'company'].includes(data.who_pays)) {
       throw new Error('Valid who_pays value is required (owner, renter, or company)');
     }
 
-    // Validate cost and currency if provided
-    if (data.cost !== undefined && data.cost <= 0) {
-      throw new Error('Cost must be greater than 0');
+    // Validate cost if provided
+    if (data.cost !== undefined) {
+      if (data.cost <= 0) {
+        throw new Error('Cost must be greater than 0');
+      }
+      if (data.cost > ServiceRequestService.MAX_SERVICE_REQUEST_COST) {
+        throw new Error(`Cost exceeds maximum allowed (${ServiceRequestService.MAX_SERVICE_REQUEST_COST.toLocaleString()})`);
+      }
+      // Validate 2 decimal places precision
+      if (!Number.isFinite(data.cost) || Math.round(data.cost * 100) !== data.cost * 100) {
+        throw new Error('Cost must have at most 2 decimal places');
+      }
     }
     
     if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
       throw new Error('Currency must be EGP or GBP');
     }
 
-    // Prepare update data
-    const updateData: any = { updated_at: new Date() };
-
-    if (data.type_id !== undefined) updateData.type_id = data.type_id;
-    if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
-    if (data.booking_id !== undefined) updateData.booking_id = data.booking_id || null;
-    if (data.requester_id !== undefined) updateData.requester_id = data.requester_id;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
-    if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
-    if (data.assignee_id !== undefined) updateData.assignee_id = data.assignee_id || null;
-    if (data.cost !== undefined) updateData.cost = data.cost;
-    if (data.currency !== undefined) updateData.currency = data.currency;
-
+    // Validate date_action if provided
+    let dateAction: Date | null | undefined;
     if (data.date_action !== undefined) {
       if (data.date_action === null || data.date_action === '') {
-        updateData.date_action = null;
+        dateAction = null;
       } else {
-        const dateAction = new Date(data.date_action);
+        dateAction = new Date(data.date_action);
         if (isNaN(dateAction.getTime())) {
           throw new Error('Invalid date_action format');
         }
-        updateData.date_action = dateAction;
       }
     }
 
-    try {
-      await db('service_requests').where('id', id).update(updateData);
-
-      const updatedServiceRequest = await this.getServiceRequestById(id);
-      if (!updatedServiceRequest) {
-        throw new Error('Failed to update service request');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate updates
+      if (data.type_id !== undefined) {
+        const serviceType = await trx('service_types').where('id', data.type_id).first();
+        if (!serviceType) {
+          throw new Error('Service type not found');
+        }
       }
 
-      return updatedServiceRequest;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to service type, apartment, booking, or user');
+      if (data.apartment_id !== undefined) {
+        const apartment = await trx('apartments').where('id', data.apartment_id).first();
+        if (!apartment) {
+          throw new Error('Apartment not found');
+        }
       }
-      throw new Error(`Failed to update service request: ${error.message}`);
-    }
+
+      if (data.requester_id !== undefined) {
+        const requester = await trx('users').where('id', data.requester_id).first();
+        if (!requester) {
+          throw new Error('Requester not found');
+        }
+      }
+
+      if (data.booking_id !== undefined && data.booking_id !== null) {
+        const apartmentId = data.apartment_id || existingServiceRequest.apartment_id;
+        const booking = await trx('bookings')
+          .where('id', data.booking_id)
+          .where('apartment_id', apartmentId)
+          .first();
+        if (!booking) {
+          throw new Error('Booking not found or does not belong to the specified apartment');
+        }
+      }
+
+      if (data.assignee_id !== undefined && data.assignee_id !== null) {
+        const assignee = await trx('users').where('id', data.assignee_id).first();
+        if (!assignee) {
+          throw new Error('Assignee not found');
+        }
+        if (!['admin', 'super_admin'].includes(assignee.role)) {
+          throw new Error('Assignee must be an admin or super admin');
+        }
+      }
+
+      // Prepare update data
+      const updateData: any = { updated_at: new Date() };
+
+      if (data.type_id !== undefined) updateData.type_id = data.type_id;
+      if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
+      if (data.booking_id !== undefined) updateData.booking_id = data.booking_id || null;
+      if (data.requester_id !== undefined) updateData.requester_id = data.requester_id;
+      if (data.status !== undefined) updateData.status = data.status;
+      if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
+      if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
+      if (data.assignee_id !== undefined) updateData.assignee_id = data.assignee_id || null;
+      if (data.cost !== undefined) updateData.cost = data.cost;
+      if (data.currency !== undefined) updateData.currency = data.currency;
+      if (dateAction !== undefined) updateData.date_action = dateAction;
+
+      try {
+        await trx('service_requests').where('id', id).update(updateData);
+
+        const updatedServiceRequest = await this.getServiceRequestById(id);
+        if (!updatedServiceRequest) {
+          throw new Error('Failed to update service request');
+        }
+
+        return updatedServiceRequest;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to service type, apartment, booking, or user');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: cost must be positive');
+        }
+        throw new Error(`Failed to update service request: ${error.message}`);
+      }
+    });
   }
 
   /**

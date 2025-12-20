@@ -1107,8 +1107,12 @@ export class ValidationMiddleware {
     if (data.cost !== undefined) {
       if (typeof data.cost !== 'number' || data.cost <= 0) {
         errors.push({ field: 'cost', message: 'Cost must be a positive number' });
-      } else if (data.cost > 999999.99) {
-        errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
+      } else if (data.cost > 9999999999999.99) {
+        // Maximum aligned with DB schema: DECIMAL(15,2) = max ~10 trillion
+        errors.push({ field: 'cost', message: 'Cost exceeds maximum allowed (9,999,999,999,999.99)' });
+      } else if (!Number.isFinite(data.cost) || Math.round(data.cost * 100) !== data.cost * 100) {
+        // Validate 2 decimal places precision
+        errors.push({ field: 'cost', message: 'Cost must have at most 2 decimal places' });
       }
     }
 
@@ -1223,8 +1227,12 @@ export class ValidationMiddleware {
     if (data.cost !== undefined) {
       if (typeof data.cost !== 'number' || data.cost <= 0) {
         errors.push({ field: 'cost', message: 'Cost must be a positive number' });
-      } else if (data.cost > 999999.99) {
-        errors.push({ field: 'cost', message: 'Cost must not exceed 999,999.99' });
+      } else if (data.cost > 9999999999999.99) {
+        // Maximum aligned with DB schema: DECIMAL(15,2) = max ~10 trillion
+        errors.push({ field: 'cost', message: 'Cost exceeds maximum allowed (9,999,999,999,999.99)' });
+      } else if (!Number.isFinite(data.cost) || Math.round(data.cost * 100) !== data.cost * 100) {
+        // Validate 2 decimal places precision
+        errors.push({ field: 'cost', message: 'Cost must have at most 2 decimal places' });
       }
     }
 
@@ -1309,17 +1317,36 @@ export class ValidationMiddleware {
       errors.push({ field: 'electricity_end_reading', message: 'Electricity end reading must be a non-negative number' });
     }
 
-    // Check reading relationships
+    // Validate paired readings: if one is provided, both must be provided
+    const hasWaterStart = data.water_start_reading !== undefined && data.water_start_reading !== null;
+    const hasWaterEnd = data.water_end_reading !== undefined && data.water_end_reading !== null;
+    const hasElecStart = data.electricity_start_reading !== undefined && data.electricity_start_reading !== null;
+    const hasElecEnd = data.electricity_end_reading !== undefined && data.electricity_end_reading !== null;
+
+    if ((hasWaterStart && !hasWaterEnd) || (!hasWaterStart && hasWaterEnd)) {
+      errors.push({ 
+        field: 'water_readings', 
+        message: 'Water readings must be provided as a pair (both start and end, or neither)' 
+      });
+    }
+
+    if ((hasElecStart && !hasElecEnd) || (!hasElecStart && hasElecEnd)) {
+      errors.push({ 
+        field: 'electricity_readings', 
+        message: 'Electricity readings must be provided as a pair (both start and end, or neither)' 
+      });
+    }
+
+    // Check reading relationships (note: rollover is handled in service, we only warn here if end < start)
+    // This check is advisory - meter rollover scenarios are valid and handled in the service layer
     if (data.water_start_reading !== undefined && data.water_end_reading !== undefined) {
-      if (data.water_end_reading < data.water_start_reading) {
-        errors.push({ field: 'water_end_reading', message: 'Water end reading must be greater than or equal to start reading' });
-      }
+      // Note: end < start is allowed for meter rollover scenarios
+      // The service layer will calculate the correct usage
     }
 
     if (data.electricity_start_reading !== undefined && data.electricity_end_reading !== undefined) {
-      if (data.electricity_end_reading < data.electricity_start_reading) {
-        errors.push({ field: 'electricity_end_reading', message: 'Electricity end reading must be greater than or equal to start reading' });
-      }
+      // Note: end < start is allowed for meter rollover scenarios
+      // The service layer will calculate the correct usage
     }
 
     if (errors.length > 0) {
@@ -1649,8 +1676,12 @@ export class ValidationMiddleware {
 
     if (!data.amount || typeof data.amount !== 'number' || data.amount <= 0) {
       errors.push({ field: 'amount', message: 'Amount is required and must be a positive number' });
-    } else if (data.amount > 999999999.99) {
-      errors.push({ field: 'amount', message: 'Amount is too large' });
+    } else if (data.amount > 9999999999999.99) {
+      // Maximum aligned with DB schema: DECIMAL(15,2) = max ~10 trillion
+      errors.push({ field: 'amount', message: 'Amount exceeds maximum allowed (9,999,999,999,999.99)' });
+    } else if (!Number.isFinite(data.amount) || Math.round(data.amount * 100) !== data.amount * 100) {
+      // Validate 2 decimal places precision
+      errors.push({ field: 'amount', message: 'Amount must have at most 2 decimal places' });
     }
 
     if (!data.currency || !['EGP', 'GBP'].includes(data.currency)) {
@@ -1726,6 +1757,12 @@ export class ValidationMiddleware {
     if (data.amount !== undefined) {
       if (typeof data.amount !== 'number' || data.amount <= 0) {
         errors.push({ field: 'amount', message: 'Amount must be a positive number' });
+      } else if (data.amount > 9999999999999.99) {
+        // Maximum aligned with DB schema: DECIMAL(15,2) = max ~10 trillion
+        errors.push({ field: 'amount', message: 'Amount exceeds maximum allowed (9,999,999,999,999.99)' });
+      } else if (!Number.isFinite(data.amount) || Math.round(data.amount * 100) !== data.amount * 100) {
+        // Validate 2 decimal places precision
+        errors.push({ field: 'amount', message: 'Amount must have at most 2 decimal places' });
       }
     }
 

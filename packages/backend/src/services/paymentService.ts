@@ -511,10 +511,20 @@ export class PaymentService {
   }
 
   /**
+   * Maximum amount allowed for payments.
+   * Aligned with DB schema: DECIMAL(15,2) = max 9,999,999,999,999.99 (nearly 10 trillion)
+   * This supports multi-billion financial records as required.
+   */
+  private static readonly MAX_PAYMENT_AMOUNT = 9999999999999.99;
+
+  /**
    * Create new payment
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
+   * All validations and the insert happen within the same transaction.
    */
   async createPayment(data: CreatePaymentRequest, createdBy: number): Promise<Payment> {
-    // Input validation
+    // Input validation (outside transaction for fast fail)
     if (!data.apartment_id || !data.amount || !data.currency || !data.method_id || !data.user_type || !data.date) {
       throw new Error('Apartment, amount, currency, payment method, user type, and date are required');
     }
@@ -531,8 +541,14 @@ export class PaymentService {
       throw new Error('Amount must be greater than 0');
     }
 
-    if (data.amount > 999999999.99) {
-      throw new Error('Amount is too large');
+    // Maximum aligned with DB schema: DECIMAL(15,2) supports up to ~10 trillion
+    if (data.amount > PaymentService.MAX_PAYMENT_AMOUNT) {
+      throw new Error(`Amount exceeds maximum allowed (${PaymentService.MAX_PAYMENT_AMOUNT.toLocaleString()})`);
+    }
+
+    // Validate 2 decimal places precision
+    if (!Number.isFinite(data.amount) || Math.round(data.amount * 100) !== data.amount * 100) {
+      throw new Error('Amount must have at most 2 decimal places');
     }
 
     // Validate date
@@ -541,107 +557,93 @@ export class PaymentService {
       throw new Error('Invalid date format');
     }
 
-    // Validate apartment exists
-    const apartment = await db('apartments').where('id', data.apartment_id).first();
-    if (!apartment) {
-      throw new Error('Apartment not found');
-    }
-
-    // Validate payment method exists
-    const paymentMethod = await db('payment_methods').where('id', data.method_id).first();
-    if (!paymentMethod) {
-      throw new Error('Payment method not found');
-    }
-
-    // Validate booking if provided
-    if (data.booking_id) {
-      const booking = await db('bookings')
-        .where('id', data.booking_id)
-        .where('apartment_id', data.apartment_id)
-        .first();
-      if (!booking) {
-        throw new Error('Booking not found or does not belong to the specified apartment');
-      }
-    }
-
     // Validate description length
     if (data.description && data.description.length > 1000) {
       throw new Error('Description must not exceed 1,000 characters');
     }
 
-    try {
-      const [paymentId] = await db('payments')
-        .insert({
-          apartment_id: data.apartment_id,
-          booking_id: data.booking_id || null,
-          created_by: createdBy,
-          amount: data.amount,
-          currency: data.currency,
-          method_id: data.method_id,
-          user_type: data.user_type,
-          date: paymentDate,
-          description: data.description ? data.description.trim() : null,
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .returning('id');
-
-      const id = typeof paymentId === 'object' ? paymentId.id : paymentId;
-      
-      const payment = await this.getPaymentById(id);
-      if (!payment) {
-        throw new Error('Failed to create payment');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate apartment exists (with row lock for consistency)
+      const apartment = await trx('apartments')
+        .where('id', data.apartment_id)
+        .forUpdate()
+        .first();
+      if (!apartment) {
+        throw new Error('Apartment not found');
       }
 
-      return payment;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to apartment, booking, or payment method');
+      // Validate payment method exists
+      const paymentMethod = await trx('payment_methods').where('id', data.method_id).first();
+      if (!paymentMethod) {
+        throw new Error('Payment method not found');
       }
-      throw new Error(`Failed to create payment: ${error.message}`);
-    }
+
+      // Validate booking if provided
+      if (data.booking_id) {
+        const booking = await trx('bookings')
+          .where('id', data.booking_id)
+          .where('apartment_id', data.apartment_id)
+          .first();
+        if (!booking) {
+          throw new Error('Booking not found or does not belong to the specified apartment');
+        }
+      }
+
+      try {
+        const [paymentId] = await trx('payments')
+          .insert({
+            apartment_id: data.apartment_id,
+            booking_id: data.booking_id || null,
+            created_by: createdBy,
+            amount: data.amount,
+            currency: data.currency,
+            method_id: data.method_id,
+            user_type: data.user_type,
+            date: paymentDate,
+            description: data.description ? data.description.trim() : null,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
+
+        const id = typeof paymentId === 'object' ? paymentId.id : paymentId;
+        
+        const payment = await this.getPaymentById(id);
+        if (!payment) {
+          throw new Error('Failed to create payment');
+        }
+
+        return payment;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to apartment, booking, or payment method');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: amount must be positive');
+        }
+        throw new Error(`Failed to create payment: ${error.message}`);
+      }
+    });
   }
 
   /**
    * Update payment
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
    */
   async updatePayment(id: number, data: UpdatePaymentRequest): Promise<Payment> {
     if (!id || id <= 0) {
       throw new Error('Invalid payment ID');
     }
 
-    // Check if payment exists
+    // Check if payment exists (outside transaction for fast fail)
     const existingPayment = await this.getPaymentById(id);
     if (!existingPayment) {
       throw new Error('Payment not found');
     }
 
-    // Validate updates
-    if (data.apartment_id !== undefined) {
-      const apartment = await db('apartments').where('id', data.apartment_id).first();
-      if (!apartment) {
-        throw new Error('Apartment not found');
-      }
-    }
-
-    if (data.method_id !== undefined) {
-      const paymentMethod = await db('payment_methods').where('id', data.method_id).first();
-      if (!paymentMethod) {
-        throw new Error('Payment method not found');
-      }
-    }
-
-    if (data.booking_id !== undefined && data.booking_id !== null) {
-      const apartmentId = data.apartment_id || existingPayment.apartment_id;
-      const booking = await db('bookings')
-        .where('id', data.booking_id)
-        .where('apartment_id', apartmentId)
-        .first();
-      if (!booking) {
-        throw new Error('Booking not found or does not belong to the specified apartment');
-      }
-    }
-
+    // Validate basic fields outside transaction
     if (data.currency !== undefined && !['EGP', 'GBP'].includes(data.currency)) {
       throw new Error('Currency must be EGP or GBP');
     }
@@ -654,8 +656,13 @@ export class PaymentService {
       if (data.amount <= 0) {
         throw new Error('Amount must be greater than 0');
       }
-      if (data.amount > 999999999.99) {
-        throw new Error('Amount is too large');
+      // Maximum aligned with DB schema: DECIMAL(15,2) supports up to ~10 trillion
+      if (data.amount > PaymentService.MAX_PAYMENT_AMOUNT) {
+        throw new Error(`Amount exceeds maximum allowed (${PaymentService.MAX_PAYMENT_AMOUNT.toLocaleString()})`);
+      }
+      // Validate 2 decimal places precision
+      if (!Number.isFinite(data.amount) || Math.round(data.amount * 100) !== data.amount * 100) {
+        throw new Error('Amount must have at most 2 decimal places');
       }
     }
 
@@ -673,33 +680,67 @@ export class PaymentService {
       throw new Error('Description must not exceed 1,000 characters');
     }
 
-    // Prepare update data
-    const updateData: any = { updated_at: new Date() };
-
-    if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
-    if (data.booking_id !== undefined) updateData.booking_id = data.booking_id || null;
-    if (data.amount !== undefined) updateData.amount = data.amount;
-    if (data.currency !== undefined) updateData.currency = data.currency;
-    if (data.method_id !== undefined) updateData.method_id = data.method_id;
-    if (data.user_type !== undefined) updateData.user_type = data.user_type;
-    if (paymentDate) updateData.date = paymentDate;
-    if (data.description !== undefined) updateData.description = data.description ? data.description.trim() : null;
-
-    try {
-      await db('payments').where('id', id).update(updateData);
-
-      const updatedPayment = await this.getPaymentById(id);
-      if (!updatedPayment) {
-        throw new Error('Failed to update payment');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate apartment if provided
+      if (data.apartment_id !== undefined) {
+        const apartment = await trx('apartments').where('id', data.apartment_id).first();
+        if (!apartment) {
+          throw new Error('Apartment not found');
+        }
       }
 
-      return updatedPayment;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to apartment, booking, or payment method');
+      // Validate payment method if provided
+      if (data.method_id !== undefined) {
+        const paymentMethod = await trx('payment_methods').where('id', data.method_id).first();
+        if (!paymentMethod) {
+          throw new Error('Payment method not found');
+        }
       }
-      throw new Error(`Failed to update payment: ${error.message}`);
-    }
+
+      // Validate booking if provided
+      if (data.booking_id !== undefined && data.booking_id !== null) {
+        const apartmentId = data.apartment_id || existingPayment.apartment_id;
+        const booking = await trx('bookings')
+          .where('id', data.booking_id)
+          .where('apartment_id', apartmentId)
+          .first();
+        if (!booking) {
+          throw new Error('Booking not found or does not belong to the specified apartment');
+        }
+      }
+
+      // Prepare update data
+      const updateData: any = { updated_at: new Date() };
+
+      if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
+      if (data.booking_id !== undefined) updateData.booking_id = data.booking_id || null;
+      if (data.amount !== undefined) updateData.amount = data.amount;
+      if (data.currency !== undefined) updateData.currency = data.currency;
+      if (data.method_id !== undefined) updateData.method_id = data.method_id;
+      if (data.user_type !== undefined) updateData.user_type = data.user_type;
+      if (paymentDate) updateData.date = paymentDate;
+      if (data.description !== undefined) updateData.description = data.description ? data.description.trim() : null;
+
+      try {
+        await trx('payments').where('id', id).update(updateData);
+
+        const updatedPayment = await this.getPaymentById(id);
+        if (!updatedPayment) {
+          throw new Error('Failed to update payment');
+        }
+
+        return updatedPayment;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to apartment, booking, or payment method');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: amount must be positive');
+        }
+        throw new Error(`Failed to update payment: ${error.message}`);
+      }
+    });
   }
 
   /**

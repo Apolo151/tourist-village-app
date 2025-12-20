@@ -71,6 +71,7 @@ export interface InvoicesFilters {
   limit?: number;
   search?: string;
   phase?: number;
+  include_renter?: boolean;
 }
 
 class InvoiceService {
@@ -89,6 +90,8 @@ class InvoiceService {
     if (filters?.limit) params.limit = filters.limit;
     if (filters?.search) params.search = filters.search;
     if (filters?.phase) params.phase = filters.phase;
+    // include_renter defaults to false (owner transactions only)
+    params.include_renter = filters?.include_renter === true ? 'true' : 'false';
 
     const response = await apiClient.get<ApiResponse<InvoiceSummaryResponse>>('/invoices/summary', params);
     return response.data!;
@@ -144,6 +147,7 @@ class InvoiceService {
     apartment: {
       id: number;
       name: string;
+      phase?: number;
     };
     invoices: Array<{
       id: string;
@@ -154,8 +158,12 @@ class InvoiceService {
       date: string;
       booking_id?: number;
       booking_arrival_date?: string;
+      booking_departure_date?: string;
       person_name?: string;
       created_at: string;
+      user_type?: string;
+      who_pays?: string;
+      owner_name?: string;
     }>;
     totals: {
       total_money_spent: InvoiceTotals;
@@ -168,11 +176,14 @@ class InvoiceService {
     if (filters?.year) params.year = filters.year;
     if (filters?.date_from) params.date_from = filters.date_from;
     if (filters?.date_to) params.date_to = filters.date_to;
+    // include_renter defaults to false (owner transactions only)
+    params.include_renter = filters?.include_renter === true ? 'true' : 'false';
 
     const response = await apiClient.get<ApiResponse<{
       apartment: {
         id: number;
         name: string;
+        phase?: number;
       };
       invoices: Array<{
         id: string;
@@ -183,8 +194,12 @@ class InvoiceService {
         date: string;
         booking_id?: number;
         booking_arrival_date?: string;
+        booking_departure_date?: string;
         person_name?: string;
         created_at: string;
+        user_type?: string;
+        who_pays?: string;
+        owner_name?: string;
       }>;
       totals: {
         total_money_spent: InvoiceTotals;

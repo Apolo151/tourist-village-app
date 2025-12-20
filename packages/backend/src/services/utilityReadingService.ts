@@ -10,6 +10,55 @@ import {
   Booking
 } from '../types';
 
+/**
+ * Maximum value for utility meters before they roll over to 0.
+ * Most utility meters are 5-6 digit displays (99999 or 999999).
+ * Using 999999 as the default max meter value for safety.
+ */
+const DEFAULT_MAX_METER_VALUE = 999999;
+
+/**
+ * Calculate utility usage accounting for meter rollover.
+ * 
+ * When a meter reaches its maximum value, it rolls over to 0.
+ * This function correctly calculates usage in both normal and rollover scenarios.
+ * 
+ * @param startReading - The starting meter reading
+ * @param endReading - The ending meter reading  
+ * @param maxMeterValue - Maximum value before meter rolls over (default: 999999)
+ * @returns The calculated usage (always positive or zero)
+ * 
+ * @example
+ * // Normal case: end > start
+ * calculateMeterUsage(1000, 1500) // returns 500
+ * 
+ * @example
+ * // Rollover case: meter went from 999900 to 100
+ * calculateMeterUsage(999900, 100) // returns 199 (99 to max + 100 from zero)
+ */
+function calculateMeterUsage(
+  startReading: number | null | undefined,
+  endReading: number | null | undefined,
+  maxMeterValue: number = DEFAULT_MAX_METER_VALUE
+): number {
+  // If either reading is missing, return 0
+  if (startReading === null || startReading === undefined || 
+      endReading === null || endReading === undefined) {
+    return 0;
+  }
+
+  // Normal case: end reading is greater than or equal to start reading
+  if (endReading >= startReading) {
+    return endReading - startReading;
+  }
+
+  // Rollover case: meter rolled over from max to 0
+  // Usage = (maxMeterValue - startReading) + endReading
+  // Example: start=999900, end=100, max=999999
+  // Usage = (999999 - 999900) + 100 = 99 + 100 = 199
+  return (maxMeterValue - startReading) + endReading;
+}
+
 export class UtilityReadingService {
   
   /**
@@ -258,11 +307,15 @@ export class UtilityReadingService {
 
     // Transform data and calculate costs
     const transformedUtilityReadings = utilityReadings.map((ur: any) => {
-      // Calculate costs
-      const waterUsage = (ur.water_end_reading && ur.water_start_reading) ? 
-        ur.water_end_reading - ur.water_start_reading : 0;
-      const electricityUsage = (ur.electricity_end_reading && ur.electricity_start_reading) ? 
-        ur.electricity_end_reading - ur.electricity_start_reading : 0;
+      // Calculate usage with meter rollover handling
+      const waterUsage = calculateMeterUsage(
+        ur.water_start_reading ? parseFloat(ur.water_start_reading) : null,
+        ur.water_end_reading ? parseFloat(ur.water_end_reading) : null
+      );
+      const electricityUsage = calculateMeterUsage(
+        ur.electricity_start_reading ? parseFloat(ur.electricity_start_reading) : null,
+        ur.electricity_end_reading ? parseFloat(ur.electricity_end_reading) : null
+      );
       
       const waterCost = waterUsage * (parseFloat(ur.village_water_price) || 0);
       const electricityCost = electricityUsage * (parseFloat(ur.village_electricity_price) || 0);
@@ -450,11 +503,15 @@ export class UtilityReadingService {
       return null;
     }
 
-    // Calculate costs
-    const waterUsage = (utilityReading.water_end_reading && utilityReading.water_start_reading) ? 
-      utilityReading.water_end_reading - utilityReading.water_start_reading : 0;
-    const electricityUsage = (utilityReading.electricity_end_reading && utilityReading.electricity_start_reading) ? 
-      utilityReading.electricity_end_reading - utilityReading.electricity_start_reading : 0;
+    // Calculate usage with meter rollover handling
+    const waterUsage = calculateMeterUsage(
+      utilityReading.water_start_reading ? parseFloat(utilityReading.water_start_reading) : null,
+      utilityReading.water_end_reading ? parseFloat(utilityReading.water_end_reading) : null
+    );
+    const electricityUsage = calculateMeterUsage(
+      utilityReading.electricity_start_reading ? parseFloat(utilityReading.electricity_start_reading) : null,
+      utilityReading.electricity_end_reading ? parseFloat(utilityReading.electricity_end_reading) : null
+    );
     
     const waterCost = waterUsage * (parseFloat(utilityReading.village_water_price) || 0);
     const electricityCost = electricityUsage * (parseFloat(utilityReading.village_electricity_price) || 0);
@@ -550,9 +607,12 @@ export class UtilityReadingService {
 
   /**
    * Create a new utility reading
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
+   * All validations and the insert happen within the same transaction.
    */
   async createUtilityReading(data: CreateUtilityReadingRequest, createdBy: number): Promise<UtilityReading> {
-    // Input validation
+    // Input validation (outside transaction for fast fail)
     if (!data.apartment_id || data.apartment_id <= 0) {
       throw new Error('Valid apartment ID is required');
     }
@@ -572,67 +632,93 @@ export class UtilityReadingService {
       throw new Error('who_pays must be owner, renter, or company');
     }
 
-    // Validate apartment exists
-    const apartment = await db('apartments').where('id', data.apartment_id).first();
-    if (!apartment) {
-      throw new Error('Apartment not found');
+    // Validate reading pairs: if one is provided, both must be provided
+    const hasWaterStart = data.water_start_reading !== undefined && data.water_start_reading !== null;
+    const hasWaterEnd = data.water_end_reading !== undefined && data.water_end_reading !== null;
+    const hasElecStart = data.electricity_start_reading !== undefined && data.electricity_start_reading !== null;
+    const hasElecEnd = data.electricity_end_reading !== undefined && data.electricity_end_reading !== null;
+
+    if ((hasWaterStart && !hasWaterEnd) || (!hasWaterStart && hasWaterEnd)) {
+      throw new Error('Water readings must be provided as a pair (both start and end, or neither)');
     }
 
-    // Validate booking if provided
-    if (data.booking_id) {
-      const booking = await db('bookings').where('id', data.booking_id).first();
-      if (!booking) {
-        throw new Error('Booking not found');
-      }
-      
-      if (booking.apartment_id !== data.apartment_id) {
-        throw new Error('Booking must belong to the specified apartment');
-      }
+    if ((hasElecStart && !hasElecEnd) || (!hasElecStart && hasElecEnd)) {
+      throw new Error('Electricity readings must be provided as a pair (both start and end, or neither)');
     }
 
-    try {
-      const [utilityReadingId] = await db('utility_readings')
-        .insert({
-          apartment_id: data.apartment_id,
-          booking_id: data.booking_id || null,
-          water_start_reading: data.water_start_reading || null,
-          water_end_reading: data.water_end_reading || null,
-          electricity_start_reading: data.electricity_start_reading || null,
-          electricity_end_reading: data.electricity_end_reading || null,
-          start_date: startDate,
-          end_date: endDate,
-          who_pays: data.who_pays,
-          created_by: createdBy,
-          created_at: new Date(),
-          updated_at: new Date()
-        })
-        .returning('id');
-
-      const id = typeof utilityReadingId === 'object' ? utilityReadingId.id : utilityReadingId;
-
-      const utilityReading = await this.getUtilityReadingById(id);
-      if (!utilityReading) {
-        throw new Error('Failed to create utility reading');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate apartment exists (with row lock for consistency)
+      const apartment = await trx('apartments')
+        .where('id', data.apartment_id)
+        .forUpdate()
+        .first();
+      if (!apartment) {
+        throw new Error('Apartment not found');
       }
 
-      return utilityReading;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to apartment or booking');
+      // Validate booking if provided
+      if (data.booking_id) {
+        const booking = await trx('bookings').where('id', data.booking_id).first();
+        if (!booking) {
+          throw new Error('Booking not found');
+        }
+        
+        if (booking.apartment_id !== data.apartment_id) {
+          throw new Error('Booking must belong to the specified apartment');
+        }
       }
-      throw new Error(`Failed to create utility reading: ${error.message}`);
-    }
+
+      try {
+        const [utilityReadingId] = await trx('utility_readings')
+          .insert({
+            apartment_id: data.apartment_id,
+            booking_id: data.booking_id || null,
+            water_start_reading: data.water_start_reading ?? null,
+            water_end_reading: data.water_end_reading ?? null,
+            electricity_start_reading: data.electricity_start_reading ?? null,
+            electricity_end_reading: data.electricity_end_reading ?? null,
+            start_date: startDate,
+            end_date: endDate,
+            who_pays: data.who_pays,
+            created_by: createdBy,
+            created_at: new Date(),
+            updated_at: new Date()
+          })
+          .returning('id');
+
+        const id = typeof utilityReadingId === 'object' ? utilityReadingId.id : utilityReadingId;
+
+        // Fetch the created record (outside transaction is OK since we have the ID)
+        const utilityReading = await this.getUtilityReadingById(id);
+        if (!utilityReading) {
+          throw new Error('Failed to create utility reading');
+        }
+
+        return utilityReading;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to apartment or booking');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: ensure dates are in correct order');
+        }
+        throw new Error(`Failed to create utility reading: ${error.message}`);
+      }
+    });
   }
 
   /**
    * Update a utility reading
+   * 
+   * This operation is wrapped in a database transaction to ensure atomicity.
    */
   async updateUtilityReading(id: number, data: UpdateUtilityReadingRequest): Promise<UtilityReading> {
     if (!id || id <= 0) {
       throw new Error('Invalid utility reading ID');
     }
 
-    // Check if utility reading exists
+    // Check if utility reading exists (outside transaction for fast fail)
     const existingReading = await this.getUtilityReadingById(id);
     if (!existingReading) {
       throw new Error('Utility reading not found');
@@ -653,55 +739,61 @@ export class UtilityReadingService {
       throw new Error('who_pays must be owner, renter, or company');
     }
 
-    // Validate apartment if provided
-    if (data.apartment_id) {
-      const apartment = await db('apartments').where('id', data.apartment_id).first();
-      if (!apartment) {
-        throw new Error('Apartment not found');
-      }
-    }
-
-    // Validate booking if provided
-    if (data.booking_id) {
-      const booking = await db('bookings').where('id', data.booking_id).first();
-      if (!booking) {
-        throw new Error('Booking not found');
+    // Use transaction for atomicity
+    return db.transaction(async (trx) => {
+      // Validate apartment if provided
+      if (data.apartment_id) {
+        const apartment = await trx('apartments').where('id', data.apartment_id).first();
+        if (!apartment) {
+          throw new Error('Apartment not found');
+        }
       }
 
-      const apartmentId = data.apartment_id || existingReading.apartment_id;
-      if (booking.apartment_id !== apartmentId) {
-        throw new Error('Booking must belong to the specified apartment');
-      }
-    }
+      // Validate booking if provided
+      if (data.booking_id) {
+        const booking = await trx('bookings').where('id', data.booking_id).first();
+        if (!booking) {
+          throw new Error('Booking not found');
+        }
 
-    try {
-      // Prepare update data
-      const updateData: any = { updated_at: new Date() };
-
-      if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
-      if (data.booking_id !== undefined) updateData.booking_id = data.booking_id;
-      if (data.water_start_reading !== undefined) updateData.water_start_reading = data.water_start_reading;
-      if (data.water_end_reading !== undefined) updateData.water_end_reading = data.water_end_reading;
-      if (data.electricity_start_reading !== undefined) updateData.electricity_start_reading = data.electricity_start_reading;
-      if (data.electricity_end_reading !== undefined) updateData.electricity_end_reading = data.electricity_end_reading;
-      if (data.start_date !== undefined) updateData.start_date = new Date(data.start_date);
-      if (data.end_date !== undefined) updateData.end_date = new Date(data.end_date);
-      if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
-
-      await db('utility_readings').where('id', id).update(updateData);
-
-      const updatedReading = await this.getUtilityReadingById(id);
-      if (!updatedReading) {
-        throw new Error('Failed to update utility reading');
+        const apartmentId = data.apartment_id || existingReading.apartment_id;
+        if (booking.apartment_id !== apartmentId) {
+          throw new Error('Booking must belong to the specified apartment');
+        }
       }
 
-      return updatedReading;
-    } catch (error: any) {
-      if (error.code === '23503' || error.message?.includes('foreign key')) {
-        throw new Error('Invalid reference to apartment or booking');
+      try {
+        // Prepare update data
+        const updateData: any = { updated_at: new Date() };
+
+        if (data.apartment_id !== undefined) updateData.apartment_id = data.apartment_id;
+        if (data.booking_id !== undefined) updateData.booking_id = data.booking_id;
+        if (data.water_start_reading !== undefined) updateData.water_start_reading = data.water_start_reading;
+        if (data.water_end_reading !== undefined) updateData.water_end_reading = data.water_end_reading;
+        if (data.electricity_start_reading !== undefined) updateData.electricity_start_reading = data.electricity_start_reading;
+        if (data.electricity_end_reading !== undefined) updateData.electricity_end_reading = data.electricity_end_reading;
+        if (data.start_date !== undefined) updateData.start_date = new Date(data.start_date);
+        if (data.end_date !== undefined) updateData.end_date = new Date(data.end_date);
+        if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
+
+        await trx('utility_readings').where('id', id).update(updateData);
+
+        const updatedReading = await this.getUtilityReadingById(id);
+        if (!updatedReading) {
+          throw new Error('Failed to update utility reading');
+        }
+
+        return updatedReading;
+      } catch (error: any) {
+        if (error.code === '23503' || error.message?.includes('foreign key')) {
+          throw new Error('Invalid reference to apartment or booking');
+        }
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          throw new Error('Data validation failed: ensure dates are in correct order');
+        }
+        throw new Error(`Failed to update utility reading: ${error.message}`);
       }
-      throw new Error(`Failed to update utility reading: ${error.message}`);
-    }
+    });
   }
 
   /**
