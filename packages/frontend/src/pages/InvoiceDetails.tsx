@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Box,
   Card,
@@ -22,13 +22,14 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { format, parseISO } from 'date-fns';
 import { invoiceService } from '../services/invoiceService';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
+import { ArrowBack as ArrowBackIcon, KeyboardArrowDown as KeyboardArrowDownIcon } from '@mui/icons-material';
 import ExportButtons from '../components/ExportButtons';
 
 const InvoiceDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const apartmentId = id ? Number(id) : undefined;
+  const totalsRef = useRef<HTMLDivElement>(null);
 
   // Default date range: current year
   const now = new Date();
@@ -277,7 +278,21 @@ const InvoiceDetails: React.FC = () => {
             {/* Transactions Table */}
       <Card>
         <CardContent>
-                <Typography variant="h6" gutterBottom>Owner Transactions</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Owner Transactions</Typography>
+                  {details.invoices.length > 0 && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<KeyboardArrowDownIcon />}
+                      onClick={() => {
+                        totalsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                    >
+                      Go to Totals
+                    </Button>
+                  )}
+                </Box>
                 {/* Export Buttons */}
                 {details.invoices.length > 0 && (
                   <ExportButtons
@@ -408,6 +423,7 @@ const InvoiceDetails: React.FC = () => {
                           );
                         })}
                         {/* Totals Row */}
+                        <div ref={totalsRef} />
                         {(() => {
                           const rows = details.invoices.map((invoice: any) => {
                             let egpDebit = 0, egpCredit = 0, gbpDebit = 0, gbpCredit = 0;
