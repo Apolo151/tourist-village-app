@@ -647,7 +647,7 @@ export class UtilityReadingService {
     }
 
     // Use transaction for atomicity
-    return db.transaction(async (trx) => {
+    const createdId = await db.transaction(async (trx) => {
       // Validate apartment exists (with row lock for consistency)
       const apartment = await trx('apartments')
         .where('id', data.apartment_id)
@@ -688,14 +688,7 @@ export class UtilityReadingService {
           .returning('id');
 
         const id = typeof utilityReadingId === 'object' ? utilityReadingId.id : utilityReadingId;
-
-        // Fetch the created record (outside transaction is OK since we have the ID)
-        const utilityReading = await this.getUtilityReadingById(id);
-        if (!utilityReading) {
-          throw new Error('Failed to create utility reading');
-        }
-
-        return utilityReading;
+        return id;
       } catch (error: any) {
         if (error.code === '23503' || error.message?.includes('foreign key')) {
           throw new Error('Invalid reference to apartment or booking');
@@ -706,6 +699,14 @@ export class UtilityReadingService {
         throw new Error(`Failed to create utility reading: ${error.message}`);
       }
     });
+
+    // Fetch the created record after the transaction commits to avoid visibility issues
+    const utilityReading = await this.getUtilityReadingById(createdId);
+    if (!utilityReading) {
+      throw new Error('Failed to create utility reading');
+    }
+
+    return utilityReading;
   }
 
   /**
@@ -740,7 +741,7 @@ export class UtilityReadingService {
     }
 
     // Use transaction for atomicity
-    return db.transaction(async (trx) => {
+    await db.transaction(async (trx) => {
       // Validate apartment if provided
       if (data.apartment_id) {
         const apartment = await trx('apartments').where('id', data.apartment_id).first();
@@ -777,13 +778,6 @@ export class UtilityReadingService {
         if (data.who_pays !== undefined) updateData.who_pays = data.who_pays;
 
         await trx('utility_readings').where('id', id).update(updateData);
-
-        const updatedReading = await this.getUtilityReadingById(id);
-        if (!updatedReading) {
-          throw new Error('Failed to update utility reading');
-        }
-
-        return updatedReading;
       } catch (error: any) {
         if (error.code === '23503' || error.message?.includes('foreign key')) {
           throw new Error('Invalid reference to apartment or booking');
@@ -794,6 +788,13 @@ export class UtilityReadingService {
         throw new Error(`Failed to update utility reading: ${error.message}`);
       }
     });
+
+    const updatedReading = await this.getUtilityReadingById(id);
+    if (!updatedReading) {
+      throw new Error('Failed to update utility reading');
+    }
+
+    return updatedReading;
   }
 
   /**
