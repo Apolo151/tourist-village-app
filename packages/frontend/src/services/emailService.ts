@@ -222,6 +222,23 @@ class EmailService {
     }
   }
 
+  async exportEmails(filters?: EmailFilters): Promise<Blob> {
+    return apiClient.download('/emails/export', filters);
+  }
+
+  async exportEmailsData(filters?: EmailFilters): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/emails/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export emails');
+  }
+
   // Get email statistics (admin only)
   async getEmailStats(): Promise<EmailStats> {
     const response = await apiClient.get<ApiResponse<EmailStats>>('/emails/stats');

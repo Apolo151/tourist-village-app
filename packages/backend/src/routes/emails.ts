@@ -4,9 +4,11 @@ import { authenticateToken, requireRole, filterByResponsibleVillage } from '../m
 import { ValidationMiddleware } from '../middleware/validation';
 import { EmailFilters } from '../types';
 import { CreateEmailRequest, UpdateEmailRequest } from '../types';
+import { createLogger } from '../utils/logger';
 
 const router = Router();
 const emailService = new EmailService();
+const logger = createLogger('EmailsRouter');
 
 /**
  * GET /api/emails
@@ -67,6 +69,81 @@ router.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to fetch emails'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/emails/export
+ * Export emails (all filtered, no pagination)
+ */
+router.get(
+  '/export',
+  authenticateToken,
+  requireRole('admin', 'super_admin'),
+  filterByResponsibleVillage(),
+  async (req: Request, res: Response) => {
+    try {
+      const filters: EmailFilters = req.query as any;
+      const villageFilter = req.villageFilter;
+      const format = (req.query.format as string) || 'csv';
+
+      if (format === 'json') {
+        const data = await emailService.exportEmails(filters, villageFilter);
+        return res.json({
+          success: true,
+          data,
+          message: `Exported ${data.length} emails`
+        });
+      }
+
+      const rows = await emailService.exportEmails(filters, villageFilter);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="emails.csv"');
+
+      res.write('ID,Date,From,To,Subject,Type,Status,Apartment,Village,Booking,Created By\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const line = [
+          escape(row.id),
+          escape(row.date),
+          escape(row.from),
+          escape(row.to),
+          escape(row.subject),
+          escape(row.type),
+          escape(row.status),
+          escape(row.apartment),
+          escape(row.village),
+          escape(row.booking),
+          escape(row.created_by)
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      logger.error('Error exporting emails', { error });
+
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to export emails'
       });
     }
   }

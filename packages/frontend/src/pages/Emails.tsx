@@ -28,7 +28,9 @@ import {
   DialogContent,
   DialogActions,
   DialogContentText,
-  Container
+  Container,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -38,11 +40,13 @@ import {
   FilterList as FilterListIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  Visibility as ViewIcon
+  Visibility as ViewIcon,
+  FileDownloadOutlined as DownloadIcon,
+  PictureAsPdfOutlined as PdfIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { emailService } from '../services/emailService';
-import type { Email, UIEmailType, BackendEmailType } from '../services/emailService';
+import type { Email, UIEmailType, BackendEmailType, EmailFilters } from '../services/emailService';
 import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { format, parseISO } from 'date-fns';
@@ -50,6 +54,7 @@ import ExportButtons from '../components/ExportButtons';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export default function Emails() {
   const navigate = useNavigate();
@@ -104,6 +109,10 @@ export default function Emails() {
     email: null
   });
   const [deleting, setDeleting] = useState(false);
+
+  // Export state
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
 
   // Load apartments for filtering
   useEffect(() => {
@@ -408,6 +417,90 @@ export default function Emails() {
     handleViewEmail(email);
   };
 
+  const buildExportFilters = (includePagination: boolean): EmailFilters => {
+    const filters: EmailFilters = {
+      search: debouncedSearchTerm || undefined,
+      apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+      type: typeFilter ? (emailService.mapUITypeToBackend(typeFilter as UIEmailType)) : undefined,
+      status: (statusFilter as 'pending' | 'completed') || undefined,
+      booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+      date_from: dateFromFilter || undefined,
+      date_to: dateToFilter || undefined,
+      from: fromFilter || undefined,
+      to: toFilter || undefined,
+      sort_by: 'date',
+      sort_order: 'desc',
+      village_id: projectFilter ? parseInt(projectFilter) : undefined
+    };
+    if (includePagination) {
+      filters.page = pagination.page;
+      filters.limit = pagination.limit;
+    }
+    return filters;
+  };
+
+  const transformEmailsForExport = (emailsData: Email[]) => {
+    return emailsData.map(email => ({
+      id: email.id,
+      date: formatDate(email.date),
+      from: email.from,
+      to: email.to,
+      subject: email.subject,
+      type: emailService.getEmailTypeDisplayName(email.type),
+      status: getStatusDisplayName(email.status),
+      apartment: email.apartment?.name || getApartmentName(email.apartment_id),
+      village: email.apartment?.village?.name || '',
+      booking: email.booking ? `${formatDate(email.booking.arrival_date)} - ${formatDate(email.booking.leaving_date)}` : 'No booking',
+      created_by: email.created_by_user?.name || 'Unknown'
+    }));
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformEmailsForExport(emails);
+    }
+    const filters = buildExportFilters(false);
+    const data = await emailService.exportEmailsData(filters);
+    return data.map(item => ({
+      ...item,
+      date: formatDate(item.date),
+      type: emailService.getEmailTypeDisplayName(item.type as any),
+      status: getStatusDisplayName(item.status as any),
+      booking: item.booking || 'No booking'
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToExcel(data, 'emails.xlsx', undefined);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export emails');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","date","from","to","subject","type","status","apartment","village","booking","created_by"],
+        'emails.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export emails');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
   if (loading && emails.length === 0) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
@@ -574,8 +667,46 @@ export default function Emails() {
           </LocalizationProvider>
         </Paper>
 
-        {/* Export Buttons */}
-        <ExportButtons data={emails} columns={["id","apartment_id","booking_id","date","from","to","subject","type"]} excelFileName="emails.xlsx" pdfFileName="emails.pdf" />
+        {/* Export */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                Export scope
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                value={exportScope}
+                exclusive
+                onChange={(_, val) => val && setExportScope(val)}
+              >
+                <ToggleButton value="current">Current view</ToggleButton>
+                <ToggleButton value="all">All filtered</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <ExportButtons
+              data={transformEmailsForExport(emails)}
+              columns={["id","date","from","to","subject","type","status","apartment","village","booking","created_by"]}
+              excelFileName="emails.xlsx"
+              pdfFileName="emails.pdf"
+              onExportExcel={handleExportExcel}
+              onExportPDF={handleExportPDF}
+              disabled={exportingData}
+              excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+              pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+              excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+              pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+              size="medium"
+              variant="contained"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Current view exports only the visible page; All filtered exports every matching email.
+          </Typography>
+        </Paper>
 
         {/* Emails Table */}
         <Paper sx={{ width: '100%', overflow: 'hidden' }}>

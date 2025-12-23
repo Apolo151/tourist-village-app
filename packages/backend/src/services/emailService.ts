@@ -9,6 +9,10 @@ import {
   Apartment,
   Booking
 } from '../types';
+import { createLogger } from '../utils/logger';
+
+const EXPORT_ROW_LIMIT = 50000;
+const logger = createLogger('EmailService');
 
 export class EmailService {
   
@@ -318,6 +322,105 @@ export class EmailService {
         total_pages: Math.ceil(total / validatedLimit)
       }
     };
+  }
+
+  /**
+   * Export emails (all filtered, no pagination)
+   */
+  async exportEmails(filters: EmailFilters = {}, villageFilter?: number) {
+    const {
+      apartment_id,
+      booking_id,
+      village_id,
+      type,
+      status,
+      date_from,
+      date_to,
+      from,
+      to,
+      created_by,
+      search,
+      sort_by = 'date',
+      sort_order = 'desc'
+    } = filters;
+
+    let query = db('emails as e')
+      .leftJoin('apartments as a', 'e.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('bookings as b', 'e.booking_id', 'b.id')
+      .leftJoin('users as creator', 'e.created_by', 'creator.id')
+      .leftJoin('users as booking_user', 'b.user_id', 'booking_user.id')
+      .select(
+        'e.*',
+        'a.name as apartment_name',
+        'v.name as village_name',
+        'creator.name as creator_name',
+        'booking_user.name as booking_user_name'
+      );
+
+    if (apartment_id) query = query.where('e.apartment_id', apartment_id);
+    if (booking_id) query = query.where('e.booking_id', booking_id);
+    if (village_id) query = query.where('a.village_id', village_id);
+    if (type) query = query.where('e.type', type);
+    if (created_by) query = query.where('e.created_by', created_by);
+    if (date_from) query = query.where('e.date', '>=', new Date(date_from));
+    if (date_to) query = query.where('e.date', '<=', new Date(date_to));
+    if (from) query = query.where('e.from', 'ilike', `%${from}%`);
+    if (to) query = query.where('e.to', 'ilike', `%${to}%`);
+    if (status) query = query.where('e.status', status);
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      query = query.where(function() {
+        this.where('e.from', 'ilike', `%${searchTerm}%`)
+            .orWhere('e.to', 'ilike', `%${searchTerm}%`)
+            .orWhere('e.subject', 'ilike', `%${searchTerm}%`)
+            .orWhere('a.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('v.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('booking_user.name', 'ilike', `%${searchTerm}%`);
+      });
+    }
+
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
+    const countQuery = query.clone().clearSelect().clearOrder().count('e.id as total');
+    const [{ total }] = await countQuery;
+    const totalCount = parseInt(total as string);
+    if (totalCount > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const validSortFields = ['date', 'type', 'from', 'to', 'subject', 'apartment_name', 'village_name', 'created_at'];
+    const sortField = validSortFields.includes(sort_by || '') ? sort_by : 'date';
+    const validSortOrder = sort_order === 'asc' ? 'asc' : 'desc';
+
+    if (sortField === 'apartment_name') {
+      query = query.orderBy('a.name', validSortOrder);
+    } else if (sortField === 'village_name') {
+      query = query.orderBy('v.name', validSortOrder);
+    } else {
+      query = query.orderBy(`e.${sortField}`, validSortOrder);
+    }
+
+    const rows = await query;
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      date: row.date,
+      from: row.from,
+      to: row.to,
+      subject: row.subject,
+      type: row.type,
+      status: row.status,
+      apartment: row.apartment_name || 'Unknown',
+      village: row.village_name || 'Unknown',
+      booking: row.booking_id ? row.booking_id : '',
+      created_by: row.creator_name || 'Unknown'
+    }));
   }
 
   /**
