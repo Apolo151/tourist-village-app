@@ -9,6 +9,10 @@ import {
   PaginatedResponse,
   Village
 } from '../types';
+import { createLogger } from '../utils/logger';
+
+const EXPORT_ROW_LIMIT = 50000;
+const logger = createLogger('UserService');
 
 export class UserService {
   
@@ -143,6 +147,117 @@ export class UserService {
         total_pages: Math.ceil(total / validatedLimit)
       }
     };
+  }
+
+  /**
+   * Export users (all filtered, no pagination)
+   */
+  async exportUsers(filters: UserFilters = {}, villageFilter?: number): Promise<Array<PublicUser & { villages?: Village[] }>> {
+    const {
+      search,
+      role,
+      is_active,
+      village_id,
+      sort_by = 'name',
+      sort_order = 'asc'
+    } = filters;
+
+    // Start with base query
+    let baseQuery = db('users');
+
+    if (is_active !== undefined) {
+      baseQuery = baseQuery.where('is_active', is_active);
+    }
+
+    const effectiveVillageFilter = village_id !== undefined ? village_id : villageFilter;
+    if (effectiveVillageFilter !== undefined) {
+      baseQuery = baseQuery.where(function() {
+        this.where('responsible_village', effectiveVillageFilter)
+          .orWhereExists(function() {
+            this.select('*')
+              .from('user_villages')
+              .whereRaw('user_villages.user_id = users.id')
+              .where('user_villages.village_id', effectiveVillageFilter);
+          });
+      });
+    }
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      baseQuery = baseQuery.where(function() {
+        this.where('name', 'ilike', `%${searchTerm}%`)
+            .orWhere('email', 'ilike', `%${searchTerm}%`)
+            .orWhere('phone_number', 'ilike', `%${searchTerm}%`);
+      });
+    }
+
+    if (role) {
+      baseQuery = baseQuery.where('role', role);
+    }
+
+    // Count
+    const totalQuery = baseQuery.clone();
+    const [{ count }] = await totalQuery.count('id as count');
+    const total = parseInt(count as string);
+    if (total > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    // Select
+    let query = baseQuery.select([
+      'id', 'name', 'email', 'phone_number', 'role',
+      'last_login', 'is_active', 'responsible_village',
+      'passport_number', 'passport_expiry_date', 'address',
+      'next_of_kin_name', 'next_of_kin_address', 'next_of_kin_email', 'next_of_kin_phone',
+      'next_of_kin_will',
+      'created_at', 'updated_at'
+    ]);
+
+    // Sorting
+    const validSortFields = ['name', 'email', 'role', 'created_at', 'last_login', 'is_active'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'name';
+    const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
+    query = query.orderBy(sortField, validSortOrder);
+
+    const users = await query;
+
+    const transformedUsers: PublicUser[] = users.map((user: any) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone_number: user.phone_number || undefined,
+      role: user.role,
+      last_login: user.last_login ? new Date(user.last_login) : undefined,
+      is_active: Boolean(user.is_active),
+      responsible_village: user.responsible_village || undefined,
+      passport_number: user.passport_number || undefined,
+      passport_expiry_date: user.passport_expiry_date ? new Date(user.passport_expiry_date) : undefined,
+      address: user.address || undefined,
+      next_of_kin_name: user.next_of_kin_name || undefined,
+      next_of_kin_address: user.next_of_kin_address || undefined,
+      next_of_kin_email: user.next_of_kin_email || undefined,
+      next_of_kin_phone: user.next_of_kin_phone || undefined,
+      next_of_kin_will: user.next_of_kin_will || undefined,
+      created_at: new Date(user.created_at),
+      updated_at: new Date(user.updated_at)
+    }));
+
+    // Fetch villages for admin users
+    const adminUsers = transformedUsers.filter(user => user.role === 'admin');
+    if (adminUsers.length > 0) {
+      await Promise.all(
+        adminUsers.map(async (user) => {
+          const villages = await this.getUserVillages(user.id);
+          if (villages.length > 0) {
+            user.villages = villages;
+          }
+        })
+      );
+    }
+
+    return transformedUsers;
   }
 
   /**

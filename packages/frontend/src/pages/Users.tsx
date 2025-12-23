@@ -31,7 +31,9 @@ import {
   Stack,
   Card,
   CardContent,
-  Grid
+  Grid,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -51,6 +53,7 @@ import {
   AccountCircle as OwnerIcon,
   PersonOutline as RenterIcon
 } from '@mui/icons-material';
+import { FileDownloadOutlined as DownloadIcon, PictureAsPdfOutlined as PdfIcon } from '@mui/icons-material';
 import { format, parseISO } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -59,6 +62,7 @@ import { villageService, type Village } from '../services/villageService';
 import ExportButtons from '../components/ExportButtons';
 import ExcelImport from '../components/ExcelImport';
 import { excelService } from '../services/excelService';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boolean }) {
   // UI State - Controls input fields (immediate updates for responsive UX)
@@ -83,6 +87,8 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   const [dataLoading, setDataLoading] = useState(false); // For subsequent data refreshes
   const [error, setError] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
   
   // Global stats
   const [userStats, setUserStats] = useState({
@@ -555,6 +561,7 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
   // Update the transformUsersForExport function to use the helper function
   const transformUsersForExport = (usersData: User[]) => {
     return usersData.map(user => ({
+      id: user.id,
       name: user.name,
       email: user.email,
       phone: user.phone_number || '',
@@ -571,6 +578,62 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
       created_at: formatDate(user.created_at),
       last_login: user.last_login ? formatDate(user.last_login) : 'Never'
     }));
+  };
+
+  const buildExportFilters = (includePagination: boolean): any => {
+    const filters: any = {
+      search: searchTerm || undefined,
+      role: roleFilter || undefined,
+      is_active: statusFilter === 'active' ? true : statusFilter === 'inactive' ? false : undefined,
+      village_id: villageFilter ? parseInt(villageFilter) : undefined,
+      sort_by: 'name',
+      sort_order: 'asc'
+    };
+    if (includePagination) {
+      filters.page = page;
+      filters.limit = pageSize;
+    }
+    return filters;
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformUsersForExport(filteredUsers);
+    }
+    const filters = buildExportFilters(false);
+    const data = await userService.exportUsersData(filters);
+    return transformUsersForExport(data);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToExcel(data, 'users.xlsx', undefined);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export users');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","name","email","phone","role","status","projects","passport_number","passport_expiry_date","address","next_of_kin_name","next_of_kin_phone","next_of_kin_email","next_of_kin_address","created_at","last_login"],
+        'users.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export users');
+    } finally {
+      setExportingData(false);
+    }
   };
 
   // Don't paginate the data locally since we're already paginating on the server
@@ -815,13 +878,46 @@ export default function Users({ hideSuperAdmin = false }: { hideSuperAdmin?: boo
           </Box>
         </Paper>
         
-        {/* Export Buttons */}
-        <ExportButtons 
-          data={transformUsersForExport(filteredUsers)} 
-          columns={["name", "email", "phone", "role", "status", "projects", "passport_number", "passport_expiry_date", "address", "next_of_kin_name", "next_of_kin_phone", "next_of_kin_email", "next_of_kin_address", "created_at", "last_login"]} 
-          excelFileName="users.xlsx" 
-          pdfFileName="users.pdf" 
-        />
+        {/* Export */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                Export scope
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                value={exportScope}
+                exclusive
+                onChange={(_, val) => val && setExportScope(val)}
+              >
+                <ToggleButton value="current">Current view</ToggleButton>
+                <ToggleButton value="all">All filtered</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <ExportButtons 
+              data={transformUsersForExport(filteredUsers)} 
+              columns={["id","name", "email", "phone", "role", "status", "projects", "passport_number", "passport_expiry_date", "address", "next_of_kin_name", "next_of_kin_phone", "next_of_kin_email", "next_of_kin_address", "created_at", "last_login"]} 
+              excelFileName="users.xlsx" 
+              pdfFileName="users.pdf"
+              onExportExcel={handleExportExcel}
+              onExportPDF={handleExportPDF}
+              disabled={exportingData}
+              excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+              pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+              excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+              pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+              size="medium"
+              variant="contained"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Current view exports only the visible page; All filtered exports every matching user.
+          </Typography>
+        </Paper>
         
         {/* Users Table */}
         <TableContainer component={Paper}>

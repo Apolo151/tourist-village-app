@@ -3,9 +3,11 @@ import { UserService } from '../services/userService';
 import { ValidationMiddleware } from '../middleware/validation';
 import { authenticateToken, requireAdmin, requireOwnershipOrAdmin, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { UserFilters } from '../types';
+import { createLogger } from '../utils/logger';
 
 export const usersRouter = Router();
 const userService = new UserService();
+const logger = createLogger('UsersRouter');
 
 /**
  * GET /api/users/counts
@@ -116,6 +118,91 @@ usersRouter.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to fetch users'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/users/export
+ * Export users (all filtered, no pagination)
+ */
+usersRouter.get(
+  '/export',
+  authenticateToken,
+  requireAdmin,
+  filterByResponsibleVillage(),
+  ValidationMiddleware.validateUserQueryParams,
+  async (req: Request, res: Response) => {
+    try {
+      const filters: UserFilters = {
+        search: req.query.search as string,
+        role: req.query.role as 'super_admin' | 'admin' | 'owner' | 'renter',
+        is_active: req.query.is_active !== undefined 
+          ? req.query.is_active === 'true' 
+          : undefined,
+        village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
+        sort_by: req.query.sort_by as string || 'name',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'asc'
+      };
+
+      const villageFilter = req.villageFilter;
+      const format = (req.query.format as string) || 'csv';
+
+      if (format === 'json') {
+        const data = await userService.exportUsers(filters, villageFilter);
+        return res.json({
+          success: true,
+          data,
+          message: `Exported ${data.length} users`
+        });
+      }
+
+      const rows = await userService.exportUsers(filters, villageFilter);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="users.csv"');
+
+      res.write('ID,Name,Email,Phone,Role,Status,Projects,Created At,Last Login\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const projects = row.villages?.map((v: any) => v.name).join('; ') || (row.responsible_village ? `Village ${row.responsible_village}` : '');
+        const line = [
+          escape(row.id),
+          escape(row.name),
+          escape(row.email),
+          escape(row.phone_number || ''),
+          escape(row.role),
+          escape(row.is_active ? 'Active' : 'Inactive'),
+          escape(projects),
+          escape(row.created_at.toISOString()),
+          escape(row.last_login ? row.last_login.toISOString() : '')
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      logger.error('Error exporting users', { error });
+
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to export users'
       });
     }
   }

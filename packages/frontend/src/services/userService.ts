@@ -173,6 +173,23 @@ class UserService {
     
     throw new Error(response.message || 'Failed to fetch user counts');
   }
+
+  async exportUsers(filters?: UserFilters): Promise<Blob> {
+    return apiClient.download('/users/export', filters);
+  }
+
+  async exportUsersData(filters?: UserFilters): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/users/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export users');
+  }
 }
 
 export const userService = new UserService();
