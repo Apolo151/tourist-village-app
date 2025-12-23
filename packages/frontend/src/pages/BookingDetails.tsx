@@ -794,6 +794,60 @@ const BookingDetails: React.FC = () => {
     );
   }
 
+  // Defensive check: Don't render edit form until booking is loaded
+  if (isEditing && !isNew && !booking) {
+    return (
+      <Container maxWidth="lg">
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+          <CircularProgress />
+        </Box>
+      </Container>
+    );
+  }
+
+  // Helper function to get apartment display string with priority order
+  const getApartmentDisplayString = (): string => {
+    // Priority 1: Use booking.apartment (most reliable - comes from API)
+    if (booking?.apartment) {
+      const apt = booking.apartment;
+      const villageName = apt.village?.name || '';
+      const phase = apt.phase || '';
+      if (villageName && phase) {
+        return `${apt.name} - ${villageName} (Phase ${phase})`;
+      } else if (villageName) {
+        return `${apt.name} - ${villageName}`;
+      } else if (phase) {
+        return `${apt.name} (Phase ${phase})`;
+      } else {
+        return apt.name || `Apartment ${apt.id}`;
+      }
+    }
+    
+    // Priority 2: Use apartments array with formData.apartment_id
+    if (formData.apartment_id) {
+      const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
+      if (selectedApartment) {
+        const villageName = selectedApartment.village?.name || '';
+        const phase = selectedApartment.phase || '';
+        if (villageName && phase) {
+          return `${selectedApartment.name} - ${villageName} (Phase ${phase})`;
+        } else if (villageName) {
+          return `${selectedApartment.name} - ${villageName}`;
+        } else if (phase) {
+          return `${selectedApartment.name} (Phase ${phase})`;
+        } else {
+          return selectedApartment.name || `Apartment ${selectedApartment.id}`;
+        }
+      }
+      
+      // Priority 3: Show apartment ID if name unavailable
+      return `Apartment ${formData.apartment_id}`;
+    }
+    
+    // Priority 4: Show loading only if actually loading
+    return loading ? 'Loading...' : 'No apartment selected';
+  };
+
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns}>
     <Container maxWidth="lg">
@@ -908,15 +962,7 @@ const BookingDetails: React.FC = () => {
                     <Box>
                       <Typography variant="subtitle2" color="text.secondary" gutterBottom>Apartment</Typography>
                       <Typography variant="body1">
-                        {booking?.apartment
-                          ? `${booking.apartment.name} - ${booking.apartment.village?.name} (Phase ${booking.apartment.phase})`
-                          : (() => {
-                              const selectedApartment = apartments.find(apt => apt.id === formData.apartment_id);
-                              return selectedApartment 
-                                ? `${selectedApartment.name} - ${selectedApartment.village?.name} (Phase ${selectedApartment.phase})`
-                                : 'Loading...';
-                            })()
-                        }
+                        {getApartmentDisplayString()}
                       </Typography>
                       <FormHelperText>Apartment cannot be changed when editing an existing booking</FormHelperText>
                     </Box>

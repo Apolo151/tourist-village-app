@@ -111,7 +111,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
           limit: 30,
           sort_by: 'created_at',
           sort_order: 'desc',
-          // @ts-ignore - 'include' might be supported by the API but not in the type definition
+          // @ts-expect-error - 'include' may be supported by the API even if not typed
           include: 'owner' // Explicitly request owner data
         });
         
@@ -167,7 +167,9 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
         // If in edit mode, load the booking data
         if (isEditMode && bookingId) {
           try {
-            const bookingData = await bookingService.getBookingById(bookingId);
+            // Use getBookingWithRelatedData to ensure we get the full apartment object
+            const bookingDataResponse = await bookingService.getBookingWithRelatedData(bookingId);
+            const bookingData = bookingDataResponse.booking;
             
             // Update form data with booking information
             setFormData({
@@ -199,11 +201,71 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
               }
             }
             
-            // Set village and phase
+            // Ensure the apartment is in the apartments array for display
             if (bookingData.apartment) {
+              // Normalize apartment to match frontend Apartment type expectations
+              const payingStatusRaw = (bookingData.apartment as any).paying_status;
+              const normalizePayingStatus = (status: any): 'transfer' | 'rent' | 'non-payer' => {
+                if (status === 'rent' || status === 'paid_by_rent') return 'rent';
+                if (status === 'non-payer' || status === 'non_payer') return 'non-payer';
+                return 'transfer';
+              };
+
+              const normalizedApartment: Apartment = {
+                id: bookingData.apartment.id,
+                name: bookingData.apartment.name,
+                village_id: bookingData.apartment.village_id,
+                owner_id: bookingData.apartment.owner_id,
+                phase: bookingData.apartment.phase,
+                purchase_date: bookingData.apartment.purchase_date || '',
+                paying_status_id: (bookingData.apartment as any).paying_status_id ?? 0,
+                sales_status_id: (bookingData.apartment as any).sales_status_id ?? 0,
+                // Provide safe defaults for backward-compat fields
+                paying_status: normalizePayingStatus(payingStatusRaw),
+                sales_status: (bookingData.apartment as any).sales_status ?? 'for sale',
+                created_at: bookingData.apartment.created_at || new Date().toISOString(),
+                updated_at: bookingData.apartment.updated_at || new Date().toISOString(),
+                village: bookingData.apartment.village,
+                owner: bookingData.apartment.owner
+              };
+              const apartmentExists = apartmentsData.find(apt => apt.id === normalizedApartment.id);
+              if (!apartmentExists) {
+                // Add the apartment to the array if it's not already there
+                apartmentsData = [normalizedApartment, ...apartmentsData];
+              }
+              
+              // Set village and phase from apartment data
               setSelectedVillageId(String(bookingData.apartment.village_id));
               setSelectedPhase(String(bookingData.apartment.phase));
+              
+              // Set apartment search term to display the apartment name in the disabled field
+              const apartmentDisplayName = bookingData.apartment.village?.name 
+                ? `${bookingData.apartment.name} (${bookingData.apartment.village.name}, Phase ${bookingData.apartment.phase})`
+                : `${bookingData.apartment.name} (Phase ${bookingData.apartment.phase})`;
+              setApartmentSearchTerm(apartmentDisplayName);
+            } else if (bookingData.apartment_id) {
+              // Fallback: if apartment object is missing but apartment_id exists, fetch it
+              try {
+                const specificApartment = await apartmentService.getApartmentById(bookingData.apartment_id);
+                const apartmentExists = apartmentsData.find(apt => apt.id === specificApartment.id);
+                if (!apartmentExists) {
+                  apartmentsData = [specificApartment, ...apartmentsData];
+                }
+                setSelectedVillageId(String(specificApartment.village_id));
+                setSelectedPhase(String(specificApartment.phase));
+                const apartmentDisplayName = specificApartment.village?.name 
+                  ? `${specificApartment.name} (${specificApartment.village.name}, Phase ${specificApartment.phase})`
+                  : `${specificApartment.name} (Phase ${specificApartment.phase})`;
+                setApartmentSearchTerm(apartmentDisplayName);
+              } catch (aptErr) {
+                console.error('Error fetching apartment:', aptErr);
+                // Still set the search term with just the ID as fallback
+                setApartmentSearchTerm(`Apartment ${bookingData.apartment_id}`);
+              }
             }
+            
+            // Update apartments state with the potentially updated array
+            setApartments(apartmentsData);
             
             // If user is owner, ensure owner data is in cache
             if (bookingData.user_type === 'owner' && bookingData.user) {
@@ -517,7 +579,6 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
       // Build filters based on current village and phase selections
       const filters: any = {
         limit: 100,
-        // @ts-ignore - 'include' might be supported by the API but not in the type definition
         include: 'owner' // Explicitly request owner data
       };
       

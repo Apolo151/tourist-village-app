@@ -108,6 +108,8 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
   const [villages, setVillages] = useState<Village[]>([]);
   const [projectFilter, setProjectFilter] = useState<string>('');
   const [phaseFilter, setPhaseFilter] = useState<string>('');
+  // Track if we've attempted to fetch the apartment for quick action to prevent multiple attempts
+  const apartmentFetchAttemptedRef = useRef<number | null>(null);
   
   // Form validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -123,7 +125,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
         setError(null);
 
         // Load apartments, payment methods, and villages
-        const [apartmentsData, paymentMethodsData, villagesData] = await Promise.all([
+        const [apartmentsResult, paymentMethodsData, villagesData] = await Promise.all([
           // Load the most recent 100 apartments initially
           apartmentService.getApartments({ 
             limit: 100,
@@ -133,7 +135,28 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
           paymentService.getPaymentMethods({ limit: 100 }),
           villageService.getVillages({ limit: 100 })
         ]);
-        setApartments(apartmentsData.data);
+        
+        let apartmentsData = apartmentsResult.data;
+        
+        // If apartmentId was provided (quick action or prop), fetch that specific apartment if not already in results
+        if (apartmentId) {
+          const foundApartment = apartmentsData.find(apt => apt.id === apartmentId);
+          if (!foundApartment) {
+            try {
+              // Fetch the specific apartment individually
+              const specificResult = await apartmentService.getApartmentById(apartmentId);
+              // Add it to our apartments array
+              if (specificResult) {
+                apartmentsData = [specificResult, ...apartmentsData];
+              }
+            } catch (specificErr) {
+              console.error('Error fetching specific apartment:', specificErr);
+              // Non-blocking error - continue with existing apartments
+            }
+          }
+        }
+        
+        setApartments(apartmentsData);
         setPaymentMethods(paymentMethodsData.data);
         setVillages(villagesData.data);
         
@@ -187,7 +210,7 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     };
 
     loadData();
-  }, [effectiveId, isEdit, searchParams, isAdmin, currentUser]);
+  }, [effectiveId, isEdit, searchParams, isAdmin, currentUser, apartmentId, bookingId, isQuickAction]);
   
   // Set user type based on booking when bookingId is provided and bookings are loaded
   useEffect(() => {
@@ -210,35 +233,97 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     }
   }, [formData.apartment_id]);
   
-  // When lockApartment and apartmentId are set, set project and phase filters and lock them
+  // Dedicated quick action effect: Prefill and lock apartment, project, and phase filters
   useEffect(() => {
-    if (lockApartment && apartmentId && apartments.length > 0 && !isEdit) {
+    if (isQuickAction && lockApartment && apartmentId) {
       const apt = apartments.find(a => a.id === apartmentId);
+      
       if (apt) {
-        setProjectFilter(apt.village_id.toString());
-        setPhaseFilter(apt.phase.toString());
+        // Apartment found in list - set filters and form data
+        // Reset fetch attempt ref since we found it
+        apartmentFetchAttemptedRef.current = null;
+        
+        if (apt.village_id) {
+          setProjectFilter(apt.village_id.toString());
+        }
+        if (apt.phase) {
+          setPhaseFilter(apt.phase.toString());
+        }
+        // Ensure apartment_id is set in formData (using functional update to avoid dependency)
+        setFormData(prev => {
+          if (prev.apartment_id !== apartmentId.toString()) {
+            return { ...prev, apartment_id: apartmentId.toString() };
+          }
+          return prev;
+        });
+      } else if (apartments.length > 0 && apartmentFetchAttemptedRef.current !== apartmentId) {
+        // Apartment not found in list but apartments have been loaded - fetch it individually
+        // This handles the case where the apartment wasn't in the initial 100 results
+        // Only attempt fetch once per apartmentId to prevent infinite loops
+        apartmentFetchAttemptedRef.current = apartmentId;
+        
+        const fetchMissingApartment = async () => {
+          try {
+            const specificResult = await apartmentService.getApartmentById(apartmentId);
+            if (specificResult) {
+              // Add apartment to the list
+              setApartments(prev => {
+                const exists = prev.some(a => a.id === specificResult.id);
+                return exists ? prev : [specificResult, ...prev];
+              });
+              
+              // Set filters based on fetched apartment
+              if (specificResult.village_id) {
+                setProjectFilter(specificResult.village_id.toString());
+              }
+              if (specificResult.phase) {
+                setPhaseFilter(specificResult.phase.toString());
+              }
+              // Ensure apartment_id is set in formData
+              setFormData(prev => {
+                if (prev.apartment_id !== apartmentId.toString()) {
+                  return { ...prev, apartment_id: apartmentId.toString() };
+                }
+                return prev;
+              });
+            }
+          } catch (err) {
+            console.error('Error fetching specific apartment for quick action:', err);
+            // Reset ref on error so we can retry if needed (e.g., if apartmentId changes)
+            apartmentFetchAttemptedRef.current = null;
+            // Non-blocking error - form will still work, just filters won't be set
+          }
+        };
+        
+        fetchMissingApartment();
       }
+      // If apartments.length === 0, we're still loading, so wait for initial load to complete
+    } else {
+      // Reset ref when not in quick action mode
+      apartmentFetchAttemptedRef.current = null;
     }
-  }, [lockApartment, apartmentId, apartments, isEdit]);
+  }, [isQuickAction, lockApartment, apartmentId, apartments]);
   
   // When editing, set project and phase filters based on the loaded payment's apartment
   useEffect(() => {
     if (isEdit && formData.apartment_id && apartments.length > 0) {
       const apt = apartments.find(a => a.id === parseInt(formData.apartment_id));
-      if (apt && apt.village) {
+      if (apt && apt.village_id) {
         setProjectFilter(apt.village_id.toString());
         setPhaseFilter(apt.phase.toString());
       }
     }
   }, [isEdit, formData.apartment_id, apartments]);
   
-  // Load apartments when filters change
+  // Load apartments when filters change (but not when apartment is locked)
   useEffect(() => {
-    // Don't reload if we're in a locked apartment state
-    if (!(lockApartment && apartmentId)) {
+    // Don't reload if we're in a locked apartment state (quick action mode)
+    // This prevents the filter change from triggering a reload that would overwrite
+    // the quick action prefill logic
+    if (!(lockApartment && apartmentId && isQuickAction)) {
       handleApartmentSearch('');
     }
-  }, [projectFilter, phaseFilter]);
+  }, [projectFilter, phaseFilter, lockApartment, apartmentId, isQuickAction]);
   
   // Validate form
   const validateForm = (): boolean => {
