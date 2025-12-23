@@ -9,6 +9,7 @@ import {
   Apartment,
   Booking
 } from '../types';
+import { createLogger } from '../utils/logger';
 
 /**
  * Maximum value for utility meters before they roll over to 0.
@@ -16,6 +17,9 @@ import {
  * Using 999999 as the default max meter value for safety.
  */
 const DEFAULT_MAX_METER_VALUE = 999999;
+const EXPORT_ROW_LIMIT = 50000;
+
+const logger = createLogger('UtilityReadingService');
 
 /**
  * Calculate utility usage accounting for meter rollover.
@@ -418,6 +422,125 @@ export class UtilityReadingService {
         total_pages: Math.ceil(total / validatedLimit)
       }
     };
+  }
+
+  /**
+   * Export utility readings (all filtered, no pagination)
+   */
+  async exportUtilityReadings(filters: UtilityReadingFilters = {}, villageFilter?: number) {
+    const {
+      apartment_id,
+      booking_id,
+      village_id,
+      who_pays,
+      start_date_from,
+      start_date_to,
+      end_date_from,
+      end_date_to,
+      has_water_readings,
+      has_electricity_readings,
+      created_by,
+      search,
+      sort_by = 'start_date',
+      sort_order = 'desc'
+    } = filters;
+
+    let query = db('utility_readings as ur')
+      .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('bookings as b', 'ur.booking_id', 'b.id')
+      .leftJoin('users as creator', 'ur.created_by', 'creator.id')
+      .leftJoin('users as booking_user', 'b.user_id', 'booking_user.id')
+      .select(
+        'ur.*',
+        'a.name as apartment_name',
+        'v.name as village_name',
+        'b.id as booking_id',
+        'booking_user.name as booking_user_name',
+        'creator.name as creator_name'
+      );
+
+    if (apartment_id) query = query.where('ur.apartment_id', apartment_id);
+    if (booking_id) query = query.where('ur.booking_id', booking_id);
+    if (village_id) query = query.where('a.village_id', village_id);
+    if (who_pays) query = query.where('ur.who_pays', who_pays);
+    if (created_by) query = query.where('ur.created_by', created_by);
+    if (start_date_from) query = query.where('ur.start_date', '>=', new Date(start_date_from));
+    if (start_date_to) query = query.where('ur.start_date', '<=', new Date(start_date_to));
+    if (end_date_from) query = query.where('ur.end_date', '>=', new Date(end_date_from));
+    if (end_date_to) query = query.where('ur.end_date', '<=', new Date(end_date_to));
+
+    if (has_water_readings !== undefined) {
+      if (has_water_readings) {
+        query = query.whereNotNull('ur.water_start_reading').whereNotNull('ur.water_end_reading');
+      } else {
+        query = query.where(function() {
+          this.whereNull('ur.water_start_reading').orWhereNull('ur.water_end_reading');
+        });
+      }
+    }
+
+    if (has_electricity_readings !== undefined) {
+      if (has_electricity_readings) {
+        query = query.whereNotNull('ur.electricity_start_reading').whereNotNull('ur.electricity_end_reading');
+      } else {
+        query = query.where(function() {
+          this.whereNull('ur.electricity_start_reading').orWhereNull('ur.electricity_end_reading');
+        });
+      }
+    }
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      query = query.where(function() {
+        this.where('a.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('v.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('creator.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('booking_user.name', 'ilike', `%${searchTerm}%`);
+      });
+    }
+
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
+    const countQuery = query.clone().clearSelect().clearOrder().count('ur.id as total');
+    const [{ total }] = await countQuery;
+    const totalCount = parseInt(total as string);
+    if (totalCount > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const validSortFields = ['start_date', 'end_date', 'apartment_name', 'village_name', 'who_pays', 'created_at'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'start_date';
+    const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
+
+    if (sortField === 'apartment_name') {
+      query = query.orderBy('a.name', validSortOrder);
+    } else if (sortField === 'village_name') {
+      query = query.orderBy('v.name', validSortOrder);
+    } else {
+      query = query.orderBy(`ur.${sortField}`, validSortOrder);
+    }
+
+    const rows = await query;
+
+    return rows.map((ur: any) => ({
+      id: ur.id,
+      apartment: ur.apartment_name || 'Unknown',
+      village: ur.village_name || 'Unknown',
+      water_start_reading: ur.water_start_reading ?? '',
+      water_end_reading: ur.water_end_reading ?? '',
+      electricity_start_reading: ur.electricity_start_reading ?? '',
+      electricity_end_reading: ur.electricity_end_reading ?? '',
+      start_date: ur.start_date,
+      end_date: ur.end_date,
+      who_pays: ur.who_pays,
+      booking_user: ur.booking_user_name || 'No booking',
+      created_by: ur.creator_name || 'Unknown'
+    }));
   }
 
   /**

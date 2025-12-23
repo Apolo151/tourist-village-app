@@ -147,6 +147,23 @@ class UtilityReadingService {
     throw new Error(response.message || 'Failed to fetch utility readings');
   }
 
+  async exportUtilityReadings(filters?: UtilityReadingFilters): Promise<Blob> {
+    return apiClient.download('/utility-readings/export', filters);
+  }
+
+  async exportUtilityReadingsData(filters?: UtilityReadingFilters): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/utility-readings/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export utility readings');
+  }
+
   async getUtilityReadingById(id: number): Promise<UtilityReading> {
     const response = await apiClient.get<ApiResponse<UtilityReading>>(`/utility-readings/${id}`);
     

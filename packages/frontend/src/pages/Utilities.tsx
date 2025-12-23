@@ -30,14 +30,18 @@ import {
   CardContent,
   Divider,
   Container,
-  TextField
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Visibility as ViewIcon,
-  FilterList as FilterListIcon
+  FilterList as FilterListIcon,
+  FileDownloadOutlined as DownloadIcon,
+  PictureAsPdfOutlined as PdfIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { utilityReadingService } from '../services/utilityReadingService';
@@ -50,6 +54,7 @@ import ExportButtons from '../components/ExportButtons';
 import { format, parseISO } from 'date-fns';
 import { villageService } from '../services/villageService';
 import { userService } from '../services/userService';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 const UTILITY_TYPES = [
   { value: 'water', label: 'Water' },
@@ -101,6 +106,10 @@ export default function Utilities() {
   const [users, setUsers] = useState<any[]>([]);
   const [availablePhases, setAvailablePhases] = useState<number[]>([]);
   const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
+
+  // Export state
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -249,6 +258,14 @@ export default function Utilities() {
     });
   };
 
+  const buildExportFilters = (includePagination: boolean) => {
+    const { page, limit, ...rest } = filters;
+    if (includePagination) {
+      return { ...filters };
+    }
+    return { ...rest };
+  };
+
   const handlePageChange = (_event: React.ChangeEvent<unknown>, value: number) => {
     setFilters(prev => ({ ...prev, page: value }));
   };
@@ -339,6 +356,50 @@ export default function Utilities() {
       booking_user: utility.booking?.user?.name || 'No booking',
       created_by: utility.created_by_user?.name || 'Unknown'
     }));
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformUtilitiesForExport(utilityReadings);
+    }
+    const filters = buildExportFilters(false);
+    const data = await utilityReadingService.exportUtilityReadingsData(filters);
+    return data.map(item => ({
+      ...item,
+      start_date: formatDate(item.start_date),
+      end_date: formatDate(item.end_date)
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToExcel(data, 'utilities.xlsx', undefined);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export utility readings');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","apartment","village","water_start_reading","water_end_reading","electricity_start_reading","electricity_end_reading","start_date","end_date","who_pays","booking_user","created_by"],
+        'utilities.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export utility readings');
+    } finally {
+      setExportingData(false);
+    }
   };
 
   if (loading) {
@@ -483,8 +544,46 @@ export default function Utilities() {
           </Grid>
         </Paper>
 
-        {/* Export Buttons */}
-        <ExportButtons data={transformUtilitiesForExport(utilityReadings)} columns={["id","apartment","village","water_start_reading","water_end_reading","electricity_start_reading","electricity_end_reading","start_date","end_date","who_pays","booking_user","created_by"]} excelFileName="utilities.xlsx" pdfFileName="utilities.pdf" />
+        {/* Export */}
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                Export scope
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                value={exportScope}
+                exclusive
+                onChange={(_, val) => val && setExportScope(val)}
+              >
+                <ToggleButton value="current">Current view</ToggleButton>
+                <ToggleButton value="all">All filtered</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <ExportButtons
+              data={transformUtilitiesForExport(utilityReadings)}
+              columns={["id","apartment","village","water_start_reading","water_end_reading","electricity_start_reading","electricity_end_reading","start_date","end_date","who_pays","booking_user","created_by"]}
+              excelFileName="utilities.xlsx"
+              pdfFileName="utilities.pdf"
+              onExportExcel={handleExportExcel}
+              onExportPDF={handleExportPDF}
+              disabled={exportingData}
+              excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+              pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+              excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+              pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+              size="medium"
+              variant="contained"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Current view exports only the visible page; All filtered exports every matching utility reading.
+          </Typography>
+        </Paper>
 
         {/* Utility Readings Table */}
         <Paper sx={{ width: '100%', overflow: 'hidden' }}>

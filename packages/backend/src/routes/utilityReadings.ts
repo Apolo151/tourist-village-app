@@ -74,6 +74,82 @@ router.get(
 );
 
 /**
+ * GET /api/utility-readings/export
+ * Export utility readings (all filtered, no pagination)
+ */
+router.get(
+  '/export',
+  authenticateToken,
+  requireRole('admin', 'super_admin'),
+  filterByResponsibleVillage(),
+  async (req: Request, res: Response) => {
+    try {
+      const filters: UtilityReadingFilters = req.query as any;
+      const villageFilter = req.villageFilter;
+      const format = (req.query.format as string) || 'csv';
+
+      if (format === 'json') {
+        const data = await utilityReadingService.exportUtilityReadings(filters, villageFilter);
+        return res.json({
+          success: true,
+          data,
+          message: `Exported ${data.length} utility readings`
+        });
+      }
+
+      const rows = await utilityReadingService.exportUtilityReadings(filters, villageFilter);
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="utility-readings.csv"');
+
+      res.write('ID,Apartment,Village,Water Start,Water End,Electricity Start,Electricity End,Start Date,End Date,Who Pays,Booking User,Created By\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const line = [
+          escape(row.id),
+          escape(row.apartment),
+          escape(row.village),
+          escape(row.water_start_reading),
+          escape(row.water_end_reading),
+          escape(row.electricity_start_reading),
+          escape(row.electricity_end_reading),
+          escape(row.start_date),
+          escape(row.end_date),
+          escape(row.who_pays),
+          escape(row.booking_user),
+          escape(row.created_by)
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      console.error('Error exporting utility readings:', error);
+
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to export utility readings'
+      });
+    }
+  }
+);
+
+/**
  * GET /api/utility-readings/stats
  * Get utility reading statistics
  */
