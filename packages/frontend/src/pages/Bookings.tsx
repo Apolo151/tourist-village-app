@@ -26,7 +26,9 @@ import {
   Alert,
   Pagination,
   Container,
-  Grid
+  Grid,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -39,7 +41,9 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   ArrowUpward as ArrowUpIcon,
-  ArrowDownward as ArrowDownIcon
+  ArrowDownward as ArrowDownIcon,
+  FileDownloadOutlined as DownloadIcon,
+  PictureAsPdfOutlined as PdfIcon
 } from '@mui/icons-material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -53,6 +57,7 @@ import { villageService } from '../services/villageService';
 import type { Apartment, Village } from '../types';
 import type { Booking } from '../services/bookingService';
 import ExportButtons from '../components/ExportButtons';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 // Booking status colors
 const statusColors: Record<string, 'info' | 'success' | 'default' | 'error'> = {
@@ -111,6 +116,10 @@ export default function Bookings() {
     leavingDateStart: null,
     leavingDateEnd: null
   });
+
+  // Export state
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
 
   // Check if user is admin
   useEffect(() => {
@@ -174,68 +183,7 @@ export default function Bookings() {
       setError('');
 
       // Build API filters
-      const apiFilters: BookingFilters = {
-        page: pagination.page,
-        limit: pagination.limit,
-        sort_by: 'arrival_date',
-        sort_order: sortOrder
-      };
-
-      // Apply tab-specific filters
-      const today = new Date().toISOString().split('T')[0];
-      
-      if (tabValue === 0) {
-        // Current & Upcoming - show bookings that haven't ended yet
-        apiFilters.leaving_date_start = today;
-      } else if (tabValue === 1) {
-        // Past - show bookings that have ended
-        apiFilters.leaving_date_end = today;
-      }
-      // Tab 2 (All) - no date filter
-
-      // Apply user filters
-      if (searchInput) {
-        apiFilters.search = searchInput;
-      }
-      if (filters.apartmentId) {
-        apiFilters.apartment_id = parseInt(filters.apartmentId);
-      }
-      if (filters.state) {
-        apiFilters.status = filters.state as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
-      }
-      if (filters.village) {
-        const village = villages.find(v => v.name === filters.village);
-        if (village) {
-          apiFilters.village_id = village.id;
-        }
-      }
-      // Only send phase if set
-      if (filters.phase) {
-        apiFilters.phase = Number(filters.phase);
-      }
-      if (filters.userType) {
-        // Convert UI values to backend format
-        const userTypeMap: Record<string, 'owner' | 'renter'> = {
-          'Owner': 'owner',
-          'Tenant': 'renter',
-          'Renter': 'renter',
-          'owner': 'owner',
-          'renter': 'renter'
-        };
-        apiFilters.user_type = userTypeMap[filters.userType] || 'owner';
-      }
-      if (filters.arrivalDateStart) {
-        apiFilters.arrival_date_start = filters.arrivalDateStart.toISOString().split('T')[0];
-      }
-      if (filters.arrivalDateEnd) {
-        apiFilters.arrival_date_end = filters.arrivalDateEnd.toISOString().split('T')[0];
-      }
-      if (filters.leavingDateStart) {
-        apiFilters.leaving_date_start = filters.leavingDateStart.toISOString().split('T')[0];
-      }
-      if (filters.leavingDateEnd) {
-        apiFilters.leaving_date_end = filters.leavingDateEnd.toISOString().split('T')[0];
-      }
+      const apiFilters: BookingFilters = buildApiFilters(true);
 
       const response = await bookingService.getBookings(apiFilters);
       setBookings(response.bookings);
@@ -300,6 +248,68 @@ export default function Bookings() {
 
   const handlePageChange = (_event: React.ChangeEvent<unknown>, page: number) => {
     setPagination(prev => ({ ...prev, page }));
+  };
+
+  const buildApiFilters = (includePagination: boolean): BookingFilters => {
+    const apiFilters: BookingFilters = {
+      sort_by: 'arrival_date',
+      sort_order: sortOrder
+    };
+
+    if (includePagination) {
+      apiFilters.page = pagination.page;
+      apiFilters.limit = pagination.limit;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (tabValue === 0) {
+      apiFilters.leaving_date_start = today;
+    } else if (tabValue === 1) {
+      apiFilters.leaving_date_end = today;
+    }
+
+    if (searchInput) {
+      apiFilters.search = searchInput;
+    }
+    if (filters.apartmentId) {
+      apiFilters.apartment_id = parseInt(filters.apartmentId);
+    }
+    if (filters.state) {
+      apiFilters.status = filters.state as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled';
+    }
+    if (filters.village) {
+      const village = villages.find(v => v.name === filters.village);
+      if (village) {
+        apiFilters.village_id = village.id;
+      }
+    }
+    if (filters.phase) {
+      apiFilters.phase = Number(filters.phase);
+    }
+    if (filters.userType) {
+      const userTypeMap: Record<string, 'owner' | 'renter'> = {
+        'Owner': 'owner',
+        'Tenant': 'renter',
+        'Renter': 'renter',
+        'owner': 'owner',
+        'renter': 'renter'
+      };
+      apiFilters.user_type = userTypeMap[filters.userType] || 'owner';
+    }
+    if (filters.arrivalDateStart) {
+      apiFilters.arrival_date_start = filters.arrivalDateStart.toISOString().split('T')[0];
+    }
+    if (filters.arrivalDateEnd) {
+      apiFilters.arrival_date_end = filters.arrivalDateEnd.toISOString().split('T')[0];
+    }
+    if (filters.leavingDateStart) {
+      apiFilters.leaving_date_start = filters.leavingDateStart.toISOString().split('T')[0];
+    }
+    if (filters.leavingDateEnd) {
+      apiFilters.leaving_date_end = filters.leavingDateEnd.toISOString().split('T')[0];
+    }
+
+    return apiFilters;
   };
 
   const clearFilters = () => {
@@ -380,6 +390,51 @@ export default function Bookings() {
       status: getStatusDisplayName(booking.status),
       notes: booking.notes || ''
     }));
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformBookingsForExport(bookings);
+    }
+    const filters = buildApiFilters(false);
+    const data = await bookingService.exportBookingsData(filters);
+    return data.map(item => ({
+      ...item,
+      arrival_date: formatDate(item.arrival_date),
+      leaving_date: formatDate(item.leaving_date),
+      reservation_date: formatDate(item.reservation_date)
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToExcel(data, 'bookings.xlsx', undefined);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export bookings');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","apartment","village","phase","user","user_type","number_of_people","arrival_date","leaving_date","reservation_date","status","notes"],
+        'bookings.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export bookings');
+    } finally {
+      setExportingData(false);
+    }
   };
 
   // Compute available phases for the selected village
@@ -592,8 +647,46 @@ export default function Bookings() {
             </Paper>
           )}
 
-          {/* Export Buttons */}
-          <ExportButtons data={transformBookingsForExport(bookings)} columns={["id","apartment","village","phase","user","user_type","number_of_people","arrival_date","leaving_date","reservation_date","status","notes"]} excelFileName="bookings.xlsx" pdfFileName="bookings.pdf" />
+          {/* Export */}
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, backgroundColor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                  Export scope
+                </Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  value={exportScope}
+                  exclusive
+                  onChange={(_, val) => val && setExportScope(val)}
+                >
+                  <ToggleButton value="current">Current view</ToggleButton>
+                  <ToggleButton value="all">All filtered</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box sx={{ flexGrow: 1 }} />
+
+              <ExportButtons
+                data={transformBookingsForExport(bookings)}
+                columns={["id","apartment","village","phase","user","user_type","number_of_people","arrival_date","leaving_date","reservation_date","status","notes"]}
+                excelFileName="bookings.xlsx"
+                pdfFileName="bookings.pdf"
+                onExportExcel={handleExportExcel}
+                onExportPDF={handleExportPDF}
+                disabled={exportingData}
+                excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+                pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+                excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+                pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+                size="medium"
+                variant="contained"
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Current view exports only the visible page; All filtered exports every matching booking.
+            </Typography>
+          </Paper>
 
           {/* Bookings Table */}
           <Paper>

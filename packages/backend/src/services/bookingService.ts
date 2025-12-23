@@ -2,6 +2,7 @@ import { db } from '../database/connection';
 import { Booking, CreateBookingRequest, UpdateBookingRequest, User, Apartment } from '../types';
 import { UserService } from './userService';
 import { ApartmentService } from './apartmentService';
+import { createLogger } from '../utils/logger';
 
 export interface BookingFilters {
   apartment_id?: number;
@@ -61,6 +62,8 @@ function computeStatus(booking: { status: string; arrival_date: Date; leaving_da
   return booking.status;
 }
 
+const logger = createLogger('BookingService');
+
 export class BookingService {
   
   private userService: UserService;
@@ -94,84 +97,7 @@ export class BookingService {
       throw new Error('Limit must be between 1 and 100');
     }
 
-    let query = db('bookings as b')
-      .leftJoin('users as u', 'b.user_id', 'u.id')
-      .join('apartments as a', 'b.apartment_id', 'a.id')
-      .leftJoin('villages as v', 'a.village_id', 'v.id')
-      .select(
-        'b.*',
-        'u.name as user_name',
-        'u.email as user_email',
-        'u.phone_number as user_phone',
-        'u.role as user_role',
-        'u.is_active as user_is_active',
-        'u.last_login as user_last_login',
-        'u.created_at as user_created_at',
-        'u.updated_at as user_updated_at',
-        'a.name as apartment_name',
-        'a.village_id as apartment_village_id',
-        'a.phase as apartment_phase',
-        'a.paying_status_id as apartment_paying_status_id',
-        'v.name as village_name'
-        // NOTE: Previously used computed_status via CASE expression based on dates.
-        // Status is now stored directly. See deprecated computeStatus function.
-      );
-
-    // Apply filters
-    if (filters.apartment_id) {
-      query = query.where('b.apartment_id', filters.apartment_id);
-    }
-
-    if (filters.user_id) {
-      query = query.where('b.user_id', filters.user_id);
-    }
-
-    if (filters.user_type) {
-      query = query.where('b.user_type', filters.user_type);
-    }
-
-    // Always apply both filters strictly if both are set
-    if (filters.village_id !== undefined && filters.village_id !== null) {
-      query = query.where('a.village_id', Number(filters.village_id));
-    }
-    if (filters.phase !== undefined && filters.phase !== null) {
-      query = query.whereRaw('a.phase = ?', [Number(filters.phase)]);
-    }
-
-    // NOTE: Previously filtered on computed status using CASE expression.
-    // Now filtering directly on stored status value.
-    if (filters.status) {
-      query = query.where('b.status', filters.status);
-    }
-
-    if (filters.arrival_date_start) {
-      query = query.where('b.arrival_date', '>=', filters.arrival_date_start);
-    }
-
-    if (filters.arrival_date_end) {
-      query = query.where('b.arrival_date', '<=', filters.arrival_date_end);
-    }
-
-    if (filters.leaving_date_start) {
-      query = query.where('b.leaving_date', '>=', filters.leaving_date_start);
-    }
-
-    if (filters.leaving_date_end) {
-      query = query.where('b.leaving_date', '<=', filters.leaving_date_end);
-    }
-
-    if (filters.search) {
-      query = query.where(function() {
-        this.orWhere('u.name', 'ilike', `%${filters.search}%`)
-            .orWhere('a.name', 'ilike', `%${filters.search}%`)
-            .orWhere('v.name', 'ilike', `%${filters.search}%`)
-            .orWhere('b.notes', 'ilike', `%${filters.search}%`);
-      });
-    }
-
-    if (villageFilter) {
-      query = query.where('a.village_id', villageFilter);
-    }
+    let query = this.buildBookingQuery(filters, villageFilter);
 
     // Get total count for pagination
     const countQuery = query.clone().clearSelect().clearOrder().count('b.id as total');
@@ -254,6 +180,133 @@ export class BookingService {
       limit,
       total_pages: Math.ceil(parseInt(total as string) / limit)
     };
+  }
+
+  /**
+   * Export bookings as array (all filtered, no pagination)
+   */
+  async exportBookings(filters: BookingFilters = {}, options: BookingQueryOptions & { villageFilter?: number } = {}) {
+    const { sort_by = 'arrival_date', sort_order = 'desc', villageFilter } = options;
+
+    const baseQuery = this.buildBookingQuery(filters, villageFilter);
+
+    const countQuery = baseQuery.clone().clearSelect().clearOrder().count('b.id as total');
+    const [{ total }] = await countQuery;
+    const EXPORT_ROW_LIMIT = 50000;
+    if (parseInt(total as string) > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const sortedQuery = this.applyBookingSorting(baseQuery, sort_by, sort_order);
+    const rows = await sortedQuery;
+
+    return rows.map((row: any) => ({
+      id: row.id,
+      apartment: row.apartment_name || 'Unknown',
+      village: row.village_name || 'Unknown',
+      phase: row.apartment_phase,
+      user: row.user_name || row.person_name || 'Unknown',
+      user_type: row.user_type,
+      number_of_people: row.number_of_people,
+      arrival_date: row.arrival_date,
+      leaving_date: row.leaving_date,
+      reservation_date: row.created_at,
+      status: row.status,
+      notes: row.notes || ''
+    }));
+  }
+
+  private buildBookingQuery(filters: BookingFilters = {}, villageFilter?: number) {
+    let query = db('bookings as b')
+      .leftJoin('users as u', 'b.user_id', 'u.id')
+      .join('apartments as a', 'b.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .select(
+        'b.*',
+        'u.name as user_name',
+        'u.email as user_email',
+        'u.phone_number as user_phone',
+        'u.role as user_role',
+        'u.is_active as user_is_active',
+        'u.last_login as user_last_login',
+        'u.created_at as user_created_at',
+        'u.updated_at as user_updated_at',
+        'a.name as apartment_name',
+        'a.village_id as apartment_village_id',
+        'a.phase as apartment_phase',
+        'a.paying_status_id as apartment_paying_status_id',
+        'v.name as village_name'
+      );
+
+    if (filters.apartment_id) {
+      query = query.where('b.apartment_id', filters.apartment_id);
+    }
+
+    if (filters.user_id) {
+      query = query.where('b.user_id', filters.user_id);
+    }
+
+    if (filters.user_type) {
+      query = query.where('b.user_type', filters.user_type);
+    }
+
+    if (filters.village_id !== undefined && filters.village_id !== null) {
+      query = query.where('a.village_id', Number(filters.village_id));
+    }
+    if (filters.phase !== undefined && filters.phase !== null) {
+      query = query.whereRaw('a.phase = ?', [Number(filters.phase)]);
+    }
+
+    if (filters.status) {
+      query = query.where('b.status', filters.status);
+    }
+
+    if (filters.arrival_date_start) {
+      query = query.where('b.arrival_date', '>=', filters.arrival_date_start);
+    }
+
+    if (filters.arrival_date_end) {
+      query = query.where('b.arrival_date', '<=', filters.arrival_date_end);
+    }
+
+    if (filters.leaving_date_start) {
+      query = query.where('b.leaving_date', '>=', filters.leaving_date_start);
+    }
+
+    if (filters.leaving_date_end) {
+      query = query.where('b.leaving_date', '<=', filters.leaving_date_end);
+    }
+
+    if (filters.search) {
+      query = query.where(function() {
+        this.orWhere('u.name', 'ilike', `%${filters.search}%`)
+            .orWhere('a.name', 'ilike', `%${filters.search}%`)
+            .orWhere('v.name', 'ilike', `%${filters.search}%`)
+            .orWhere('b.notes', 'ilike', `%${filters.search}%`);
+      });
+    }
+
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
+    return query;
+  }
+
+  private applyBookingSorting(query: any, sort_by?: string, sort_order?: 'asc' | 'desc') {
+    const validSortFields = ['arrival_date', 'leaving_date', 'status', 'user_type', 'created_at', 'apartment_name', 'user_name'];
+    const sortField = validSortFields.includes(sort_by || '') ? (sort_by as string) : 'arrival_date';
+    const order = sort_order === 'asc' ? 'asc' : 'desc';
+
+    if (sortField === 'apartment_name') {
+      return query.orderBy('a.name', order);
+    }
+    if (sortField === 'user_name') {
+      return query.orderBy('u.name', order);
+    }
+    return query.orderBy(`b.${sortField}`, order);
   }
 
   /**

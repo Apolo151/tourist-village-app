@@ -4,8 +4,10 @@ import { ValidationMiddleware } from '../middleware/validation';
 import { authenticateToken, requireAdmin, requireOwnershipOrAdmin, filterByResponsibleVillage } from '../middleware/auth';
 import { CreateBookingRequest, UpdateBookingRequest } from '../types';
 import { BookingFilters, BookingQueryOptions } from '../services/bookingService';
+import { createLogger } from '../utils/logger';
 
 const bookingsRouter = Router();
+const logger = createLogger('BookingsRouter');
 
 /**
  * GET /api/bookings
@@ -78,6 +80,102 @@ bookingsRouter.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to get bookings'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/bookings/export
+ * Export bookings (all filtered, no pagination)
+ */
+bookingsRouter.get(
+  '/export',
+  authenticateToken,
+  requireAdmin,
+  filterByResponsibleVillage(),
+  ValidationMiddleware.validateBookingQueryParams,
+  async (req: Request, res: Response) => {
+    try {
+      const filters: BookingFilters = {
+        apartment_id: req.query.apartment_id ? parseInt(req.query.apartment_id as string) : undefined,
+        user_id: req.query.user_id ? parseInt(req.query.user_id as string) : undefined,
+        user_type: req.query.user_type as 'owner' | 'renter',
+        village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
+        phase: req.query.phase ? parseInt(req.query.phase as string) : undefined,
+        status: req.query.status as 'Booked' | 'Checked In' | 'Checked Out' | 'Cancelled',
+        arrival_date_start: req.query.arrival_date_start as string,
+        arrival_date_end: req.query.arrival_date_end as string,
+        leaving_date_start: req.query.leaving_date_start as string,
+        leaving_date_end: req.query.leaving_date_end as string,
+        search: req.query.search as string
+      };
+
+      const options: BookingQueryOptions = {
+        sort_by: (req.query.sort_by as string) || 'arrival_date',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc'
+      };
+
+      const villageFilter = req.villageFilter;
+
+      const format = (req.query.format as string) || 'csv';
+
+      if (format === 'json') {
+        const data = await bookingService.exportBookings(filters, { ...options, villageFilter });
+        return res.json({
+          success: true,
+          data,
+          message: `Exported ${data.length} bookings`
+        });
+      }
+
+      const rows = await bookingService.exportBookings(filters, { ...options, villageFilter });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="bookings.csv"');
+
+      res.write('ID,Apartment,Village,Phase,User,User Type,People,Arrival Date,Leaving Date,Reservation Date,Status,Notes\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const line = [
+          escape(row.id),
+          escape(row.apartment),
+          escape(row.village),
+          escape(row.phase),
+          escape(row.user),
+          escape(row.user_type),
+          escape(row.number_of_people),
+          escape(row.arrival_date),
+          escape(row.leaving_date),
+          escape(row.reservation_date),
+          escape(row.status),
+          escape(row.notes || '')
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      logger.error('Error exporting bookings', { error });
+
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to export bookings'
       });
     }
   }

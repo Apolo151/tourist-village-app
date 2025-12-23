@@ -264,6 +264,23 @@ class BookingService {
     throw new Error(response.message || 'Failed to fetch user bookings');
   }
 
+  async exportBookings(filters: BookingFilters = {}): Promise<Blob> {
+    return apiClient.download('/bookings/export', filters);
+  }
+
+  async exportBookingsData(filters: BookingFilters = {}): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/bookings/export', {
+      ...filters,
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export bookings');
+  }
+
   // Helper method to check for booking conflicts before creating/updating
   async checkBookingConflicts(
     apartmentId: number, 
