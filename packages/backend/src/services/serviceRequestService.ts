@@ -1,4 +1,5 @@
 import { db } from '../database/connection';
+import type { Knex } from 'knex';
 import {
   ServiceRequest,
   CreateServiceRequestRequest,
@@ -360,8 +361,11 @@ export class ServiceRequestService {
 
   /**
    * Get service request by ID
+   * @param id - Service request ID
+   * @param trx - Optional transaction object. If provided, the query will run within that transaction.
+   *              This is required when reading immediately after an insert/update within the same transaction.
    */
-  async getServiceRequestById(id: number): Promise<(ServiceRequest & { 
+  async getServiceRequestById(id: number, trx?: Knex.Transaction): Promise<(ServiceRequest & { 
     type?: ServiceType; 
     apartment?: Apartment; 
     booking?: Booking;
@@ -373,7 +377,9 @@ export class ServiceRequestService {
       return null;
     }
 
-    const serviceRequest = await db('service_requests as sr')
+    // Use transaction if provided, otherwise use default db connection
+    const queryBuilder = trx || db;
+    const serviceRequest = await queryBuilder('service_requests as sr')
       .leftJoin('service_types as st', 'sr.type_id', 'st.id')
       .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
       .leftJoin('villages as v', 'a.village_id', 'v.id')
@@ -711,7 +717,8 @@ export class ServiceRequestService {
 
         const id = typeof serviceRequestId === 'object' ? serviceRequestId.id : serviceRequestId;
         
-        const serviceRequest = await this.getServiceRequestById(id);
+        // Pass transaction to ensure we can read the newly inserted row within the same transaction
+        const serviceRequest = await this.getServiceRequestById(id, trx);
         if (!serviceRequest) {
           throw new Error('Failed to create service request');
         }
@@ -847,7 +854,8 @@ export class ServiceRequestService {
       try {
         await trx('service_requests').where('id', id).update(updateData);
 
-        const updatedServiceRequest = await this.getServiceRequestById(id);
+        // Pass transaction to ensure we can read the updated row within the same transaction
+        const updatedServiceRequest = await this.getServiceRequestById(id, trx);
         if (!updatedServiceRequest) {
           throw new Error('Failed to update service request');
         }
