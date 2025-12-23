@@ -329,6 +329,21 @@ export default function Invoices() {
     }
   };
 
+  // Formats currency amounts including zero and negative values
+  const formatCurrencyPair = (totals: InvoiceTotals) => {
+    const parts: string[] = [];
+
+    if (totals.EGP !== undefined && totals.EGP !== null) {
+      parts.push(`${totals.EGP.toLocaleString()} EGP`);
+    }
+
+    if (totals.GBP !== undefined && totals.GBP !== null) {
+      parts.push(`${totals.GBP.toLocaleString()} GBP`);
+    }
+
+    return parts.length > 0 ? parts.join(' / ') : '0';
+  };
+
   // Data transformer for export
   const transformInvoicesForExport = (invoicesData: any[]) => {
     return invoicesData.map(invoice => ({
@@ -658,10 +673,7 @@ export default function Invoices() {
                         {invoice.total_money_requested.EGP === 0 && invoice.total_money_requested.GBP === 0 && '-'}
                       </TableCell>
                       <TableCell align="right">
-                        {invoice.net_money.EGP > 0 && `${invoice.net_money.EGP.toLocaleString()} EGP`}
-                        {invoice.net_money.EGP > 0 && invoice.net_money.GBP > 0 && ' / '}
-                        {invoice.net_money.GBP > 0 && `${invoice.net_money.GBP.toLocaleString()} GBP`}
-                        {invoice.net_money.EGP === 0 && invoice.net_money.GBP === 0 && '-'}
+                        {formatCurrencyPair(invoice.net_money)}
                       </TableCell>
                       <TableCell align="center">
                         <Tooltip title="View detailed transactions">
