@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ee-bookings-app-37f53723d601.herokuapp.com/api";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://ee-bookings-app-37f53723d601.herokuapp.com/api";
 
 // Generic API response interface
 export interface ApiResponse<T> {
@@ -251,6 +251,61 @@ class ApiClient {
     return this.request<T>(endpoint, {
       method: 'DELETE',
     });
+  }
+
+  // Download (binary/blob) request, supports auth + token refresh
+  async download(endpoint: string, params?: Record<string, any>): Promise<Blob> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          searchParams.append(key, String(value));
+        }
+      });
+    }
+
+    const query = searchParams.toString();
+    const url = `${API_BASE_URL}${endpoint}${query ? `?${query}` : ''}`;
+
+    const doFetch = async (token?: string) => {
+      const response = await fetch(url, {
+        headers: {
+          ...(token && { Authorization: `Bearer ${token}` }),
+          Accept: 'text/csv'
+        }
+      });
+
+      if (!response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          throw new ApiError(
+            data.message || `HTTP error! status: ${response.status}`,
+            response.status,
+            data
+          );
+        }
+        throw new ApiError(
+          'Failed to download export',
+          response.status,
+          { raw: await response.text() }
+        );
+      }
+
+      return response.blob();
+    };
+
+    const token = this.getAuthToken();
+    try {
+      return await doFetch(token || undefined);
+    } catch (error: any) {
+      if (error instanceof ApiError && error.status === 401 && token && this.getRefreshToken()) {
+        await this.refreshTokens();
+        const newToken = this.getAuthToken();
+        return await doFetch(newToken || undefined);
+      }
+      throw error;
+    }
   }
 }
 

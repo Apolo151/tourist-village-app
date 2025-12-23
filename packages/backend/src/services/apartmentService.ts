@@ -29,172 +29,33 @@ export class ApartmentService {
    */
   async getApartments(filters: ApartmentFilters, villageFilter?: number, villageFilters?: number[]): Promise<PaginatedResponse<Apartment>> {
     const {
-      village_id,
-      phase,
-      status,
-      paying_status,
-      sales_status,
-      paying_status_id,
-      sales_status_id,
-      search,
       page = 1,
       limit = 10,
       sort_by = 'name',
       sort_order = 'asc'
     } = filters;
 
-    // Validate pagination parameters
     const validatedPage = Math.max(1, page);
     const validatedLimit = Math.min(Math.max(1, limit), 100);
 
-    let query = db('apartments as a')
-      .leftJoin('villages as v', 'a.village_id', 'v.id')
-      .leftJoin('users as u', 'a.owner_id', 'u.id')
-      .leftJoin('paying_status_types as pst', 'a.paying_status_id', 'pst.id')
-      .leftJoin('sales_status_types as sst', 'a.sales_status_id', 'sst.id')
-      .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
-      .select(
-        'a.*',
-        'v.name as village_name',
-        'v.electricity_price',
-        'v.water_price',
-        'v.phases as village_phases',
-        'u.name as owner_name',
-        'u.email as owner_email',
-        'u.phone_number as owner_phone',
-        'u.role as owner_role',
-        'u.is_active as owner_is_active',
-        'pst.name as paying_status_name',
-        'pst.display_name as paying_status_display_name',
-        'pst.description as paying_status_description',
-        'pst.color as paying_status_color',
-        'sst.name as sales_status_name',
-        'sst.display_name as sales_status_display_name',
-        'sst.description as sales_status_description',
-        'sst.color as sales_status_color',
-        'asv.status as computed_status'
-      );
-
-    // Build a separate count query without joins for better performance
-    let countQuery = db('apartments as a');
-
-    // Apply village filter based on the new multiple villages approach
-    if (villageFilters && villageFilters.length > 0) {
-      query = query.whereIn('a.village_id', villageFilters);
-      countQuery = countQuery.whereIn('a.village_id', villageFilters);
-    } 
-    // Fallback to single village filter for backward compatibility
-    else if (villageFilter) {
-      query = query.where('a.village_id', villageFilter);
-      countQuery = countQuery.where('a.village_id', villageFilter);
-    }
-
-    // Apply filters to both queries
-    if (village_id) {
-      query = query.where('a.village_id', village_id);
-      countQuery = countQuery.where('a.village_id', village_id);
-    }
-    if (phase) {
-      query = query.where('a.phase', phase);
-      countQuery = countQuery.where('a.phase', phase);
-    }
-    if (paying_status) {
-      // Handle both old string format and new format
-      if (typeof paying_status === 'string') {
-        // Convert old string to new ID format by joining with status types
-        query = query.whereIn('a.paying_status_id', 
-          db('paying_status_types').select('id').where('name', paying_status)
-        );
-        countQuery = countQuery.whereIn('a.paying_status_id', 
-          db('paying_status_types').select('id').where('name', paying_status)
-        );
-      } else {
-        query = query.where('a.paying_status_id', paying_status);
-        countQuery = countQuery.where('a.paying_status_id', paying_status);
-      }
-    }
-    if (paying_status_id) {
-      query = query.where('a.paying_status_id', paying_status_id);
-      countQuery = countQuery.where('a.paying_status_id', paying_status_id);
-    }
-    if (status) {
-      query = query.where('asv.status', status);
-      countQuery = countQuery
-        .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
-        .where('asv.status', status);
-    }
-    if (sales_status) {
-      // Handle both old string format and new format
-      if (typeof sales_status === 'string') {
-        // Convert old string to new ID format by joining with status types
-        const normalizedSalesStatus = sales_status.replace(/ /g, '_');
-        query = query.whereIn('a.sales_status_id', 
-          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
-        );
-        countQuery = countQuery.whereIn('a.sales_status_id', 
-          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
-        );
-      } else {
-        query = query.where('a.sales_status_id', sales_status);
-        countQuery = countQuery.where('a.sales_status_id', sales_status);
-      }
-    }
-    if (sales_status_id) {
-      query = query.where('a.sales_status_id', sales_status_id);
-      countQuery = countQuery.where('a.sales_status_id', sales_status_id);
-    }
-    if (search && search.trim()) {
-      const searchTerm = search.trim();
-      
-      // For main query, need to join with users for search
-      query = query.where(function() {
-        this.where('a.name', 'ilike', `%${searchTerm}%`)
-            .orWhere('u.name', 'ilike', `%${searchTerm}%`);
-      });
-
-      // For count query, need to join with users for search
-      countQuery = countQuery
-        .leftJoin('users as u', 'a.owner_id', 'u.id')
-        .where(function() {
-          this.where('a.name', 'ilike', `%${searchTerm}%`)
-              .orWhere('u.name', 'ilike', `%${searchTerm}%`);
-        });
-    }
+    const { dataQuery, countQuery } = this.buildApartmentQueries(filters, villageFilter, villageFilters);
 
     // Get total count for pagination
     const [{ count }] = await countQuery.count('a.id as count');
     const total = parseInt(count as string);
 
-    // Apply sorting
-    const validSortFields = ['name', 'phase', 'purchase_date', 'paying_status', 'owner_name', 'village_name', 'created_at'];
-    const sortField = validSortFields.includes(sort_by) ? sort_by : 'name';
-    const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
+    // Apply sorting and pagination
+    const sortedQuery = this.applyApartmentSorting(dataQuery, sort_by, sort_order)
+      .limit(validatedLimit)
+      .offset((validatedPage - 1) * validatedLimit);
 
-    if (sortField === 'owner_name') {
-      query = query.orderBy('u.name', validSortOrder);
-    } else if (sortField === 'village_name') {
-      query = query.orderBy('v.name', validSortOrder);
-    } else if (sortField === 'paying_status') {
-      query = query.orderBy('pst.display_name', validSortOrder);
-    } else {
-      query = query.orderBy(`a.${sortField}`, validSortOrder);
-    }
+    const results = await sortedQuery;
 
-    // Apply pagination
-    const offset = (validatedPage - 1) * validatedLimit;
-    query = query.limit(validatedLimit).offset(offset);
-
-    // Execute query
-    const results = await query;
-
-    // Transform data
     const apartments = results.map((data: any) => {
       const apt = this.transformApartmentData(data);
       apt.status = data.computed_status || 'Unknown';
       return apt;
     });
-
-    // Remove old in-memory status computation
 
     const totalPages = Math.ceil(total / validatedLimit);
 
@@ -207,6 +68,77 @@ export class ApartmentService {
         total_pages: totalPages
       }
     };
+  }
+
+  /**
+   * Stream all apartments matching filters for export (no pagination)
+   */
+  async exportApartments(filters: ApartmentFilters, villageFilter?: number, villageFilters?: number[]) {
+    const { sort_by = 'name', sort_order = 'asc' } = filters;
+
+    const { dataQuery, countQuery } = this.buildApartmentQueries(filters, villageFilter, villageFilters);
+    const [{ count }] = await countQuery.count('a.id as count');
+    const total = parseInt(count as string);
+
+    const EXPORT_ROW_LIMIT = 50000;
+    if (total > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const sortedQuery = this.applyApartmentSorting(dataQuery, sort_by, sort_order);
+    const rows = await sortedQuery;
+
+    return {
+      total,
+      rows
+    };
+  }
+
+  /**
+   * Public helper to fetch balances for a list of apartments (export use)
+   */
+  async getExportBalances(apartmentIds: number[]) {
+    return this.getBalancesForApartments(apartmentIds);
+  }
+
+  /**
+   * Export apartments as an array (respecting filters and export cap)
+   */
+  async exportApartmentsData(filters: ApartmentFilters, villageFilter?: number, villageFilters?: number[]) {
+    const { sort_by = 'name', sort_order = 'asc' } = filters;
+
+    const { dataQuery, countQuery } = this.buildApartmentQueries(filters, villageFilter, villageFilters);
+    const [{ count }] = await countQuery.count('a.id as count');
+    const total = parseInt(count as string);
+
+    const EXPORT_ROW_LIMIT = 50000;
+    if (total > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const sortedQuery = this.applyApartmentSorting(dataQuery, sort_by, sort_order);
+    const rows = await sortedQuery;
+
+    const balances = await this.getBalancesForApartments(rows.map((r: any) => r.id));
+
+    const exported = rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      village: row.village_name || 'Unknown',
+      phase: row.phase,
+      owner: row.owner_name || 'Unknown',
+      paying_status: row.paying_status_display_name || row.paying_status_name || 'Unknown',
+      sales_status: row.sales_status_display_name || row.sales_status_name || 'Unknown',
+      status: row.computed_status || 'Unknown',
+      balance_EGP: balances.get(row.id)?.EGP ?? 0,
+      balance_GBP: balances.get(row.id)?.GBP ?? 0
+    }));
+
+    return { total, data: exported };
   }
 
   /**
@@ -810,6 +742,249 @@ export class ApartmentService {
         updated_at: new Date(data.sales_status_updated_at || data.updated_at)
       } : undefined
     };
+  }
+
+  /**
+   * Build filtered apartment queries (data + count) used by listings and exports
+   */
+  private buildApartmentQueries(filters: ApartmentFilters, villageFilter?: number, villageFilters?: number[]) {
+    const {
+      village_id,
+      phase,
+      status,
+      paying_status,
+      sales_status,
+      paying_status_id,
+      sales_status_id,
+      search
+    } = filters;
+
+    let dataQuery = db('apartments as a')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('users as u', 'a.owner_id', 'u.id')
+      .leftJoin('paying_status_types as pst', 'a.paying_status_id', 'pst.id')
+      .leftJoin('sales_status_types as sst', 'a.sales_status_id', 'sst.id')
+      .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
+      .select(
+        'a.*',
+        'v.name as village_name',
+        'v.electricity_price',
+        'v.water_price',
+        'v.phases as village_phases',
+        'u.name as owner_name',
+        'u.email as owner_email',
+        'u.phone_number as owner_phone',
+        'u.role as owner_role',
+        'u.is_active as owner_is_active',
+        'pst.name as paying_status_name',
+        'pst.display_name as paying_status_display_name',
+        'pst.description as paying_status_description',
+        'pst.color as paying_status_color',
+        'sst.name as sales_status_name',
+        'sst.display_name as sales_status_display_name',
+        'sst.description as sales_status_description',
+        'sst.color as sales_status_color',
+        'asv.status as computed_status'
+      );
+
+    let countQuery = db('apartments as a');
+
+    // Village auth filters
+    if (villageFilters && villageFilters.length > 0) {
+      dataQuery = dataQuery.whereIn('a.village_id', villageFilters);
+      countQuery = countQuery.whereIn('a.village_id', villageFilters);
+    } else if (villageFilter) {
+      dataQuery = dataQuery.where('a.village_id', villageFilter);
+      countQuery = countQuery.where('a.village_id', villageFilter);
+    }
+
+    // Explicit filters
+    if (village_id) {
+      dataQuery = dataQuery.where('a.village_id', village_id);
+      countQuery = countQuery.where('a.village_id', village_id);
+    }
+    if (phase) {
+      dataQuery = dataQuery.where('a.phase', phase);
+      countQuery = countQuery.where('a.phase', phase);
+    }
+    if (paying_status) {
+      if (typeof paying_status === 'string') {
+        dataQuery = dataQuery.whereIn(
+          'a.paying_status_id',
+          db('paying_status_types').select('id').where('name', paying_status)
+        );
+        countQuery = countQuery.whereIn(
+          'a.paying_status_id',
+          db('paying_status_types').select('id').where('name', paying_status)
+        );
+      } else {
+        dataQuery = dataQuery.where('a.paying_status_id', paying_status);
+        countQuery = countQuery.where('a.paying_status_id', paying_status);
+      }
+    }
+    if (paying_status_id) {
+      dataQuery = dataQuery.where('a.paying_status_id', paying_status_id);
+      countQuery = countQuery.where('a.paying_status_id', paying_status_id);
+    }
+    if (status) {
+      dataQuery = dataQuery.where('asv.status', status);
+      countQuery = countQuery
+        .leftJoin('apartment_status_view as asv', 'a.id', 'asv.apartment_id')
+        .where('asv.status', status);
+    }
+    if (sales_status) {
+      if (typeof sales_status === 'string') {
+        const normalizedSalesStatus = sales_status.replace(/ /g, '_');
+        dataQuery = dataQuery.whereIn(
+          'a.sales_status_id',
+          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
+        );
+        countQuery = countQuery.whereIn(
+          'a.sales_status_id',
+          db('sales_status_types').select('id').where('name', normalizedSalesStatus)
+        );
+      } else {
+        dataQuery = dataQuery.where('a.sales_status_id', sales_status);
+        countQuery = countQuery.where('a.sales_status_id', sales_status);
+      }
+    }
+    if (sales_status_id) {
+      dataQuery = dataQuery.where('a.sales_status_id', sales_status_id);
+      countQuery = countQuery.where('a.sales_status_id', sales_status_id);
+    }
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      dataQuery = dataQuery.where(function() {
+        this.where('a.name', 'ilike', `%${searchTerm}%`).orWhere('u.name', 'ilike', `%${searchTerm}%`);
+      });
+      countQuery = countQuery
+        .leftJoin('users as u', 'a.owner_id', 'u.id')
+        .where(function() {
+          this.where('a.name', 'ilike', `%${searchTerm}%`).orWhere('u.name', 'ilike', `%${searchTerm}%`);
+        });
+    }
+
+    return { dataQuery, countQuery };
+  }
+
+  /**
+   * Apply validated sorting to apartment queries
+   */
+  private applyApartmentSorting(query: any, sort_by?: string, sort_order?: 'asc' | 'desc') {
+    const validSortFields = ['name', 'phase', 'purchase_date', 'paying_status', 'owner_name', 'village_name', 'created_at'];
+    const sortField = validSortFields.includes(sort_by || '') ? (sort_by as string) : 'name';
+    const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
+
+    if (sortField === 'owner_name') {
+      return query.orderBy('u.name', validSortOrder);
+    }
+    if (sortField === 'village_name') {
+      return query.orderBy('v.name', validSortOrder);
+    }
+    if (sortField === 'paying_status') {
+      return query.orderBy('pst.display_name', validSortOrder);
+    }
+    return query.orderBy(`a.${sortField}`, validSortOrder);
+  }
+
+  /**
+   * Batch compute balances for multiple apartments to avoid N+1 in exports
+   */
+  private async getBalancesForApartments(apartmentIds: number[]) {
+    const result = new Map<number, { EGP: number; GBP: number }>();
+    if (!apartmentIds.length) {
+      return result;
+    }
+
+    const rows = await db('apartments as a')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .whereIn('a.id', apartmentIds)
+      .select(
+        'a.id as apartment_id',
+        db.raw(`
+          COALESCE((
+            SELECT SUM(CAST(p.amount AS DECIMAL))
+            FROM payments p
+            WHERE p.apartment_id = a.id
+              AND p.currency = 'EGP'
+          ), 0) as payments_egp
+        `),
+        db.raw(`
+          COALESCE((
+            SELECT SUM(CAST(p.amount AS DECIMAL))
+            FROM payments p
+            WHERE p.apartment_id = a.id
+              AND p.currency = 'GBP'
+          ), 0) as payments_gbp
+        `),
+        db.raw(`
+          COALESCE((
+            SELECT SUM(CAST(sr.cost AS DECIMAL))
+            FROM service_requests sr
+            WHERE sr.apartment_id = a.id
+              AND sr.currency = 'EGP'
+          ), 0) as requests_egp
+        `),
+        db.raw(`
+          COALESCE((
+            SELECT SUM(CAST(sr.cost AS DECIMAL))
+            FROM service_requests sr
+            WHERE sr.apartment_id = a.id
+              AND sr.currency = 'GBP'
+          ), 0) as requests_gbp
+        `),
+        db.raw(`
+          COALESCE((
+            SELECT SUM(
+              CASE 
+                WHEN ur.water_end_reading IS NOT NULL 
+                  AND ur.water_start_reading IS NOT NULL
+                  AND ur.water_end_reading >= ur.water_start_reading 
+                  AND v.water_price > 0
+                THEN (ur.water_end_reading - ur.water_start_reading) * v.water_price 
+                ELSE 0 
+              END
+            )
+            FROM utility_readings ur
+            WHERE ur.apartment_id = a.id
+              AND ur.who_pays = 'owner'
+          ), 0) as water_cost
+        `),
+        db.raw(`
+          COALESCE((
+            SELECT SUM(
+              CASE 
+                WHEN ur.electricity_end_reading IS NOT NULL
+                  AND ur.electricity_start_reading IS NOT NULL
+                  AND ur.electricity_end_reading >= ur.electricity_start_reading 
+                  AND v.electricity_price > 0
+                THEN (ur.electricity_end_reading - ur.electricity_start_reading) * v.electricity_price 
+                ELSE 0 
+              END
+            )
+            FROM utility_readings ur
+            WHERE ur.apartment_id = a.id
+              AND ur.who_pays = 'owner'
+          ), 0) as electricity_cost
+        `)
+      );
+
+    rows.forEach((row: any) => {
+      const totalMoneySpent = this.parseCurrencyTotals(row.payments_egp, row.payments_gbp);
+      const serviceRequestTotals = this.parseCurrencyTotals(row.requests_egp, row.requests_gbp);
+      const utilityCostEGP = this.calculateUtilityCosts(row.water_cost, row.electricity_cost, row.apartment_id);
+      const totalMoneyRequested = {
+        EGP: serviceRequestTotals.EGP + utilityCostEGP,
+        GBP: serviceRequestTotals.GBP
+      };
+      const netMoney = {
+        EGP: totalMoneyRequested.EGP - totalMoneySpent.EGP,
+        GBP: totalMoneyRequested.GBP - totalMoneySpent.GBP
+      };
+      result.set(row.apartment_id, netMoney);
+    });
+
+    return result;
   }
 
   private async calculateApartmentStatus(apartmentId: number): Promise<'Available' | 'Occupied by Owner' | 'Occupied by Tenant' | 'Booked'> {

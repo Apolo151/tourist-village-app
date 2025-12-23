@@ -59,6 +59,99 @@ apartmentsRouter.get(
 );
 
 /**
+ * GET /api/apartments/export
+ * Export all apartments matching filters (no pagination)
+ */
+apartmentsRouter.get(
+  '/export',
+  authenticateToken,
+  requireAdmin,
+  filterByResponsibleVillage(),
+  ValidationMiddleware.validateQueryParams,
+  async (req: Request, res: Response) => {
+    try {
+      const filters: ApartmentFilters = {
+        village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
+        phase: req.query.phase ? parseInt(req.query.phase as string) : undefined,
+        status: req.query.status as string,
+        paying_status: req.query.paying_status as string,
+        paying_status_id: req.query.paying_status_id ? parseInt(req.query.paying_status_id as string) : undefined,
+        sales_status: req.query.sales_status as string,
+        sales_status_id: req.query.sales_status_id ? parseInt(req.query.sales_status_id as string) : undefined,
+        search: req.query.search as string,
+        sort_by: (req.query.sort_by as string) || 'name',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'asc'
+      };
+
+      const villageFilter = req.villageFilter;
+      const villageFilters = req.villageFilters;
+
+      const format = (req.query.format as string) || 'csv';
+
+      // JSON export (for frontend Excel/PDF generation)
+      if (format === 'json') {
+        const { data } = await apartmentService.exportApartmentsData(filters, villageFilter, villageFilters);
+        return res.json({
+          success: true,
+          data,
+          message: `Exported ${data.length} apartments`
+        });
+      }
+
+      const { rows } = await apartmentService.exportApartments(filters, villageFilter, villageFilters);
+      const balances = await apartmentService.getExportBalances(rows.map((r: any) => r.id));
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="apartments.csv"');
+
+      // CSV header
+      res.write('ID,Name,Project,Phase,Owner,Paying Status,Sales Status,Status,Balance_EGP,Balance_GBP\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const balance = balances.get(row.id) || { EGP: 0, GBP: 0 };
+        const line = [
+          escape(row.id),
+          escape(row.name),
+          escape(row.village_name || 'Unknown'),
+          escape(row.phase),
+          escape(row.owner_name || 'Unknown'),
+          escape(row.paying_status_display_name || row.paying_status_name || 'Unknown'),
+          escape(row.sales_status_display_name || row.sales_status_name || 'Unknown'),
+          escape(row.computed_status || 'Unknown'),
+          escape(balance.EGP),
+          escape(balance.GBP)
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      console.error('Error exporting apartments:', error);
+
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        error: 'Internal server error',
+        message: 'Failed to export apartments'
+      });
+    }
+  }
+);
+
+/**
  * GET /api/apartments/village/:villageId
  * Get all apartments for a specific village
  */

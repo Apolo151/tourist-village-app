@@ -232,6 +232,29 @@ class ApartmentService {
   }
 
   /**
+   * Export apartments as CSV (all filtered results, no pagination)
+   */
+  async exportApartments(filters?: ApartmentFilters): Promise<Blob> {
+    return apiClient.download('/apartments/export', filters);
+  }
+
+  /**
+   * Export apartments as JSON array (all filtered results, no pagination)
+   */
+  async exportApartmentsData(filters?: ApartmentFilters): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/apartments/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export apartments');
+  }
+
+  /**
    * Get the display name for a paying status
    * This handles both the new status type objects and legacy string values
    */

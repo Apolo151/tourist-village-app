@@ -28,7 +28,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  DialogContentText
+  DialogContentText,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -40,7 +42,9 @@ import {
   Visibility as ViewIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  EventAvailable as BookingIcon
+  EventAvailable as BookingIcon,
+  FileDownloadOutlined as DownloadIcon,
+  PictureAsPdfOutlined as PdfIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { apartmentService } from '../services/apartmentService';
@@ -53,6 +57,7 @@ import type { PayingStatusType } from '../services/payingStatusTypeService';
 import type { SalesStatusType } from '../services/salesStatusTypeService';
 import ExportButtons from '../components/ExportButtons';
 import CreateBooking from './CreateBooking';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 interface ApartmentWithBalance extends Apartment {
   balance?: {
@@ -101,6 +106,10 @@ export default function Apartments() {
   const [bookingDialogOpen, setBookingDialogOpen] = useState(false);
   const [bookingApartmentId, setBookingApartmentId] = useState<number | null>(null);
 
+  // Export state
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
+
   // Check if user is admin or owner (both should see financial data)
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
@@ -146,21 +155,23 @@ export default function Apartments() {
     }
   };
 
+  const buildFilters = (includePagination: boolean) => ({
+    search: searchTerm || undefined,
+    village_id: villageFilter ? parseInt(villageFilter) : undefined,
+    phase: phaseFilter ? parseInt(phaseFilter) : undefined,
+    status: statusFilter || undefined,
+    paying_status_id: payingStatusFilter ? parseInt(payingStatusFilter) : undefined,
+    sales_status_id: salesStatusFilter ? parseInt(salesStatusFilter) : undefined,
+    page: includePagination ? page : undefined,
+    limit: includePagination ? limit : undefined,
+    sort_by: orderBy,
+    sort_order: order
+  });
+
   const loadApartments = async () => {
     try {
       setError('');
-      const filters = {
-        search: searchTerm || undefined,
-        village_id: villageFilter ? parseInt(villageFilter) : undefined,
-        phase: phaseFilter ? parseInt(phaseFilter) : undefined,
-        status: statusFilter || undefined,
-        paying_status_id: payingStatusFilter ? parseInt(payingStatusFilter) : undefined,
-        sales_status_id: salesStatusFilter ? parseInt(salesStatusFilter) : undefined,
-        page,
-        limit,
-        sort_by: orderBy,
-        sort_order: order
-      };
+      const filters = buildFilters(true);
 
       const response = await apartmentService.getApartments(filters);
       
@@ -212,6 +223,51 @@ export default function Apartments() {
     const village = villages.find(v => v.id === villageId);
     if (!village) return [];
     return Array.from({ length: village.phases }, (_, i) => i + 1);
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformApartmentsForExport(apartments);
+    }
+    const filters = buildFilters(false);
+    const data = await apartmentService.exportApartmentsData(filters);
+    return data.map(item => ({
+      ...item,
+      phase: item.phase ? `Phase ${item.phase}` : item.phase
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToExcel(data, 'apartments.xlsx', undefined);
+    } catch (err: any) {
+      const message = err?.message || 'Failed to export apartments';
+      setError(message);
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError('');
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","name","village","phase","owner","paying_status","sales_status","status","balance_EGP","balance_GBP"],
+        'apartments.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      const message = err?.message || 'Failed to export apartments';
+      setError(message);
+    } finally {
+      setExportingData(false);
+    }
   };
   
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -542,7 +598,45 @@ export default function Apartments() {
 
         {/* Export Buttons */}
         {(isAdmin) && (
-        <ExportButtons data={transformApartmentsForExport(apartments)} columns={["id","name","village","phase","owner","paying_status","sales_status","status","balance_EGP","balance_GBP"]} excelFileName="apartments.xlsx" pdfFileName="apartments.pdf" />
+          <Paper variant="outlined" sx={{ p: 2, mb: 2, backgroundColor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                  Export scope
+                </Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  value={exportScope}
+                  exclusive
+                  onChange={(_, val) => val && setExportScope(val)}
+                >
+                  <ToggleButton value="current">Current view</ToggleButton>
+                  <ToggleButton value="all">All filtered</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box sx={{ flexGrow: 1 }} />
+
+              <ExportButtons
+                data={transformApartmentsForExport(apartments)}
+                columns={["id","name","village","phase","owner","paying_status","sales_status","status","balance_EGP","balance_GBP"]}
+                excelFileName="apartments.xlsx"
+                pdfFileName="apartments.pdf"
+                onExportExcel={handleExportExcel}
+                onExportPDF={handleExportPDF}
+                disabled={exportingData}
+                excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+                pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+                excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+                pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+                size="medium"
+                variant="contained"
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Current view exports only the visible page; All filtered exports every matching apartment with balances.
+            </Typography>
+          </Paper>
         )}
 
         <Paper>
