@@ -233,6 +233,23 @@ class PaymentService {
     }
   }
 
+  async exportPayments(filters?: PaymentFilters): Promise<Blob> {
+    return apiClient.download('/payments/export', filters);
+  }
+
+  async exportPaymentsData(filters?: PaymentFilters): Promise<any[]> {
+    const response = await apiClient.get<ApiResponse<any[]>>('/payments/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data;
+    }
+
+    throw new Error(response.message || 'Failed to export payments');
+  }
+
   // Payment Methods
   async getPaymentMethods(filters?: PaymentMethodFilters): Promise<PaginatedResponse<PaymentMethod>> {
     const response = await apiClient.get<ApiResponse<PaymentMethod[]>>('/payment-methods', filters);

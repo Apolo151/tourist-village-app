@@ -53,6 +53,9 @@ import { format, parseISO } from 'date-fns';
 import ExportButtons from '../components/ExportButtons';
 import { villageService } from '../services/villageService';
 import type { Village } from '../services/villageService';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
+import { FileDownloadOutlined as DownloadIcon, PictureAsPdfOutlined as PdfIcon } from '@mui/icons-material';
+import { ToggleButton, ToggleButtonGroup, Paper as MuiPaper } from '@mui/material';
 
 export default function Payments() {
   const navigate = useNavigate();
@@ -84,6 +87,10 @@ export default function Payments() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+
+  // Export state
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
   
   // Pagination
   const [pagination, setPagination] = useState({
@@ -285,6 +292,73 @@ export default function Payments() {
         'No booking',
       created_by: payment.created_by_user?.name || 'Unknown'
     }));
+  };
+
+  const buildExportFilters = (includePagination: boolean): PaymentFilters => {
+    const filters: PaymentFilters = {
+      search: searchTerm || undefined,
+      apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+      user_type: userTypeFilter || undefined,
+      booking_id: bookingFilter ? parseInt(bookingFilter) : undefined,
+      currency: currencyFilter || undefined,
+      method_id: methodFilter ? parseInt(methodFilter) : undefined,
+      created_by: userFilter ? parseInt(userFilter) : undefined,
+      sort_by: 'date',
+      sort_order: 'desc',
+      village_id: projectFilter ? parseInt(projectFilter) : undefined
+    };
+    if (includePagination) {
+      filters.page = pagination.page;
+      filters.limit = pagination.limit;
+    }
+    return filters;
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformPaymentsForExport(payments);
+    }
+    const filters = buildExportFilters(false);
+    const data = await paymentService.exportPaymentsData(filters);
+    return data.map(item => ({
+      ...item,
+      date: formatDate(item.date),
+      amount: paymentService.formatAmount(item.amount, item.currency),
+      booking: item.booking || 'No booking',
+      created_by: item.created_by || 'Unknown',
+      user_type: item.user_type === 'owner' ? 'Owner' : 'Tenant'
+    }));
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToExcel(data, 'payments.xlsx', undefined);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export payments');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","date","description","amount","currency","method","user_type","apartment","village","booking","created_by"],
+        'payments.pdf',
+        undefined
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export payments');
+    } finally {
+      setExportingData(false);
+    }
   };
   
   // Check for success message from URL
@@ -538,8 +612,46 @@ export default function Payments() {
           </Box>
         </Paper>
         
-        {/* Export Buttons */}
-        <ExportButtons data={transformPaymentsForExport(payments)} columns={["id","date","description","amount","currency","method","user_type","apartment","village","booking","created_by"]} excelFileName="payments.xlsx" pdfFileName="payments.pdf" />
+        {/* Export */}
+        <MuiPaper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                Export scope
+              </Typography>
+              <ToggleButtonGroup
+                size="small"
+                value={exportScope}
+                exclusive
+                onChange={(_, val) => val && setExportScope(val)}
+              >
+                <ToggleButton value="current">Current view</ToggleButton>
+                <ToggleButton value="all">All filtered</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+
+            <Box sx={{ flexGrow: 1 }} />
+
+            <ExportButtons
+              data={transformPaymentsForExport(payments)}
+              columns={["id","date","description","amount","currency","method","user_type","apartment","village","booking","created_by"]}
+              excelFileName="payments.xlsx"
+              pdfFileName="payments.pdf"
+              onExportExcel={handleExportExcel}
+              onExportPDF={handleExportPDF}
+              disabled={exportingData}
+              excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+              pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+              excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+              pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+              size="medium"
+              variant="contained"
+            />
+          </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+            Current view exports only the visible page; All filtered exports every matching payment.
+          </Typography>
+        </MuiPaper>
         
         {/* Payments Table */}
         <TableContainer component={Paper}>
