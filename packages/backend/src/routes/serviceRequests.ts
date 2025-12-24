@@ -3,9 +3,11 @@ import { ServiceRequestService } from '../services/serviceRequestService';
 import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
 import { ValidationMiddleware } from '../middleware/validation';
 import { ServiceRequestFilters, CreateServiceRequestRequest, UpdateServiceRequestRequest } from '../types';
+import { createLogger } from '../utils/logger';
 
 const router = Router();
 const serviceRequestService = new ServiceRequestService();
+const logger = createLogger('ServiceRequestsRouter');
 
 /**
  * @route GET /api/service-requests
@@ -80,6 +82,94 @@ router.get('/stats', authenticateToken, requireRole('admin', 'super_admin'), asy
     });
   }
 });
+
+/**
+ * @route GET /api/service-requests/export
+ * @desc Export service requests (all filtered, no pagination)
+ * @access Private (Admin, Super Admin)
+ */
+router.get('/export',
+  authenticateToken,
+  requireRole('admin', 'super_admin'),
+  filterByResponsibleVillage(),
+  async (req: Request, res: Response) => {
+    try {
+      const filters: ServiceRequestFilters = {
+        type_id: req.query.type_id ? parseInt(req.query.type_id as string) : undefined,
+        apartment_id: req.query.apartment_id ? parseInt(req.query.apartment_id as string) : undefined,
+        booking_id: req.query.booking_id ? parseInt(req.query.booking_id as string) : undefined,
+        requester_id: req.query.requester_id ? parseInt(req.query.requester_id as string) : undefined,
+        assignee_id: req.query.assignee_id ? parseInt(req.query.assignee_id as string) : undefined,
+        status: req.query.status as 'Created' | 'In Progress' | 'Done' | undefined,
+        who_pays: req.query.who_pays as 'owner' | 'renter' | 'company' | undefined,
+        date_action_start: req.query.date_action_start as string,
+        date_action_end: req.query.date_action_end as string,
+        date_created_start: req.query.date_created_start as string,
+        date_created_end: req.query.date_created_end as string,
+        village_id: req.query.village_id ? parseInt(req.query.village_id as string) : undefined,
+        search: req.query.search as string,
+        sort_by: (req.query.sort_by as string) || 'date_created',
+        sort_order: (req.query.sort_order as 'asc' | 'desc') || 'desc'
+      };
+
+      const format = (req.query.format as string) || 'csv';
+      const villageFilter = req.villageFilter;
+
+      const rows = await serviceRequestService.exportServiceRequests(filters, villageFilter);
+
+      if (format === 'json') {
+        return res.json({
+          success: true,
+          data: rows,
+          message: `Exported ${rows.length} service requests`
+        });
+      }
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="service-requests.csv"');
+
+      res.write('ID,Service Type,Apartment,Village,Requester,Status,Who Pays,Notes,Action Date,Created Date\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      rows.forEach((row: any) => {
+        const line = [
+          escape(row.id),
+          escape(row.service_type || ''),
+          escape(row.apartment || ''),
+          escape(row.village || ''),
+          escape(row.requester || ''),
+          escape(row.status || ''),
+          escape(row.who_pays || ''),
+          escape(row.notes || ''),
+          escape(row.date_action ? row.date_action.toISOString() : ''),
+          escape(row.date_created ? row.date_created.toISOString() : '')
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      logger.error('Error exporting service requests', { error });
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export service requests',
+        error: error.message
+      });
+    }
+  }
+);
 
 /**
  * @route GET /api/service-requests/:id

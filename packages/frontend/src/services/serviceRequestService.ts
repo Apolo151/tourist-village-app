@@ -315,6 +315,23 @@ class ServiceRequestService {
     }
   }
 
+  async exportServiceRequests(filters?: ServiceRequestFilters): Promise<Blob> {
+    return apiClient.download('/service-requests/export', filters);
+  }
+
+  async exportServiceRequestsData(filters?: ServiceRequestFilters): Promise<ServiceRequest[]> {
+    const response = await apiClient.get<ApiResponse<ServiceRequest[]>>('/service-requests/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data as ServiceRequest[];
+    }
+
+    throw new Error(response.message || 'Failed to export service requests');
+  }
+
   // Helper methods
   getStatusColor(status: 'Created' | 'In Progress' | 'Done'): 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning' {
     switch (status) {

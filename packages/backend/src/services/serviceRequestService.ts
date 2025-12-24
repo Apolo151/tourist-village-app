@@ -11,6 +11,10 @@ import {
   Apartment,
   Booking
 } from '../types';
+import { createLogger } from '../utils/logger';
+
+const EXPORT_ROW_LIMIT = 1000000;
+const logger = createLogger('ServiceRequestService');
 
 export class ServiceRequestService {
   
@@ -959,5 +963,154 @@ export class ServiceRequestService {
       })),
       total_cost_estimate: totalCostEstimate
     };
+  }
+
+  /**
+   * Export service requests (all filtered, no pagination)
+   */
+  async exportServiceRequests(filters: ServiceRequestFilters = {}, villageFilter?: number) {
+    const {
+      type_id,
+      apartment_id,
+      booking_id,
+      requester_id,
+      assignee_id,
+      status,
+      who_pays,
+      date_action_start,
+      date_action_end,
+      date_created_start,
+      date_created_end,
+      village_id,
+      search,
+      sort_by = 'date_created',
+      sort_order = 'desc'
+    } = filters;
+
+    let query = db('service_requests as sr')
+      .leftJoin('service_types as st', 'sr.type_id', 'st.id')
+      .leftJoin('apartments as a', 'sr.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .leftJoin('users as requester', 'sr.requester_id', 'requester.id')
+      .select(
+        'sr.id',
+        'st.name as service_type_name',
+        'a.name as apartment_name',
+        'v.name as village_name',
+        'requester.name as requester_name',
+        'sr.status',
+        'sr.who_pays',
+        'sr.notes',
+        'sr.date_action',
+        'sr.date_created'
+      );
+
+    if (type_id) query = query.where('sr.type_id', type_id);
+    if (apartment_id) query = query.where('sr.apartment_id', apartment_id);
+    if (booking_id) query = query.where('sr.booking_id', booking_id);
+    if (requester_id) query = query.where('sr.requester_id', requester_id);
+    if (assignee_id) query = query.where('sr.assignee_id', assignee_id);
+    if (status) query = query.where('sr.status', status);
+    if (who_pays) query = query.where('sr.who_pays', who_pays);
+    if (village_id) query = query.where('a.village_id', village_id);
+    if (date_action_start) query = query.where('sr.date_action', '>=', new Date(date_action_start));
+    if (date_action_end) query = query.where('sr.date_action', '<=', new Date(date_action_end));
+    if (date_created_start) query = query.where('sr.date_created', '>=', new Date(date_created_start));
+    if (date_created_end) query = query.where('sr.date_created', '<=', new Date(date_created_end));
+
+    if (search && search.trim()) {
+      const searchTerm = search.trim();
+      query = query.where(function() {
+        this.where('st.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('a.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('v.name', 'ilike', `%${searchTerm}%`)
+            .orWhere('sr.notes', 'ilike', `%${searchTerm}%`)
+            .orWhere('requester.name', 'ilike', `%${searchTerm}%`);
+      });
+    }
+
+    if (villageFilter) {
+      query = query.where('a.village_id', villageFilter);
+    }
+
+    const countQuery = query.clone().clearSelect().count('sr.id as count');
+    const [{ count }] = await countQuery;
+    const total = parseInt(count as string);
+    if (total > EXPORT_ROW_LIMIT) {
+      const error: any = new Error(`Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`);
+      error.code = 'EXPORT_LIMIT_EXCEEDED';
+      throw error;
+    }
+
+    const validSortFields = ['date_created', 'date_action', 'status', 'service_type_name', 'apartment_name', 'village_name'];
+    const sortField = validSortFields.includes(sort_by) ? sort_by : 'date_created';
+    const validSortOrder = sort_order === 'desc' ? 'desc' : 'asc';
+    if (sortField === 'service_type_name') {
+      query = query.orderBy('st.name', validSortOrder);
+    } else if (sortField === 'apartment_name') {
+      query = query.orderBy('a.name', validSortOrder);
+    } else if (sortField === 'village_name') {
+      query = query.orderBy('v.name', validSortOrder);
+    } else {
+      query = query.orderBy(`sr.${sortField}`, validSortOrder);
+    }
+
+    const rows = await query;
+
+    return rows.map((sr: any) => {
+      // Robust date_action handling
+      let dateAction: Date | null = null;
+      if (sr.date_action !== null && sr.date_action !== undefined) {
+        // Handle empty strings
+        if (typeof sr.date_action === 'string' && sr.date_action.trim() === '') {
+          dateAction = null;
+        } else {
+          // Try to create Date
+          const date = new Date(sr.date_action);
+          // Validate the Date is valid
+          if (!isNaN(date.getTime())) {
+            dateAction = date;
+          } else {
+            // Invalid date - log warning
+            logger.warn(`[EXPORT] Service Request ${sr.id}: Invalid date_action - raw value: ${sr.date_action}`);
+            dateAction = null;
+          }
+        }
+      }
+
+      // Robust date_created handling (should always be valid, but be safe)
+      let dateCreated: Date | null = null;
+      if (sr.date_created !== null && sr.date_created !== undefined) {
+        const date = new Date(sr.date_created);
+        if (!isNaN(date.getTime())) {
+          dateCreated = date;
+        } else {
+          logger.warn(`[EXPORT] Invalid date_created for service request ${sr.id}: ${sr.date_created}`);
+          dateCreated = null;
+        }
+      }
+
+      // Apply fallback logic: if date_action is null, use date_created (consistent with regular query)
+      // This ensures exports match the UI behavior where old records without date_action show date_created
+      const finalDateAction = dateAction !== null ? dateAction : dateCreated;
+      
+      // Warn if both are null (should not happen)
+      if (dateAction === null && dateCreated === null) {
+        logger.warn(`[EXPORT] Service Request ${sr.id}: Both date_action and date_created are null - this should not happen`);
+      }
+
+      return {
+        id: sr.id,
+        service_type: sr.service_type_name,
+        apartment: sr.apartment_name,
+        village: sr.village_name,
+        requester: sr.requester_name,
+        status: sr.status,
+        who_pays: sr.who_pays,
+        notes: sr.notes || null,
+        date_action: finalDateAction,  // Never null - uses date_created as fallback
+        date_created: dateCreated
+      };
+    });
   }
 } 

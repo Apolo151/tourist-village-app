@@ -36,7 +36,9 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
-  Grid
+  Grid,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { 
@@ -53,6 +55,7 @@ import {
   Delete as DeleteIcon,
   FilterList as FilterListIcon
 } from '@mui/icons-material';
+import { FileDownloadOutlined as DownloadIcon, PictureAsPdfOutlined as PdfIcon } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { serviceRequestService } from '../services/serviceRequestService';
 import type { ServiceType, ServiceRequest } from '../services/serviceRequestService';
@@ -60,11 +63,12 @@ import { apartmentService } from '../services/apartmentService';
 import type { Apartment } from '../services/apartmentService';
 import { userService } from '../services/userService';
 import type { User } from '../services/userService';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import ExportButtons from '../components/ExportButtons';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -137,6 +141,8 @@ export default function Services() {
     total: 0,
     total_pages: 0
   });
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
   
   // Check if user is admin
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
@@ -455,21 +461,190 @@ export default function Services() {
     return format(parseISO(dateString), 'MMM dd, yyyy HH:mm');
   };
 
+  // Robust date formatter that handles Date objects, ISO strings, null, undefined, and empty strings
+  const formatDateAction = (dateValue: any): string => {
+    // Explicit null/undefined check
+    if (dateValue === null || dateValue === undefined) {
+      return 'Not scheduled';
+    }
+
+    // Handle empty strings
+    if (typeof dateValue === 'string' && dateValue.trim() === '') {
+      return 'Not scheduled';
+    }
+
+    // Handle Date objects (shouldn't happen from API, but be safe)
+    if (dateValue instanceof Date) {
+      if (isNaN(dateValue.getTime())) {
+        return 'Not scheduled';
+      }
+      return format(dateValue, 'MMM dd, yyyy HH:mm');
+    }
+
+    // Handle ISO strings (most common case from API)
+    if (typeof dateValue === 'string') {
+      // Try parseISO first (handles ISO 8601 format)
+      try {
+        const parsedDate = parseISO(dateValue);
+        if (isValid(parsedDate)) {
+          return format(parsedDate, 'MMM dd, yyyy HH:mm');
+        }
+      } catch (error) {
+        // parseISO failed, try fallback
+      }
+
+      // Fallback: try new Date() for other string formats
+      try {
+        const fallbackDate = new Date(dateValue);
+        if (!isNaN(fallbackDate.getTime())) {
+          return format(fallbackDate, 'MMM dd, yyyy HH:mm');
+        }
+      } catch (error) {
+        // Both parsing methods failed
+      }
+
+      return 'Not scheduled';
+    }
+
+    // Handle numbers (timestamp in milliseconds)
+    if (typeof dateValue === 'number' && !isNaN(dateValue)) {
+      try {
+        const dateFromTimestamp = new Date(dateValue);
+        if (!isNaN(dateFromTimestamp.getTime())) {
+          return format(dateFromTimestamp, 'MMM dd, yyyy HH:mm');
+        }
+      } catch (error) {
+        // Failed to parse timestamp
+      }
+    }
+
+    return 'Not scheduled';
+  };
+
   // Data transformer for export
   const transformServicesForExport = (servicesData: ServiceRequest[]) => {
-    return servicesData.map(service => ({
-      id: service.id,
-      apartment: service.apartment?.name || 'Unknown',
-      village: service.apartment?.village?.name || 'Unknown',
-      service_type: service.type?.name || 'Unknown',
-      notes: service.notes || 'No notes',
-      status: service.status,
-      date_action: service.date_action ? formatDate(service.date_action) : 'Not scheduled',
-      date_created: formatDate(service.date_created),
-      who_pays: service.who_pays === 'owner' ? 'Owner' : 
-                service.who_pays === 'renter' ? 'Tenant' : 'Company',
-      requester: service.requester?.name || 'Unknown'
-    }));
+    return servicesData.map(service => {
+      const flat: any = service as any;
+
+      const apartmentName =
+        service.apartment?.name ||
+        flat.apartment ||
+        flat.apartment_name ||
+        'Unknown';
+
+      const villageName =
+        service.apartment?.village?.name ||
+        flat.village ||
+        flat.village_name ||
+        'Unknown';
+
+      const serviceTypeName =
+        service.type?.name ||
+        flat.service_type ||
+        flat.service_type_name ||
+        'Unknown';
+
+      const requesterName =
+        service.requester?.name ||
+        flat.requester ||
+        flat.requester_name ||
+        'Unknown';
+
+      // Handle date_action from both nested and flat structures
+      // Use explicit null/undefined checks instead of truthy checks to handle empty strings correctly
+      const serviceDateAction = service.date_action;
+      const flatDateAction = flat.date_action;
+      
+      const dateActionValue =
+        serviceDateAction !== undefined && serviceDateAction !== null
+          ? serviceDateAction
+          : flatDateAction !== undefined && flatDateAction !== null
+          ? flatDateAction
+          : null;
+
+      // Handle notes from both nested and flat structures
+      const notesValue =
+        service.notes !== undefined && service.notes !== null
+          ? service.notes
+          : flat.notes !== undefined && flat.notes !== null
+          ? flat.notes
+          : null;
+
+      return {
+        id: service.id,
+        apartment: apartmentName,
+        village: villageName,
+        service_type: serviceTypeName,
+        notes: notesValue || 'No notes',
+        status: service.status,
+        date_action: formatDateAction(dateActionValue),
+        date_created: formatDate(service.date_created),
+        who_pays:
+          service.who_pays === 'owner'
+            ? 'Owner'
+            : service.who_pays === 'renter'
+            ? 'Tenant'
+            : 'Company',
+        requester: requesterName
+      };
+    });
+  };
+
+  const buildExportFilters = (includePagination: boolean) => {
+    const filters: any = {
+      page: includePagination ? serviceRequestsPagination.page : undefined,
+      limit: includePagination ? serviceRequestsPagination.limit : undefined,
+      search: searchTerm || undefined,
+      apartment_id: apartmentFilter ? parseInt(apartmentFilter) : undefined,
+      status: (statusFilter as 'Created' | 'In Progress' | 'Done' | undefined) || undefined,
+      who_pays: (whoPayFilter as 'owner' | 'renter' | 'company' | undefined) || undefined,
+      type_id: serviceTypeFilter ? parseInt(serviceTypeFilter) : undefined,
+      village_id: projectFilter ? parseInt(projectFilter) : undefined,
+      date_action_start: dateFromFilter || undefined,
+      date_action_end: dateToFilter || undefined,
+      sort_by: 'date_created',
+      sort_order: 'desc' as const
+    };
+    return filters;
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformServicesForExport(serviceRequests);
+    }
+    const filters = buildExportFilters(false);
+    const data = await serviceRequestService.exportServiceRequestsData(filters);
+    return transformServicesForExport(data);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToExcel(data, 'service-requests.xlsx');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export service requests');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"],
+        'service-requests.pdf'
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export service requests');
+    } finally {
+      setExportingData(false);
+    }
   };
   
   // Helper functions to get unique values for filters
@@ -750,9 +925,47 @@ export default function Services() {
           </LocalizationProvider>
         )}
         
-        {/* Export Buttons */}
+        {/* Export */}
         {isAdmin && (
-        <ExportButtons data={transformServicesForExport(serviceRequests)} columns={["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"]} excelFileName="services.xlsx" pdfFileName="services.pdf" />
+          <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: 'grey.50' }}>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ mb: 0.5 }}>
+                  Export scope
+                </Typography>
+                <ToggleButtonGroup
+                  size="small"
+                  value={exportScope}
+                  exclusive
+                  onChange={(_, val) => val && setExportScope(val)}
+                >
+                  <ToggleButton value="current">Current view</ToggleButton>
+                  <ToggleButton value="all">All filtered</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+
+              <Box sx={{ flexGrow: 1 }} />
+
+              <ExportButtons 
+                data={transformServicesForExport(serviceRequests)} 
+                columns={["id","apartment","village","service_type","notes","status","date_action","date_created","who_pays","requester"]} 
+                excelFileName="services.xlsx" 
+                pdfFileName="services.pdf"
+                onExportExcel={handleExportExcel}
+                onExportPDF={handleExportPDF}
+                disabled={exportingData}
+                excelLabel={exportingData ? 'Exporting...' : 'Export to Excel'}
+                pdfLabel={exportingData ? 'Exporting...' : 'Export to PDF'}
+                excelIcon={!exportingData ? <DownloadIcon /> : undefined}
+                pdfIcon={!exportingData ? <PdfIcon /> : undefined}
+                size="medium"
+                variant="contained"
+              />
+            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+              Current view exports only the visible page; All filtered exports every matching service request.
+            </Typography>
+          </Paper>
         )}
         
         {/* Service Requests Tab */}
