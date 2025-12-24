@@ -30,7 +30,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  IconButton
+  IconButton,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
@@ -52,6 +54,7 @@ import { villageService } from '../services/villageService';
 import { apartmentService } from '../services/apartmentService';
 import type { Village } from '../types';
 import ExportButtons from '../components/ExportButtons';
+import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 interface HighlightedInvoiceSummary {
   ownerSummary: {
@@ -117,6 +120,8 @@ export default function Invoices() {
   const PAGE_SIZE = 20;
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const requestIdRef = useRef(0);
+  const [exportScope, setExportScope] = useState<'current' | 'all'>('current');
+  const [exportingData, setExportingData] = useState(false);
   
   const { currentUser } = useAuth();
   const navigate = useNavigate();
@@ -346,17 +351,83 @@ export default function Invoices() {
 
   // Data transformer for export
   const transformInvoicesForExport = (invoicesData: any[]) => {
-    return invoicesData.map(invoice => ({
-      apartment: invoice.apartment_name || 'Unknown',
-      village: invoice.village_name || 'Unknown',
-      owner: invoice.owner_name || 'Unknown',
-      total_money_spent_EGP: invoice.total_money_spent?.EGP ?? 0,
-      total_money_spent_GBP: invoice.total_money_spent?.GBP ?? 0,
-      total_money_requested_EGP: invoice.total_money_requested?.EGP ?? 0,
-      total_money_requested_GBP: invoice.total_money_requested?.GBP ?? 0,
-      net_money_EGP: invoice.net_money?.EGP ?? 0,
-      net_money_GBP: invoice.net_money?.GBP ?? 0
-    }));
+    return invoicesData.map(invoice => {
+      const flat: any = invoice as any;
+      
+      const phase = invoice.phase !== undefined && invoice.phase !== null
+        ? invoice.phase
+        : flat.phase !== undefined && flat.phase !== null
+        ? flat.phase
+        : flat.apartment_phase !== undefined && flat.apartment_phase !== null
+        ? flat.apartment_phase
+        : null;
+      
+      return {
+        apartment: invoice.apartment_name || flat.apartment_name || 'Unknown',
+        village: invoice.village_name || flat.village_name || 'Unknown',
+        phase: phase ? `Phase ${phase}` : '-',
+        owner: invoice.owner_name || flat.owner_name || 'Unknown',
+        total_money_spent_EGP: invoice.total_money_spent?.EGP ?? flat.total_money_spent_EGP ?? 0,
+        total_money_spent_GBP: invoice.total_money_spent?.GBP ?? flat.total_money_spent_GBP ?? 0,
+        total_money_requested_EGP: invoice.total_money_requested?.EGP ?? flat.total_money_requested_EGP ?? 0,
+        total_money_requested_GBP: invoice.total_money_requested?.GBP ?? flat.total_money_requested_GBP ?? 0,
+        net_money_EGP: invoice.net_money?.EGP ?? flat.net_money_EGP ?? 0,
+        net_money_GBP: invoice.net_money?.GBP ?? flat.net_money_GBP ?? 0
+      };
+    });
+  };
+
+  const buildExportFilters = (includePagination: boolean) => {
+    const filters: any = {
+      page: includePagination ? page : undefined,
+      limit: includePagination ? PAGE_SIZE : undefined,
+      search: debouncedSearchTerm || undefined,
+      village_id: villageFilter ? villages.find(v => v.name === villageFilter)?.id : undefined,
+      phase: phaseFilter ? parseInt(phaseFilter, 10) : undefined,
+      date_from: startDate ? format(startDate, 'yyyy-MM-dd') : undefined,
+      date_to: endDate ? format(endDate, 'yyyy-MM-dd') : undefined,
+      year: (!startDate || !endDate) ? currentYear : undefined
+    };
+    return filters;
+  };
+
+  const getExportData = async () => {
+    if (exportScope === 'current') {
+      return transformInvoicesForExport(invoiceDisplayData);
+    }
+    const filters = buildExportFilters(false);
+    const data = await invoiceService.exportInvoicesData(filters);
+    return transformInvoicesForExport(data);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToExcel(data, 'invoices.xlsx');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export invoices');
+    } finally {
+      setExportingData(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      setExportingData(true);
+      setError(null);
+      const data = await getExportData();
+      exportToPDF(
+        data,
+        ["apartment","village","phase","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"],
+        'invoices.pdf'
+      );
+    } catch (err: any) {
+      setError(err?.message || 'Failed to export invoices');
+    } finally {
+      setExportingData(false);
+    }
   };
 
   const getPhases = (villageName: string) => {
@@ -539,8 +610,39 @@ export default function Invoices() {
             </Box>
           </Paper>
           
-          {/* Export Buttons */}
-          <ExportButtons data={transformInvoicesForExport(invoiceDisplayData)} columns={["apartment","village","owner","total_money_spent_EGP","total_money_spent_GBP","total_money_requested_EGP","total_money_requested_GBP","net_money_EGP","net_money_GBP"]} excelFileName="invoices.xlsx" pdfFileName="invoices.pdf" />
+          {/* Export Section */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+              <Typography variant="subtitle1">Export Options</Typography>
+              <ToggleButtonGroup
+                value={exportScope}
+                exclusive
+                onChange={(_, newValue) => {
+                  if (newValue !== null) {
+                    setExportScope(newValue);
+                  }
+                }}
+                size="small"
+              >
+                <ToggleButton value="current">Current View</ToggleButton>
+                <ToggleButton value="all">All Filtered</ToggleButton>
+              </ToggleButtonGroup>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                {exportScope === 'current' 
+                  ? `Exporting ${invoiceDisplayData.length} records from current page`
+                  : 'Exporting all records matching current filters'}
+              </Typography>
+            </Box>
+            <ExportButtons
+              onExportExcel={handleExportExcel}
+              onExportPDF={handleExportPDF}
+              disabled={exportingData || invoiceDisplayData.length === 0}
+              excelLabel={exportingData ? 'Exporting...' : exportScope === 'current' ? 'Export Current (Excel)' : 'Export All (Excel)'}
+              pdfLabel={exportingData ? 'Exporting...' : exportScope === 'current' ? 'Export Current (PDF)' : 'Export All (PDF)'}
+              size="small"
+              variant="outlined"
+            />
+          </Paper>
           
           {/* Invoices Table */}
           <TableContainer component={Paper}>

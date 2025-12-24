@@ -222,6 +222,29 @@ class InvoiceService {
     
     throw new Error(response.message || 'Failed to fetch booking invoices');
   }
+
+  /**
+   * Export invoices summary (CSV download)
+   */
+  async exportInvoices(filters?: InvoicesFilters): Promise<Blob> {
+    return apiClient.download('/invoices/export', filters);
+  }
+
+  /**
+   * Export invoices summary (JSON array)
+   */
+  async exportInvoicesData(filters?: InvoicesFilters): Promise<InvoiceSummaryItem[]> {
+    const response = await apiClient.get<ApiResponse<InvoiceSummaryItem[]>>('/invoices/export', {
+      ...(filters || {}),
+      format: 'json'
+    });
+
+    if (response.success && response.data) {
+      return response.data as InvoiceSummaryItem[];
+    }
+
+    throw new Error(response.message || 'Failed to export invoices');
+  }
 }
 
 export const invoiceService = new InvoiceService();

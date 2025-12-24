@@ -2,8 +2,8 @@ import { Button, Box } from '@mui/material';
 import { exportToExcel, exportToPDF } from '../utils/exportUtils';
 
 interface ExportButtonsProps {
-  data: any[];
-  columns: string[];
+  data?: any[];
+  columns?: string[];
   excelFileName?: string;
   pdfFileName?: string;
   transformer?: (data: any[]) => any[];
@@ -19,8 +19,8 @@ interface ExportButtonsProps {
 }
 
 export default function ExportButtons({ 
-  data, 
-  columns, 
+  data = [], 
+  columns = [], 
   excelFileName = 'export.xlsx', 
   pdfFileName = 'export.pdf',
   transformer,

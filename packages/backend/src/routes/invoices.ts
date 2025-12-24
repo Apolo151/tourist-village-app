@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticateToken, requireRole, filterByResponsibleVillage } from '../middleware/auth';
+import { authenticateToken, filterByResponsibleVillage } from '../middleware/auth';
 import { db } from '../database/connection';
 
 const router = Router();
@@ -323,6 +323,285 @@ router.get(
         success: false,
         error: 'Internal server error',
         message: 'Failed to fetch invoices summary'
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/invoices/export
+ * @desc Export invoices summary (all filtered, no pagination)
+ * @access Private (All authenticated users - with role-based filtering)
+ */
+router.get(
+  '/export',
+  authenticateToken,
+  filterByResponsibleVillage(),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const { village_id, user_type, year, date_from, date_to, phase, include_renter } = req.query;
+      const search = (req.query.search as string | undefined)?.trim();
+      
+      const includeRenter = include_renter === 'true';
+      const parsedVillageId = village_id ? parseInt(village_id as string, 10) : undefined;
+      const parsedYear = year ? parseInt(year as string, 10) : undefined;
+      const hasDateRange = date_from || date_to;
+      const parsedPhase = phase ? parseInt(phase as string, 10) : undefined;
+
+      // Get all apartments (with filters) - same logic as summary route
+      let apartmentsQuery = db('apartments as a')
+        .leftJoin('villages as v', 'a.village_id', 'v.id')
+        .leftJoin('users as owner', 'a.owner_id', 'owner.id')
+        .select(
+          'a.id as apartment_id',
+          'a.name as apartment_name',
+          'v.name as village_name',
+          'owner.name as owner_name',
+          'owner.id as owner_id',
+          'a.village_id',
+          'a.phase as apartment_phase'
+        );
+
+      // Role-based filtering
+      if (user.role === 'owner') {
+        apartmentsQuery = apartmentsQuery.where('a.owner_id', user.id);
+      } else if (user.role === 'renter') {
+        apartmentsQuery = apartmentsQuery.whereExists(function() {
+          this.select('*')
+              .from('bookings as b')
+              .whereRaw('b.apartment_id = a.id')
+              .where('b.user_id', user.id);
+        });
+      }
+      if (parsedVillageId) {
+        apartmentsQuery = apartmentsQuery.where('a.village_id', parsedVillageId);
+      }
+      if (parsedPhase) {
+        apartmentsQuery = apartmentsQuery.where('a.phase', parsedPhase);
+      }
+      if (req.villageFilter) {
+        apartmentsQuery = apartmentsQuery.where('a.village_id', req.villageFilter);
+      }
+      if (search) {
+        const like = `%${search}%`;
+        apartmentsQuery = apartmentsQuery.andWhere(function() {
+          this.whereILike('a.name', like)
+            .orWhereILike('owner.name', like)
+            .orWhereILike('v.name', like);
+        });
+      }
+      if (user_type) {
+        if (user_type === 'owner') {
+          apartmentsQuery = apartmentsQuery.whereExists(function() {
+            this.select('*')
+                .from('bookings as b')
+                .whereRaw('b.apartment_id = a.id')
+                .where('b.user_type', 'owner');
+          });
+        } else if (user_type === 'renter') {
+          apartmentsQuery = apartmentsQuery.whereExists(function() {
+            this.select('*')
+                .from('bookings as b')
+                .whereRaw('b.apartment_id = a.id')
+                .where('b.user_type', 'renter');
+          });
+        }
+      }
+
+      // Helper to add date filters
+      const applyDateFilter = (qb: any, columnExpr: string) => {
+        if (parsedYear) {
+          qb.whereRaw(`EXTRACT(YEAR FROM ${columnExpr}) = ?`, [parsedYear]);
+        } else if (hasDateRange) {
+          if (date_from) qb.whereRaw(`${columnExpr} >= ?`, [date_from]);
+          if (date_to) qb.whereRaw(`${columnExpr} <= ?`, [date_to]);
+        }
+        return qb;
+      };
+
+      // Aggregations (same as summary route)
+      let paymentsAgg = db('payments as p')
+        .select('p.apartment_id')
+        .sum({ total_payments_egp: db.raw("CASE WHEN p.currency = 'EGP' THEN p.amount ELSE 0 END") })
+        .sum({ total_payments_gbp: db.raw("CASE WHEN p.currency = 'GBP' THEN p.amount ELSE 0 END") })
+        .groupBy('p.apartment_id');
+      paymentsAgg = applyDateFilter(paymentsAgg, 'p.date');
+      if (!includeRenter) {
+        paymentsAgg = paymentsAgg.where(function() {
+          this.where('p.user_type', 'owner').orWhereNull('p.user_type');
+        });
+      }
+
+      let serviceRequestsAgg = db('service_requests as sr')
+        .select('sr.apartment_id')
+        .sum({ total_service_requests_egp: db.raw("CASE WHEN sr.currency = 'EGP' THEN sr.cost ELSE 0 END") })
+        .sum({ total_service_requests_gbp: db.raw("CASE WHEN sr.currency = 'GBP' THEN sr.cost ELSE 0 END") })
+        .groupBy('sr.apartment_id');
+      serviceRequestsAgg = applyDateFilter(serviceRequestsAgg, 'COALESCE(sr.date_action, sr.date_created)');
+      if (!includeRenter) {
+        serviceRequestsAgg = serviceRequestsAgg.where(function() {
+          this.whereRaw("LOWER(sr.who_pays) = 'owner'").orWhereNull('sr.who_pays');
+        });
+      }
+
+      const maxMeter = DEFAULT_MAX_METER_VALUE;
+      let utilityAgg = db('utility_readings as ur')
+        .leftJoin('apartments as a2', 'ur.apartment_id', 'a2.id')
+        .leftJoin('villages as v2', 'a2.village_id', 'v2.id')
+        .select('ur.apartment_id')
+        .sum({
+          total_utility_readings_egp: db.raw(`
+            COALESCE(
+              CASE 
+                WHEN ur.water_start_reading IS NOT NULL AND ur.water_end_reading IS NOT NULL
+                THEN CASE
+                  WHEN ur.water_end_reading >= ur.water_start_reading
+                  THEN (ur.water_end_reading - ur.water_start_reading) * COALESCE(v2.water_price, 0)
+                  ELSE (${maxMeter} - ur.water_start_reading + ur.water_end_reading) * COALESCE(v2.water_price, 0)
+                END
+                ELSE 0
+              END +
+              CASE 
+                WHEN ur.electricity_start_reading IS NOT NULL AND ur.electricity_end_reading IS NOT NULL
+                THEN CASE
+                  WHEN ur.electricity_end_reading >= ur.electricity_start_reading
+                  THEN (ur.electricity_end_reading - ur.electricity_start_reading) * COALESCE(v2.electricity_price, 0)
+                  ELSE (${maxMeter} - ur.electricity_start_reading + ur.electricity_end_reading) * COALESCE(v2.electricity_price, 0)
+                END
+                ELSE 0
+              END,
+              0
+            )
+          `)
+        })
+        .groupBy('ur.apartment_id');
+      utilityAgg = applyDateFilter(utilityAgg, 'ur.created_at');
+      if (!includeRenter) {
+        utilityAgg = utilityAgg.where(function() {
+          this.whereRaw("LOWER(ur.who_pays) = 'owner'").orWhereNull('ur.who_pays');
+        });
+      }
+
+      // Check export limit
+      const EXPORT_ROW_LIMIT = 50000;
+      const totalResult = await apartmentsQuery
+        .clone()
+        .clearSelect()
+        .clearOrder()
+        .countDistinct<{ count: string }>('a.id as count')
+        .first();
+      const total = parseInt(totalResult?.count || '0', 10);
+      if (total > EXPORT_ROW_LIMIT) {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: `Export limit of ${EXPORT_ROW_LIMIT} rows exceeded. Narrow your filters and try again.`
+        });
+      }
+
+      // Get all filtered apartments (no pagination)
+      const rows = await apartmentsQuery
+        .leftJoin(paymentsAgg.as('pagg'), 'pagg.apartment_id', 'a.id')
+        .leftJoin(serviceRequestsAgg.as('sragg'), 'sragg.apartment_id', 'a.id')
+        .leftJoin(utilityAgg.as('uagg'), 'uagg.apartment_id', 'a.id')
+        .select(
+          'a.id as apartment_id',
+          'a.name as apartment_name',
+          'v.name as village_name',
+          'owner.name as owner_name',
+          'owner.id as owner_id',
+          'a.phase as apartment_phase',
+          db.raw('COALESCE(pagg.total_payments_egp, 0) as total_payments_egp'),
+          db.raw('COALESCE(pagg.total_payments_gbp, 0) as total_payments_gbp'),
+          db.raw('COALESCE(sragg.total_service_requests_egp, 0) as total_service_requests_egp'),
+          db.raw('COALESCE(sragg.total_service_requests_gbp, 0) as total_service_requests_gbp'),
+          db.raw('COALESCE(uagg.total_utility_readings_egp, 0) as total_utility_readings_egp')
+        );
+
+      const summary = rows.map((row: any) => {
+        const paymentsEGP = parseFloat(row.total_payments_egp || 0);
+        const paymentsGBP = parseFloat(row.total_payments_gbp || 0);
+        const requestsEGP = parseFloat(row.total_service_requests_egp || 0);
+        const requestsGBP = parseFloat(row.total_service_requests_gbp || 0);
+        const utilityEGP = parseFloat(row.total_utility_readings_egp || 0);
+        const utilityGBP = 0;
+
+        return {
+          apartment_id: row.apartment_id,
+          apartment_name: row.apartment_name,
+          village_name: row.village_name,
+          owner_name: row.owner_name,
+          owner_id: row.owner_id,
+          phase: row.apartment_phase,
+          total_money_spent: {
+            EGP: paymentsEGP,
+            GBP: paymentsGBP
+          },
+          total_money_requested: {
+            EGP: requestsEGP + utilityEGP,
+            GBP: requestsGBP + utilityGBP
+          },
+          net_money: {
+            EGP: (requestsEGP + utilityEGP) - paymentsEGP,
+            GBP: (requestsGBP + utilityGBP) - paymentsGBP
+          }
+        };
+      });
+
+      const format = (req.query.format as string) || 'csv';
+
+      if (format === 'json') {
+        return res.json({
+          success: true,
+          data: summary,
+          message: `Exported ${summary.length} invoices`
+        });
+      }
+
+      // CSV export
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="invoices.csv"');
+
+      res.write('Apartment,Village,Phase,Owner,Total Money Spent (EGP),Total Money Spent (GBP),Total Money Requested (EGP),Total Money Requested (GBP),Net Money (EGP),Net Money (GBP)\n');
+
+      const escape = (value: any) => {
+        if (value === null || value === undefined) return '';
+        const str = String(value);
+        return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+      };
+
+      summary.forEach((row: any) => {
+        const phase = row.phase ? `Phase ${row.phase}` : '-';
+        const line = [
+          escape(row.apartment_name || ''),
+          escape(row.village_name || ''),
+          escape(phase),
+          escape(row.owner_name || ''),
+          escape(row.total_money_spent?.EGP || 0),
+          escape(row.total_money_spent?.GBP || 0),
+          escape(row.total_money_requested?.EGP || 0),
+          escape(row.total_money_requested?.GBP || 0),
+          escape(row.net_money?.EGP || 0),
+          escape(row.net_money?.GBP || 0)
+        ].join(',') + '\n';
+        res.write(line);
+      });
+
+      res.end();
+    } catch (error: any) {
+      console.error('Error exporting invoices:', error);
+      if (error.code === 'EXPORT_LIMIT_EXCEEDED') {
+        return res.status(413).json({
+          success: false,
+          error: 'Export limit exceeded',
+          message: error.message
+        });
+      }
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export invoices',
+        error: error.message
       });
     }
   }
