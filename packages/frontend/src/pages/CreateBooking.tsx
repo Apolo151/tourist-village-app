@@ -847,6 +847,11 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                       ...(newUserType === 'renter' ? { user_id: 0, user_name: '' } : {})
                     }));
                     
+                    // Clear user search term when switching to renter to avoid stale owner name display
+                    if (newUserType === 'renter') {
+                      setUserSearchTerm('');
+                    }
+                    
                     // Note: We don't need to call prefillOwnerData here
                     // The useEffect will handle it to avoid duplicate calls
                   }}
@@ -933,7 +938,7 @@ export default function CreateBooking({ apartmentId, onSuccess, onCancel, lockAp
                   )}
                   helperText="Type to search users or enter a new name"
                   clearable={true}
-                  showClearButton={formData.user_id > 0}
+                  showClearButton={formData.user_id > 0 || userSearchTerm.length > 0}
                 />
               )}
             </Grid>

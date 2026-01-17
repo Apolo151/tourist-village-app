@@ -574,15 +574,23 @@ export class BookingService {
       if (!user) {
         throw new Error('User not found');
       }
+    }
 
-      // Validate user type
-      const userType = data.user_type || existingBooking.user_type;
-      if (userType === 'owner' && user.role !== 'owner') {
-        throw new Error('Selected user is not an owner');
+    // Validate user_type based on apartment ownership (consistent with createBooking logic)
+    // user_type 'owner' means the user owns THIS apartment, 'renter' means they don't
+    if (data.user_type !== undefined) {
+      const apartmentId = data.apartment_id || existingBooking.apartment_id;
+      const userId = data.user_id || existingBooking.user_id;
+      const apartment = await db('apartments').where('id', apartmentId).first();
+      
+      if (data.user_type === 'owner') {
+        // Validate that user actually owns this apartment
+        if (apartment && apartment.owner_id !== userId) {
+          throw new Error('Cannot set user_type to owner: User does not own this apartment');
+        }
       }
-      if (userType === 'renter' && !['renter', 'admin', 'super_admin'].includes(user.role)) {
-        throw new Error('Selected user cannot make renter bookings');
-      }
+      // Note: Any user can be a 'renter' for any apartment they don't own
+      // The user_type field indicates the booking type, not the user's system role
     }
 
     // Check for conflicts if dates or apartment changed
