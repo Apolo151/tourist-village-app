@@ -1486,6 +1486,7 @@ const BookingDetails: React.FC = () => {
                               <TableCell>Paid By</TableCell>
                               <TableCell>Status</TableCell>
                               <TableCell>Notes</TableCell>
+                              <TableCell align="right">Actions</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1505,6 +1506,11 @@ const BookingDetails: React.FC = () => {
                                   />
                                 </TableCell>
                                 <TableCell>{request.notes}</TableCell>
+                                <TableCell align="right">
+                                  <Button size="small" onClick={() => navigate(`/services/requests/${request.id}`)}>
+                                    View
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
