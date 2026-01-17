@@ -151,11 +151,11 @@ export default function Bookings() {
       setError('');
 
       const [apartmentsResult, villagesResult] = await Promise.all([
-        apartmentService.getApartments({ limit: 100 }),
+        apartmentService.getAllApartmentsForDropdown(),
         villageService.getVillages({ limit: 100 })
       ]);
 
-      setApartments(apartmentsResult.data.map(apartment => {
+      setApartments(apartmentsResult.map(apartment => {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { village, owner, ...rest } = apartment;
         return {
@@ -296,17 +296,19 @@ export default function Bookings() {
       };
       apiFilters.user_type = userTypeMap[filters.userType] || 'owner';
     }
+    // Format dates without timezone conversion using date-fns
+    // This prevents the issue where .toISOString() shifts dates backward for UTC+ timezones
     if (filters.arrivalDateStart) {
-      apiFilters.arrival_date_start = filters.arrivalDateStart.toISOString().split('T')[0];
+      apiFilters.arrival_date_start = format(filters.arrivalDateStart, 'yyyy-MM-dd');
     }
     if (filters.arrivalDateEnd) {
-      apiFilters.arrival_date_end = filters.arrivalDateEnd.toISOString().split('T')[0];
+      apiFilters.arrival_date_end = format(filters.arrivalDateEnd, 'yyyy-MM-dd');
     }
     if (filters.leavingDateStart) {
-      apiFilters.leaving_date_start = filters.leavingDateStart.toISOString().split('T')[0];
+      apiFilters.leaving_date_start = format(filters.leavingDateStart, 'yyyy-MM-dd');
     }
     if (filters.leavingDateEnd) {
-      apiFilters.leaving_date_end = filters.leavingDateEnd.toISOString().split('T')[0];
+      apiFilters.leaving_date_end = format(filters.leavingDateEnd, 'yyyy-MM-dd');
     }
 
     return apiFilters;
@@ -439,27 +441,69 @@ export default function Bookings() {
 
   // Compute available phases for the selected village
   const selectedVillage = villages.find(v => v.name === filters.village);
+  
+  // Pre-compute selected village ID to avoid repeated lookups and handle undefined properly
+  // This prevents the issue where village lookup returns undefined and falls back to -1 (which matches no apartments)
+  const selectedVillageId = filters.village 
+    ? villages.find(v => v.name === filters.village)?.id 
+    : null;
+
+  // Get apartments that belong to the selected village
+  const villageApartments = selectedVillageId
+    ? apartments.filter(apt => apt.village_id === selectedVillageId)
+    : [];
+
+  // Compute available phases based on ACTUAL apartment data, not just village configuration
+  // This ensures we only show phases that have at least one apartment, preventing
+  // empty dropdown results when user selects a phase with no apartments
   const availablePhases = selectedVillage
-    ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
+    ? Array.from(
+        // Create a Set of unique phase numbers from apartments in this village
+        new Set(
+          villageApartments
+            .map(apt => Number(apt.phase))
+            .filter(phase => !isNaN(phase) && phase > 0)
+        )
+      ).sort((a, b) => a - b)  // Sort phases numerically
     : [];
 
   // Filter apartments based on selected project and phase
+  // Robust filtering that handles all cases:
+  // 1. No village selected → show all apartments
+  // 2. Village selected but not found → show no apartments (prevents stale data)
+  // 3. Village selected → show only apartments in that village
+  // 4. Village + phase selected → show only apartments in that village AND phase
   const filteredApartments = apartments.filter(apartment => {
-    if (filters.village && filters.phase) {
-      // Filter by both project and phase
-      const village = villages.find(v => v.name === filters.village);
-      return (
-        apartment.village_id === (village ? village.id : -1) &&
-        apartment.phase === Number(filters.phase)
-      );
-    } else if (filters.village) {
-      // Filter by project only
-      const village = villages.find(v => v.name === filters.village);
-      return apartment.village_id === (village ? village.id : -1);
-    } else {
-      // No filter
+    // Case 1: No village filter selected - show all apartments
+    if (!filters.village) {
       return true;
     }
+    
+    // Case 2: Village filter set but village not found in data - show nothing
+    // This prevents filtering by a stale/invalid village name
+    if (!selectedVillageId) {
+      return false;
+    }
+    
+    // Case 3: Check if apartment belongs to selected village
+    if (!apartment.village_id || apartment.village_id !== selectedVillageId) {
+      return false;
+    }
+    
+    // Case 4: If phase is also selected, must match both village AND phase
+    // Use Number() on both sides to handle potential string/number type mismatches
+    // from API responses or form values
+    if (filters.phase) {
+      const filterPhase = Number(filters.phase);
+      const apartmentPhase = Number(apartment.phase);
+      // If apartment.phase is undefined/null, Number() returns NaN
+      // NaN !== filterPhase will be true, so apartment gets filtered out (correct behavior)
+      if (apartmentPhase !== filterPhase) {
+        return false;
+      }
+    }
+    
+    return true;
   });
 
   if (loading && !apartments.length) {

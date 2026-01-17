@@ -203,7 +203,7 @@ const BookingDetails: React.FC = () => {
       try {
         setLoading(true);
         const [apartmentsData, usersData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           // Load only the most recent 20 users initially
           userService.getUsers({
             limit: 20,
@@ -211,7 +211,7 @@ const BookingDetails: React.FC = () => {
             sort_order: 'desc'
           })
         ]);
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setUsers(usersData.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load initial data');

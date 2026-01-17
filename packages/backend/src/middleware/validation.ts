@@ -155,8 +155,8 @@ export class ValidationMiddleware {
     // Validate limit
     if (query.limit) {
       const limit = parseInt(query.limit as string);
-      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 100) {
-        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 100' });
+      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 1000) {
+        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 1000' });
       }
     }
 
@@ -188,9 +188,11 @@ export class ValidationMiddleware {
       errors.push({ field: 'sales_status_id', message: 'Sales status ID must be a positive integer' });
     }
 
-    // Validate status
-    if (query.status && !['Available', 'Occupied by Owner', 'Occupied by Tenant'].includes(query.status as string)) {
-      errors.push({ field: 'status', message: 'Status must be one of: Available, Occupied by Owner, Occupied by Tenant' });
+    // Validate status - apartment occupancy status values
+    // Valid statuses: Booked (has booking), Available (no booking), 
+    // Occupied by Owner (owner booking), Occupied by Tenant (renter booking)
+    if (query.status && !['Available', 'Booked', 'Occupied by Owner', 'Occupied by Tenant'].includes(query.status as string)) {
+      errors.push({ field: 'status', message: 'Status must be one of: Available, Booked, Occupied by Owner, Occupied by Tenant' });
     }
 
     // Validate sort_order
@@ -447,8 +449,8 @@ export class ValidationMiddleware {
     // Validate limit
     if (query.limit) {
       const limit = parseInt(query.limit as string);
-      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 100) {
-        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 100' });
+      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 1000) {
+        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 1000' });
       }
     }
 
@@ -834,8 +836,8 @@ export class ValidationMiddleware {
     // Validate limit
     if (query.limit) {
       const limit = parseInt(query.limit as string);
-      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 100) {
-        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 100' });
+      if (!ValidationMiddleware.isPositiveInteger(query.limit as string) || limit > 1000) {
+        errors.push({ field: 'limit', message: 'Limit must be a positive integer not greater than 1000' });
       }
     }
 

@@ -121,12 +121,12 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
         setLoading(true);
         // Load apartments, bookings, users, villages
         const [apartmentsData, bookingsData, usersData, villagesData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           bookingService.getBookings({ limit: 100 }),
           userService.getUsers({ limit: 100 }),
           villageService.getVillages({ limit: 100 })
         ]);
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setBookings(bookingsData.bookings);
         setUsers(usersData.data);
         setVillages(villagesData.data);
@@ -140,7 +140,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
           if (emailData.apartment_id) {
             try {
               // Try to locate apartment in the initially loaded list
-              let currentApartment = apartmentsData.data.find(a => a.id === emailData.apartment_id);
+              let currentApartment = apartmentsData.find(a => a.id === emailData.apartment_id);
               if (!currentApartment) {
                 // Fetch individually if not present
                 currentApartment = await apartmentService.getApartmentById(emailData.apartment_id);

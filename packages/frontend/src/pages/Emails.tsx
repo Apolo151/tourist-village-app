@@ -118,8 +118,8 @@ export default function Emails() {
   useEffect(() => {
     const loadApartments = async () => {
       try {
-        const apartmentsData = await apartmentService.getApartments({ limit: 100 });
-        setApartments(apartmentsData.data);
+        const apartmentsData = await apartmentService.getAllApartmentsForDropdown();
+        setApartments(apartmentsData);
       } catch (err) {
         console.error('Failed to load apartments:', err);
       }

@@ -137,13 +137,13 @@ export default function Utilities() {
         
         const [utilityResult, apartmentsResult, bookingsResult] = await Promise.all([
           utilityReadingService.getUtilityReadings(filters),
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           bookingService.getBookings({ limit: 100 })
         ]);
         
         setUtilityReadings(utilityResult.data);
         setPagination(utilityResult.pagination);
-        setApartments(apartmentsResult.data);
+        setApartments(apartmentsResult);
         setBookings(bookingsResult.bookings);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');

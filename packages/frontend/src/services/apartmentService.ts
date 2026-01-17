@@ -347,6 +347,47 @@ class ApartmentService {
     // Fallback to 'default' if no dynamic color is available
     return 'default';
   }
+
+  /**
+   * Fetch ALL apartments for dropdown/filter purposes.
+   * This fetches all pages to ensure complete data for client-side filtering.
+   * 
+   * Use this instead of getApartments({ limit: 100 }) when you need complete
+   * apartment list for dropdowns that filter by village/phase.
+   * 
+   * @param filters Optional filters (village_id, phase, etc.) - pagination ignored
+   * @returns Array of all apartments matching filters
+   */
+  async getAllApartmentsForDropdown(filters?: Omit<ApartmentFilters, 'page' | 'limit'>): Promise<Apartment[]> {
+    const MAX_LIMIT = 500; // Backend typically caps at 100, but we'll request max
+    const ABSOLUTE_MAX = 10000; // Safety limit to prevent infinite loops
+    
+    // First request to get total count
+    const firstPage = await this.getApartments({ ...filters, page: 1, limit: MAX_LIMIT });
+    const allApartments: Apartment[] = [...firstPage.data];
+    const totalPages = firstPage.pagination.total_pages;
+    const total = firstPage.pagination.total;
+    
+    // Safety check
+    if (total > ABSOLUTE_MAX) {
+      console.warn(`getAllApartmentsForDropdown: Large dataset (${total} apartments). Consider server-side filtering.`);
+    }
+    
+    // Fetch remaining pages if needed
+    if (totalPages > 1) {
+      const remainingPagePromises: Promise<PaginatedResponse<Apartment>>[] = [];
+      for (let page = 2; page <= totalPages && page <= Math.ceil(ABSOLUTE_MAX / MAX_LIMIT); page++) {
+        remainingPagePromises.push(this.getApartments({ ...filters, page, limit: MAX_LIMIT }));
+      }
+      
+      const remainingPages = await Promise.all(remainingPagePromises);
+      for (const pageResult of remainingPages) {
+        allApartments.push(...pageResult.data);
+      }
+    }
+    
+    return allApartments;
+  }
 }
 
 export const apartmentService = new ApartmentService();

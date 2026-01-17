@@ -103,11 +103,11 @@ export default function PaymentDetails() {
 
         // Load apartments and payment methods for all users
         const [apartmentsData, paymentMethodsData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           paymentService.getPaymentMethods({ limit: 100 })
         ]);
         
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setPaymentMethods(paymentMethodsData.data);
         
         // Load bookings for admins or if editing/creating

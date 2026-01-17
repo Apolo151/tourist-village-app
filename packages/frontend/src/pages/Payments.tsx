@@ -109,13 +109,13 @@ export default function Payments() {
       try {
         setLoading(true);
         const [apartmentsData, usersData, paymentMethodsData, villagesData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           userService.getUsers({ limit: 100 }),
           paymentService.getPaymentMethods({ limit: 100 }),
           villageService.getVillages({ limit: 100 })
         ]);
         
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setUsers(usersData.data);
         setPaymentMethods(paymentMethodsData.data);
         setVillages(villagesData.data);

@@ -86,7 +86,7 @@ export default function ServiceRequestDetails() {
         const [serviceRequestData, usersData, apartmentsData] = await Promise.all([
           serviceRequestService.getServiceRequestById(parseInt(id)),
           userService.getUsers({ limit: 100 }),
-          apartmentService.getApartments({ limit: 100 })
+          apartmentService.getAllApartmentsForDropdown()
         ]);
 
         // Load service types separately
@@ -94,7 +94,7 @@ export default function ServiceRequestDetails() {
 
         setServiceRequest(serviceRequestData);
         setUsers(usersData.data);
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setServiceTypes(serviceTypesData.data);
 
         // Initialize form data
@@ -287,12 +287,12 @@ export default function ServiceRequestDetails() {
   // Load apartments
   const loadApartments = async () => {
     try {
-      const result = await apartmentService.getApartments({ limit: 100 });
-      setApartments(result.data);
+      const result = await apartmentService.getAllApartmentsForDropdown();
+      setApartments(result);
       return result;
     } catch (err) {
       console.error('Error loading apartments:', err);
-      return { data: [] };
+      return [];
     }
   };
 

@@ -161,11 +161,11 @@ export default function Services() {
       try {
         setLoading(true);
         const [apartmentsData, usersData, serviceTypesData] = await Promise.all([
-          apartmentService.getApartments({ limit: 100 }),
+          apartmentService.getAllApartmentsForDropdown(),
           userService.getUsers({ limit: 100 }),
           serviceRequestService.getServiceTypes({ limit: 100 })
         ]);
-        setApartments(apartmentsData.data);
+        setApartments(apartmentsData);
         setUsers(usersData.data);
         setServiceTypes(serviceTypesData.data);
       } catch (err) {
