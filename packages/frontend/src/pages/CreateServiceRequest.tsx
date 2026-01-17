@@ -56,6 +56,7 @@ export interface CreateServiceRequestProps {
     lockProject?: boolean;
     lockPhase?: boolean;
     requesterId?: number;
+    lockRequester?: boolean;
     lockBooking?: boolean;
 }
 
@@ -70,6 +71,7 @@ export default function CreateServiceRequest({
     lockProject,
     lockPhase,
     requesterId,
+    lockRequester,
     lockBooking,
 }: CreateServiceRequestProps) {
     const navigate = useNavigate();
@@ -218,6 +220,55 @@ export default function CreateServiceRequest({
         loadData();
     }, [searchParams, loadFilteredApartments]);
 
+    // Fetch the specific apartment if apartmentId is provided (quick action mode)
+    // This ensures the apartment is in the list even if it wasn't in the initial fetch
+    useEffect(() => {
+        const fetchAndPrefillApartment = async () => {
+            if (!apartmentId || !lockApartment) return;
+            
+            // Check if apartment already exists in the list
+            const existingApartment = apartments.find(apt => apt.id === apartmentId);
+            
+            if (existingApartment) {
+                // Apartment found - set filters and form data
+                if (existingApartment.village?.id) {
+                    setProjectFilter(existingApartment.village.id.toString());
+                }
+                if (existingApartment.phase) {
+                    setPhaseFilter(existingApartment.phase.toString());
+                }
+                setApartmentSearchTerm(existingApartment.name || '');
+                setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+            } else if (apartments.length > 0) {
+                // Apartments loaded but this one isn't in the list - fetch it individually
+                try {
+                    const apartment = await apartmentService.getApartmentById(apartmentId);
+                    if (apartment) {
+                        // Add apartment to the list
+                        setApartments(prev => {
+                            const exists = prev.some(a => a.id === apartment.id);
+                            return exists ? prev : [apartment, ...prev];
+                        });
+                        
+                        // Set filters based on fetched apartment
+                        if (apartment.village_id) {
+                            setProjectFilter(apartment.village_id.toString());
+                        }
+                        if (apartment.phase) {
+                            setPhaseFilter(apartment.phase.toString());
+                        }
+                        setApartmentSearchTerm(apartment.name || '');
+                        setFormData(prev => ({ ...prev, apartment_id: apartmentId }));
+                    }
+                } catch (err) {
+                    console.error('Error fetching specific apartment:', err);
+                }
+            }
+        };
+        
+        fetchAndPrefillApartment();
+    }, [apartmentId, lockApartment, apartments]);
+
     // Load bookings when apartment is selected
     useEffect(() => {
         const loadBookings = async () => {
@@ -304,10 +355,39 @@ export default function CreateServiceRequest({
 
     // Prefill requester_id if requesterId prop is provided
     useEffect(() => {
-      if (requesterId && (!formData.requester_id || formData.requester_id !== requesterId)) {
-        setFormData(prev => ({ ...prev, requester_id: requesterId }));
-      }
-    }, [requesterId, formData.requester_id]);
+      const prefillRequester = async () => {
+        if (requesterId) {
+          // Set the requester_id in form data
+          if (!formData.requester_id || formData.requester_id !== requesterId) {
+            setFormData(prev => ({ ...prev, requester_id: requesterId }));
+          }
+          
+          // Check if the user exists in the current users list
+          const existingUser = users.find(u => u.id === requesterId);
+          if (existingUser) {
+            // Set the search term to display the user's name
+            setUserSearchTerm(existingUser.name);
+          } else if (users.length > 0) {
+            // User not in the list - fetch it individually
+            try {
+              const user = await userService.getUserById(requesterId);
+              if (user) {
+                // Add user to the list
+                setUsers(prev => {
+                  const exists = prev.some(u => u.id === user.id);
+                  return exists ? prev : [user, ...prev];
+                });
+                setUserSearchTerm(user.name);
+              }
+            } catch (err) {
+              console.error('Error fetching requester user:', err);
+            }
+          }
+        }
+      };
+      
+      prefillRequester();
+    }, [requesterId, users]);
 
     // Auto-set project and phase filters when apartment is selected
     useEffect(() => {
@@ -1105,6 +1185,7 @@ export default function CreateServiceRequest({
                                     label="Requester"
                                     placeholder="Type to search users by name..."
                                     required
+                                    disabled={!!lockRequester}
                                     loading={searchingUsers}
                                     serverSideSearch={false}
                                     onInputChange={handleUserInputChange}
@@ -1125,9 +1206,9 @@ export default function CreateServiceRequest({
                                             </Box>
                                         </li>
                                     )}
-                                    helperText="Type to search users"
-                                    clearable={true}
-                                    showClearButton={!!formData.requester_id}
+                                    helperText={lockRequester ? "Requester is locked for this action" : "Type to search users"}
+                                    clearable={!lockRequester}
+                                    showClearButton={!!formData.requester_id && !lockRequester}
                                 />
                             </Grid>
 

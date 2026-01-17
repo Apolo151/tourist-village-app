@@ -49,13 +49,15 @@ export interface CreateUtilityReadingProps {
   lockApartment?: boolean;
   lockProject?: boolean; // NEW: lock project field
   lockPhase?: boolean;   // NEW: lock phase field
+  defaultStartDate?: string; // ISO date string for prefilling start date
+  defaultEndDate?: string;   // ISO date string for prefilling end date
 }
 
 export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { currentUser } = useAuth();
-  const { apartmentId: propApartmentId, bookingId: propBookingId, onCancel, lockApartment, lockProject, lockPhase } = props;
+  const { apartmentId: propApartmentId, bookingId: propBookingId, onCancel, lockApartment, lockProject, lockPhase, defaultStartDate, defaultEndDate } = props;
   const onSuccess: (() => void) | undefined = props.onSuccess;
   const isEditMode = !!id;
   const isQuickAction = !!onSuccess || !!onCancel;
@@ -185,16 +187,46 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
     }
   }, [phaseFilter, lockApartment, projectFilter, isEditMode]);
 
-  // When lockApartment and apartmentId are set, set project and phase filters and whoPays to 'owner'
+  // When lockApartment and apartmentId are set, fetch the apartment if needed and set project/phase filters
   useEffect(() => {
-    if (lockApartment && propApartmentId && apartments.length > 0) {
-      const apt = apartments.find(a => a.id === propApartmentId);
-      if (apt) {
-        setProjectFilter(apt.village?.id?.toString() || '');
-        setPhaseFilter(apt.phase?.toString() || '');
+    const prefillApartment = async () => {
+      if (!lockApartment || !propApartmentId) return;
+      
+      // Check if apartment exists in the current list
+      const existingApartment = apartments.find(a => a.id === propApartmentId);
+      
+      if (existingApartment) {
+        // Apartment found - set filters
+        setProjectFilter(existingApartment.village?.id?.toString() || '');
+        setPhaseFilter(existingApartment.phase?.toString() || '');
+        setApartmentId(propApartmentId);
+        setApartmentSearchTerm(existingApartment.name || '');
         setWhoPays('owner');
+      } else if (apartments.length > 0) {
+        // Apartments loaded but this one isn't in the list - fetch it individually
+        try {
+          const apartment = await apartmentService.getApartmentById(propApartmentId);
+          if (apartment) {
+            // Add apartment to the list
+            setApartments(prev => {
+              const exists = prev.some(a => a.id === apartment.id);
+              return exists ? prev : [apartment, ...prev];
+            });
+            
+            // Set filters based on fetched apartment
+            setProjectFilter(apartment.village_id?.toString() || '');
+            setPhaseFilter(apartment.phase?.toString() || '');
+            setApartmentId(propApartmentId);
+            setApartmentSearchTerm(apartment.name || '');
+            setWhoPays('owner');
+          }
+        } catch (err) {
+          console.error('Error fetching specific apartment:', err);
+        }
       }
-    }
+    };
+    
+    prefillApartment();
   }, [lockApartment, propApartmentId, apartments]);
   
   // Load apartments when filters change or component mounts
@@ -484,15 +516,46 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
 
   // Handle pre-selected booking from props (quick action mode)
   useEffect(() => {
-    if (props.bookingId && bookings.length > 0 && !isEditMode) {
+    const prefillBooking = async () => {
+      if (!props.bookingId || isEditMode) return;
+      
+      // Check if booking exists in the current list
       const selectedBooking = bookings.find(b => b.id === props.bookingId);
+      
       if (selectedBooking) {
+        // Booking found - set dates, who pays, and search term
         setStartDate(new Date(selectedBooking.arrival_date));
         setEndDate(new Date(selectedBooking.leaving_date));
         setWhoPays(selectedBooking.user_type === 'owner' ? 'owner' : 'renter');
+        // Set the search term to display the booking
+        const bookingLabel = `${selectedBooking.user?.name || 'Unknown'} (${selectedBooking.user_type}) - ${utilityReadingService.formatDate(selectedBooking.arrival_date)} to ${utilityReadingService.formatDate(selectedBooking.leaving_date)}`;
+        setBookingSearchTerm(bookingLabel);
+      } else if (bookings.length > 0 || filteredBookings.length > 0) {
+        // Bookings loaded but this one isn't in the list - fetch it individually
+        try {
+          const booking = await bookingService.getBookingById(props.bookingId);
+          if (booking) {
+            // Add to filtered bookings
+            setFilteredBookings(prev => {
+              const exists = prev.some(b => b.id === booking.id);
+              return exists ? prev : [booking, ...prev];
+            });
+            
+            // Set dates, who pays, and search term
+            setStartDate(new Date(booking.arrival_date));
+            setEndDate(new Date(booking.leaving_date));
+            setWhoPays(booking.user_type === 'owner' ? 'owner' : 'renter');
+            const bookingLabel = `${booking.user?.name || 'Unknown'} (${booking.user_type}) - ${utilityReadingService.formatDate(booking.arrival_date)} to ${utilityReadingService.formatDate(booking.leaving_date)}`;
+            setBookingSearchTerm(bookingLabel);
+          }
+        } catch (err) {
+          console.error('Error fetching specific booking:', err);
+        }
       }
-    }
-  }, [props.bookingId, bookings, isEditMode]);
+    };
+    
+    prefillBooking();
+  }, [props.bookingId, bookings, filteredBookings, isEditMode]);
 
   // When booking changes, update dates and who pays
   useEffect(() => {
@@ -526,6 +589,16 @@ export default function CreateUtilityReading(props: CreateUtilityReadingProps) {
       }
     }
   }, [isQuickAction, propApartmentId, propBookingId, apartments]);
+
+  // Prefill dates from props (for quick action from booking)
+  useEffect(() => {
+    if (defaultStartDate && !startDate) {
+      setStartDate(new Date(defaultStartDate));
+    }
+    if (defaultEndDate && !endDate) {
+      setEndDate(new Date(defaultEndDate));
+    }
+  }, [defaultStartDate, defaultEndDate]);
 
   const validateForm = (): string | null => {
     if (!apartmentId || apartmentId === 0) return 'Please select an apartment';

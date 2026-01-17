@@ -654,8 +654,9 @@ const BookingDetails: React.FC = () => {
       componentProps.lockPhase = true;   // Lock phase field
       // Set who pays based on user type
       componentProps.whoPays = booking.user_type;
-      // Prefill requester with booking user, but do not lock
+      // Prefill requester with booking user and lock it
       componentProps.requesterId = booking.user_id;
+      componentProps.lockRequester = true; // Lock requester field
       // Disable edit mode when used in dialog
       componentProps.disableEditMode = true;
       componentProps.lockBooking = true; // Lock booking field
@@ -1591,6 +1592,7 @@ const BookingDetails: React.FC = () => {
                               <TableCell>Electricity Cost</TableCell>
                               <TableCell>Start Date</TableCell>
                               <TableCell>End Date</TableCell>
+                              <TableCell align="right">Actions</TableCell>
                             </TableRow>
                           </TableHead>
                           <TableBody>
@@ -1629,6 +1631,9 @@ const BookingDetails: React.FC = () => {
                                   <TableCell>{electricityCost}</TableCell>
                                   <TableCell>{formatDate(reading.start_date)}</TableCell>
                                   <TableCell>{formatDate(reading.end_date)}</TableCell>
+                                  <TableCell align="right">
+                                    <Button size="small" onClick={() => navigate(`/utilities/${reading.id}`)}>View</Button>
+                                  </TableCell>
                                 </TableRow>
                               );
                             })}
@@ -1718,7 +1723,9 @@ const BookingDetails: React.FC = () => {
         apartmentId: booking?.apartment_id,
         lockApartment: true,
         lockProject: true, // lock project field in quick action
-        lockPhase: true    // lock phase field in quick action
+        lockPhase: true,   // lock phase field in quick action
+        defaultStartDate: booking?.arrival_date,  // prefill start date with booking arrival
+        defaultEndDate: booking?.leaving_date     // prefill end date with booking leaving
       })}
       {renderDialog('payment', CreatePayment, {
         bookingId: booking?.id,

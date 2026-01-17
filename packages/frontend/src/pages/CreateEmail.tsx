@@ -47,9 +47,12 @@ export interface CreateEmailProps {
   onSuccess?: () => void;
   onCancel?: () => void;
   lockApartment?: boolean;
+  lockProject?: boolean;
+  lockPhase?: boolean;
+  lockBooking?: boolean;
 }
 
-const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuccess, onCancel, lockApartment }) => {
+const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuccess, onCancel, lockApartment, lockProject, lockPhase, lockBooking }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -243,47 +246,96 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
     }
   }, [phaseFilter, lockApartment, projectFilter, actuallyEditing]);
 
-  // When lockApartment and apartmentId are set, set project and phase filters and lock them
+  // When lockApartment and apartmentId are set, fetch the apartment if needed and set project/phase filters
   useEffect(() => {
-    if (lockApartment && apartmentId && apartments.length > 0) {
-      const apt = apartments.find(a => a.id === apartmentId);
-      if (apt && apt.village?.id) {
-        // Set project filter first
-        setProjectFilter(apt.village.id.toString());
+    const prefillApartment = async () => {
+      if (!lockApartment || !apartmentId) return;
+      
+      // Check if apartment exists in the current list
+      const existingApartment = apartments.find(a => a.id === apartmentId);
+      
+      if (existingApartment && existingApartment.village?.id) {
+        // Apartment found - set filters
+        setProjectFilter(existingApartment.village.id.toString());
         
-        // Then set phase filter if available
-        if (apt.phase) {
-          // Use setTimeout to ensure this happens after the project filter has been processed
+        if (existingApartment.phase) {
           setTimeout(() => {
-            setPhaseFilter(apt.phase?.toString() || '');
+            setPhaseFilter(existingApartment.phase?.toString() || '');
           }, 0);
         }
         
-        // Ensure the apartment is selected in the form data
-        // Also preserve booking ID if it's provided
+        setApartmentSearchTerm(existingApartment.name || '');
         setFormData(prev => ({ 
           ...prev, 
           apartment_id: apartmentId,
           ...(bookingId !== undefined ? { booking_id: bookingId } : {})
         }));
+      } else if (apartments.length > 0) {
+        // Apartments loaded but this one isn't in the list - fetch it individually
+        try {
+          const apartment = await apartmentService.getApartmentById(apartmentId);
+          if (apartment) {
+            // Add apartment to the list
+            setApartments(prev => {
+              const exists = prev.some(a => a.id === apartment.id);
+              return exists ? prev : [apartment, ...prev];
+            });
+            
+            // Set filters based on fetched apartment
+            if (apartment.village_id) {
+              setProjectFilter(apartment.village_id.toString());
+            }
+            if (apartment.phase) {
+              setTimeout(() => {
+                setPhaseFilter(apartment.phase?.toString() || '');
+              }, 0);
+            }
+            
+            setApartmentSearchTerm(apartment.name || '');
+            setFormData(prev => ({ 
+              ...prev, 
+              apartment_id: apartmentId,
+              ...(bookingId !== undefined ? { booking_id: bookingId } : {})
+            }));
+          }
+        } catch (err) {
+          console.error('Error fetching specific apartment:', err);
+        }
       }
-    }
+    };
+    
+    prefillApartment();
   }, [lockApartment, apartmentId, apartments, bookingId]);
 
-  // Ensure the booking exists in the bookings list
+  // Ensure the booking exists in the bookings list and set the search term
   useEffect(() => {
-    if (bookingId && bookings.length > 0 && !bookings.find(b => b.id === bookingId)) {
-      // If the booking isn't in the list, fetch it individually
-      const fetchBooking = async () => {
+    const prefillBooking = async () => {
+      if (!bookingId) return;
+      
+      // Check if booking exists in the current list
+      const existingBooking = bookings.find(b => b.id === bookingId);
+      
+      if (existingBooking) {
+        // Booking found - set the search term
+        const bookingLabel = `Booking #${existingBooking.id} - ${existingBooking.user?.name || 'Unknown'} (${existingBooking.user_type})`;
+        setBookingSearchTerm(bookingLabel);
+      } else if (bookings.length > 0) {
+        // Bookings loaded but this one isn't in the list - fetch it individually
         try {
           const booking = await bookingService.getBookingById(bookingId);
-          setBookings(prev => [...prev, booking]);
+          if (booking) {
+            setBookings(prev => [...prev, booking]);
+            // Set the search term
+            const bookingLabel = `Booking #${booking.id} - ${booking.user?.name || 'Unknown'} (${booking.user_type})`;
+            setBookingSearchTerm(bookingLabel);
+          }
         } catch (error) {
           console.error("Failed to fetch booking:", error);
         }
-      };
-      fetchBooking();
-    }
+      }
+    };
+    
+    prefillBooking();
   }, [bookingId, bookings]);
   
   // Load bookings when apartment changes
@@ -729,7 +781,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
   const apartmentFieldLocked = (fieldsLocked || (lockApartment && apartmentId !== undefined));
   
   // Determine if booking field should be locked
-  const bookingFieldLocked = fieldsLocked || (bookingId !== undefined && isQuickAction);
+  const bookingFieldLocked = fieldsLocked || !!lockBooking || (bookingId !== undefined && isQuickAction);
 
   if (loading) {
     return (
@@ -851,7 +903,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                     onChange={e => {
                       setProjectFilter(e.target.value);
                     }}
-                    disabled={!!lockApartment}
+                    disabled={!!lockApartment || !!lockProject}
                   >
                     <MenuItem value="">
                       <em>All Projects</em>
@@ -872,7 +924,7 @@ const CreateEmail: React.FC<CreateEmailProps> = ({ apartmentId, bookingId, onSuc
                     onChange={e => {
                       setPhaseFilter(e.target.value);
                     }}
-                    disabled={!projectFilter || !!lockApartment}
+                    disabled={!projectFilter || !!lockApartment || !!lockPhase}
                   >
                     <MenuItem value="">
                       <em>All Phases</em>

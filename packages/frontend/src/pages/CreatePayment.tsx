@@ -212,18 +212,53 @@ export default function CreatePayment({ id: propId, apartmentId, bookingId, user
     loadData();
   }, [effectiveId, isEdit, searchParams, isAdmin, currentUser, apartmentId, bookingId, isQuickAction]);
   
-  // Set user type based on booking when bookingId is provided and bookings are loaded
+  // Set user type and search term based on booking when bookingId is provided and bookings are loaded
   useEffect(() => {
-    if (bookingId && bookings.length > 0) {
+    const prefillBooking = async () => {
+      if (!bookingId) return;
+      
+      // Check if booking exists in the current list
       const selectedBooking = bookings.find(b => b.id === parseInt(bookingId.toString()));
+      
       if (selectedBooking) {
+        // Booking found - set form data and search term
         setFormData(prev => ({
           ...prev,
           user_type: selectedBooking.user_type === 'owner' ? 'owner' : 'renter',
           booking_id: bookingId.toString()
         }));
+        // Set booking search term for display
+        const bookingLabel = `Booking #${selectedBooking.id} - ${selectedBooking.user?.name || 'Unknown'} (${selectedBooking.user_type})`;
+        setBookingSearchTerm(bookingLabel);
+      } else if (bookings.length > 0) {
+        // Bookings loaded but this one isn't in the list - fetch it individually
+        try {
+          const booking = await bookingService.getBookingById(parseInt(bookingId.toString()));
+          if (booking) {
+            // Add booking to the list
+            setBookings(prev => {
+              const exists = prev.some(b => b.id === booking.id);
+              return exists ? prev : [booking, ...prev];
+            });
+            
+            // Set form data
+            setFormData(prev => ({
+              ...prev,
+              user_type: booking.user_type === 'owner' ? 'owner' : 'renter',
+              booking_id: bookingId.toString()
+            }));
+            
+            // Set booking search term for display
+            const bookingLabel = `Booking #${booking.id} - ${booking.user?.name || 'Unknown'} (${booking.user_type})`;
+            setBookingSearchTerm(bookingLabel);
+          }
+        } catch (err) {
+          console.error('Error fetching specific booking:', err);
+        }
       }
-    }
+    };
+    
+    prefillBooking();
   }, [bookingId, bookings]);
   
   // Load bookings when apartment changes
