@@ -1597,30 +1597,13 @@ const BookingDetails: React.FC = () => {
                           </TableHead>
                           <TableBody>
                             {relatedData.utility_readings.map((reading: any) => {
-                              // Calculate water and electricity cost on the fly
-                              let waterCost = '-';
-                              let electricityCost = '-';
-                              const village = reading.apartment?.village || booking?.apartment?.village;
-                              if (
-                                typeof reading.water_start_reading === 'number' &&
-                                typeof reading.water_end_reading === 'number' &&
-                                village &&
-                                typeof village.water_price === 'number' &&
-                                reading.water_end_reading > reading.water_start_reading
-                              ) {
-                                const consumption = reading.water_end_reading - reading.water_start_reading;
-                                waterCost = `${(consumption * village.water_price).toFixed(2)} EGP`;
-                              }
-                              if (
-                                typeof reading.electricity_start_reading === 'number' &&
-                                typeof reading.electricity_end_reading === 'number' &&
-                                village &&
-                                typeof village.electricity_price === 'number' &&
-                                reading.electricity_end_reading > reading.electricity_start_reading
-                              ) {
-                                const consumption = reading.electricity_end_reading - reading.electricity_start_reading;
-                                electricityCost = `${(consumption * village.electricity_price).toFixed(2)} EGP`;
-                              }
+                              // Use cost data from backend (calculated server-side)
+                              const waterCost = reading.water_cost 
+                                ? `${parseFloat(reading.water_cost).toFixed(2)} EGP` 
+                                : '-';
+                              const electricityCost = reading.electricity_cost 
+                                ? `${parseFloat(reading.electricity_cost).toFixed(2)} EGP` 
+                                : '-';
                               return (
                                 <TableRow key={reading.id}>
                                   <TableCell>{reading.water_start_reading}</TableCell>

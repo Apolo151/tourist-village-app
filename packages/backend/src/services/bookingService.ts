@@ -847,16 +847,68 @@ export class BookingService {
       .where('booking_id', bookingId)
       .orderBy('date', 'desc');
 
-    // Get related utility readings
-    const utilityReadings = await db('utility_readings')
-      .where('booking_id', bookingId)
-      .orderBy('start_date', 'desc');
+    // Get related utility readings with apartment and village data for cost calculation
+    const utilityReadings = await db('utility_readings as ur')
+      .leftJoin('apartments as a', 'ur.apartment_id', 'a.id')
+      .leftJoin('villages as v', 'a.village_id', 'v.id')
+      .select(
+        'ur.*',
+        'a.name as apartment_name',
+        'a.village_id as apartment_village_id',
+        'a.phase as apartment_phase',
+        'v.name as village_name',
+        'v.electricity_price',
+        'v.water_price'
+      )
+      .where('ur.booking_id', bookingId)
+      .orderBy('ur.start_date', 'desc');
+
+    // Transform utility readings to include calculated costs
+    const transformedUtilityReadings = utilityReadings.map((ur: any) => {
+      // Calculate water cost if readings exist
+      let waterCost = null;
+      if (ur.water_start_reading !== null && ur.water_start_reading !== undefined && 
+          ur.water_end_reading !== null && ur.water_end_reading !== undefined) {
+        const waterUsage = ur.water_end_reading - ur.water_start_reading;
+        if (waterUsage > 0 && ur.water_price) {
+          waterCost = waterUsage * parseFloat(ur.water_price);
+        }
+      }
+
+      // Calculate electricity cost if readings exist
+      let electricityCost = null;
+      if (ur.electricity_start_reading !== null && ur.electricity_start_reading !== undefined &&
+          ur.electricity_end_reading !== null && ur.electricity_end_reading !== undefined) {
+        const electricityUsage = ur.electricity_end_reading - ur.electricity_start_reading;
+        if (electricityUsage > 0 && ur.electricity_price) {
+          electricityCost = electricityUsage * parseFloat(ur.electricity_price);
+        }
+      }
+
+      return {
+        ...ur,
+        water_cost: waterCost,
+        electricity_cost: electricityCost,
+        apartment: {
+          id: ur.apartment_id,
+          name: ur.apartment_name,
+          village_id: ur.apartment_village_id,
+          phase: ur.apartment_phase
+        },
+        village: {
+          id: ur.apartment_village_id,
+          name: ur.village_name,
+          water_price: ur.water_price ? parseFloat(ur.water_price) : 0,
+          electricity_price: ur.electricity_price ? parseFloat(ur.electricity_price) : 0
+        }
+      };
+    });
 
     return {
       payments,
       service_requests: serviceRequests,
       emails,
-      utility_readings: utilityReadings
+      utility_readings: transformedUtilityReadings
     };
   }
 
