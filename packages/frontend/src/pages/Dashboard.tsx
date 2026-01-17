@@ -197,11 +197,16 @@ export default function Dashboard() {
         const villagesResult = await villageService.getVillages();
         setVillages(villagesResult.data);
         
-        // Load villages and invoices data in parallel
+        // Build filter parameters - use date range if provided, otherwise use year
+        const villageId = village ? villagesResult.data.find(v => v.name === village)?.id : undefined;
+        
+        // Load invoices data with date filters
         const [invoicesResult] = await Promise.all([
           invoiceService.getInvoicesSummary({ 
-            year: currentYear,
-            ...(village && { village_id: villagesResult.data.find(v => v.name === village)?.id })
+            // Use date range filters (same as occupancy filters)
+            ...(occupancyDateFrom && { date_from: occupancyDateFrom }),
+            ...(occupancyDateTo && { date_to: occupancyDateTo }),
+            ...(villageId && { village_id: villageId })
           })
         ]);
         
@@ -250,7 +255,7 @@ export default function Dashboard() {
     };
     
     loadData();
-  }, [village, currentYear]);
+  }, [village, occupancyDateFrom, occupancyDateTo]);
 
   const handleVillageChange = (event: SelectChangeEvent) => {
     setVillage(event.target.value);
