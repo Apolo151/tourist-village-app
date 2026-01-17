@@ -102,6 +102,9 @@ export default function CreateServiceRequest({
     // Owner cache to prevent infinite cycles and minimize API calls
     const [ownerCache, setOwnerCache] = useState<Record<number, User>>({});
     const pendingOwnerFetchRef = useRef<Record<number, boolean>>({});
+    
+    // Track if edit data has been loaded to prevent default cost effect from overwriting custom cost
+    const editDataLoadedRef = useRef<boolean>(false);
 
     // Form data
     const [formData, setFormData] = useState<
@@ -331,6 +334,8 @@ export default function CreateServiceRequest({
                 const data = await serviceRequestService.getServiceRequestById(
                     Number(editId)
                 );
+                // Mark that edit data is being loaded - prevents default cost effect from overwriting
+                editDataLoadedRef.current = true;
                 setFormData({
                     type_id: data.type_id,
                     apartment_id: data.apartment_id,
@@ -403,6 +408,12 @@ export default function CreateServiceRequest({
     // Effect to prefill cost with default village pricing when service type and apartment are selected
     useEffect(() => {
         const prefillDefaultCost = () => {
+            // Skip if in edit mode - edit data already has the correct cost values
+            // This prevents the default pricing from overwriting custom cost loaded from edit data
+            if (editDataLoadedRef.current) {
+                return;
+            }
+            
             if (!formData.type_id || !formData.apartment_id) {
                 // Clear cost fields if service type or apartment is not selected
                 setFormData(prev => ({
@@ -455,6 +466,8 @@ export default function CreateServiceRequest({
     // Clear cost when service type or apartment changes (to allow new defaults)
     const handleServiceTypeChange = (event: SelectChangeEvent) => {
         handleSelectChange(event, 'type_id');
+        // Reset edit data flag to allow default cost prefill for the new selection
+        editDataLoadedRef.current = false;
         // Clear custom cost to allow new defaults
         setFormData(prev => ({
             ...prev,
@@ -472,6 +485,8 @@ export default function CreateServiceRequest({
             } as SelectChangeEvent,
             "apartment_id"
         );
+        // Reset edit data flag to allow default cost prefill for the new selection
+        editDataLoadedRef.current = false;
         // Clear custom cost to allow new defaults
         setFormData(prev => ({
             ...prev,
