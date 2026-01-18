@@ -80,6 +80,11 @@ export default function Payments() {
   const [projectFilter, setProjectFilter] = useState('');
   const [phaseFilter, setPhaseFilter] = useState('');
   
+  // Derived filter states
+  const [availablePhases, setAvailablePhases] = useState<number[]>([]);
+  const [filteredApartments, setFilteredApartments] = useState<Apartment[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
+  
   // UI states
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,13 +181,86 @@ export default function Payments() {
       loadPayments();
     }
   }, [loading, searchTerm, apartmentFilter, userFilter, userTypeFilter, bookingFilter, currencyFilter, methodFilter, pagination.page, projectFilter]);
-  
+
+  // Update available phases when project is selected
+  useEffect(() => {
+    if (projectFilter) {
+      const selectedVillage = villages.find(v => v.id === parseInt(projectFilter));
+      if (selectedVillage) {
+        const phaseNumbers = Array.from(
+          { length: selectedVillage.phases || 0 },
+          (_, i) => i + 1
+        );
+        setAvailablePhases(phaseNumbers);
+        
+        // Clear phase selection if it doesn't exist in the new village
+        if (phaseFilter) {
+          const phaseExists = (selectedVillage.phases || 0) >= parseInt(phaseFilter);
+          if (!phaseExists) {
+            setPhaseFilter('');
+          }
+        }
+      }
+    } else {
+      // If no village selected, show all possible phases from all villages
+      const maxPhase = Math.max(...villages.map(v => v.phases || 0), 0);
+      const allPhases = Array.from({ length: maxPhase }, (_, i) => i + 1);
+      setAvailablePhases(allPhases);
+    }
+  }, [projectFilter, phaseFilter, villages]);
+
+  // Update filtered apartments when project or phase is selected
+  useEffect(() => {
+    let filtered = [...apartments];
+
+    if (projectFilter) {
+      filtered = filtered.filter(apt => apt.village?.id === parseInt(projectFilter));
+    }
+
+    if (phaseFilter) {
+      filtered = filtered.filter(apt => apt.phase === parseInt(phaseFilter));
+    }
+
+    setFilteredApartments(filtered);
+
+    // Clear apartment selection if it's not in the filtered list
+    if (apartmentFilter) {
+      const apartmentExists = filtered.some(apt => apt.id === parseInt(apartmentFilter));
+      if (!apartmentExists) {
+        setApartmentFilter('');
+        setBookingFilter(''); // Also clear booking when apartment becomes invalid
+      }
+    }
+  }, [projectFilter, phaseFilter, apartments, apartmentFilter]);
+
+  // Update filtered bookings when apartment is selected
+  useEffect(() => {
+    if (apartmentFilter) {
+      const bookingsForApartment = bookings.filter(b => b.apartment_id === parseInt(apartmentFilter));
+      setFilteredBookings(bookingsForApartment);
+    } else {
+      setFilteredBookings(bookings);
+    }
+
+    // Clear booking selection if it's not in the filtered list
+    if (bookingFilter) {
+      const bookingExists = bookings.some(b => 
+        b.id === parseInt(bookingFilter) && 
+        (!apartmentFilter || b.apartment_id === parseInt(apartmentFilter))
+      );
+      if (!bookingExists) {
+        setBookingFilter('');
+      }
+    }
+  }, [apartmentFilter, bookingFilter, bookings]);
+
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   };
   
   const handleApartmentFilterChange = (event: SelectChangeEvent) => {
     setApartmentFilter(event.target.value);
+    setBookingFilter(''); // Clear booking filter when apartment changes
     setPagination(prev => ({ ...prev, page: 1 }));
   };
   
@@ -408,19 +486,6 @@ export default function Payments() {
     setPagination(prev => ({ ...prev, page: 1 }));
   }
 
-  // Compute available phases for the selected project
-  const selectedVillage = villages.find(v => v.id === parseInt(projectFilter));
-  const availablePhases = selectedVillage
-    ? Array.from({ length: selectedVillage.phases }, (_, i) => i + 1)
-    : [];
-
-  // Filter apartments by project and phase
-  const filteredApartments = apartments.filter(apartment => {
-    if (projectFilter && parseInt(projectFilter) !== apartment.village_id) return false;
-    if (phaseFilter && parseInt(phaseFilter) !== apartment.phase) return false;
-    return true;
-  });
-
   return (
     <Container maxWidth="xl">
       <Box sx={{ mb: 4 }}>
@@ -479,6 +544,7 @@ export default function Payments() {
                   setProjectFilter(e.target.value);
                   setPhaseFilter('');
                   setApartmentFilter('');
+                  setBookingFilter(''); // Clear booking when project changes
                 }}
               >
                 <MenuItem value="">
@@ -498,6 +564,7 @@ export default function Payments() {
                 onChange={e => {
                   setPhaseFilter(e.target.value);
                   setApartmentFilter('');
+                  setBookingFilter(''); // Clear booking when phase changes
                 }}
                 disabled={!projectFilter}
               >
@@ -601,7 +668,7 @@ export default function Payments() {
                   <MenuItem value="">
                     <em>All Bookings</em>
                   </MenuItem>
-                  {(bookings || []).map(booking => (
+                  {(filteredBookings || []).map(booking => (
                     <MenuItem key={booking.id} value={booking.id.toString()}>
                       {booking.apartment?.name || 'Unknown'} - {formatDate(booking.arrival_date)}
                     </MenuItem>
